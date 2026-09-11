@@ -516,6 +516,7 @@
             <button class="lang-btn" data-lang="pl" onclick="setLanguage('pl')">PL</button>
             <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">EN</button>
         </div>
+        <button class="btn btn-secondary btn-icon" onclick="window.openAddEmployeeModal()" style="margin-left:8px;">+ Сотрудник</button>
         <button class="btn btn-secondary btn-icon" onclick="window.logout()" style="margin-left:8px;" id="logout-btn">
             <span id="current-user-name"></span> Выйти
         </button>
@@ -572,14 +573,43 @@
         </div>
     </div>
 
+    <!-- Modal for adding employee -->
+    <div class="modal-overlay" id="add-employee-overlay">
+        <div class="modal">
+            <h2>Добавить сотрудника</h2>
+            <div class="field">
+                <label>ID (логин)</label>
+                <input type="text" id="new-emp-id" inputmode="numeric" placeholder="Например: 60127940" maxlength="12">
+            </div>
+            <div class="field">
+                <label>PIN</label>
+                <input type="text" id="new-emp-pin" inputmode="numeric" placeholder="4-6 цифр" maxlength="6">
+            </div>
+            <div class="field">
+                <label>Имя сотрудника</label>
+                <input type="text" id="new-emp-name" placeholder="Например: Иван Иванов">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="window.closeAddEmployeeModal()">Отмена</button>
+                <button class="btn btn-add" onclick="window.addEmployee()" id="add-emp-btn">Добавить</button>
+            </div>
+            <div class="save-indicator" id="add-emp-error" style="color:#fca5a5;"></div>
+        </div>
+    </div>
+
     </div><!-- /app-content -->
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
+        import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
         import {
             getFirestore, collection, onSnapshot,
             addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc
         } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
+        import {
+            getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+            createUserWithEmailAndPassword, signOut,
+            setPersistence, browserLocalPersistence, browserSessionPersistence
+        } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCuBuZSiOi7A_Y7aMhXz2_MEVo48fOlu08",
@@ -592,12 +622,20 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
+        const auth = getAuth(app);
         const recordsCollection = collection(db, 'records');
-        const usersCollection = collection(db, 'users');
+        const employeesCollection = collection(db, 'employees');
+
+        // ID/PIN превращаем в email/пароль для настоящей Firebase-авторизации —
+        // человек по-прежнему вводит только ID и PIN, а под капотом это полноценный аккаунт
+        function idToEmail(id) { return `${id}@kletka-online.app`; }
+        function pinToPassword(pin) { return `klt-${pin}-secure`; }
+
+        const BOOTSTRAP_ID = '60127939';
+        const BOOTSTRAP_PIN = '6242';
+        const BOOTSTRAP_NAME = 'Александр';
 
         // ===== Экран входа =====
-        const LOGIN_STORAGE_KEY = 'kletka_logged_in';
-        const USER_NAME_STORAGE_KEY = 'kletka_user_name';
         const ATTEMPTS_KEY = 'kletka_login_attempts';
         const LOCK_UNTIL_KEY = 'kletka_login_lock_until';
         const MAX_ATTEMPTS = 5;
@@ -607,6 +645,11 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-content').style.display = 'block';
             document.getElementById('current-user-name').innerText = userName ? userName + ' —' : '';
+        }
+
+        function showLoginScreen() {
+            document.getElementById('app-content').style.display = 'none';
+            document.getElementById('login-screen').classList.remove('hidden');
         }
 
         function showLoginError(msg) {
@@ -675,51 +718,56 @@
             showLoginError('');
 
             try {
-                const snap = await getDoc(doc(usersCollection, idVal));
-                let matchedUser = null;
+                await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
 
-                if (snap.exists() && String(snap.data().pin) === pinVal) {
-                    matchedUser = snap.data();
-                } else if (!snap.exists() && idVal === '60127939' && pinVal === '6242') {
-                    // Первый запуск — создаём базового пользователя со значениями по умолчанию
-                    matchedUser = { id: idVal, pin: pinVal, name: 'Александр' };
-                    await setDoc(doc(usersCollection, idVal), matchedUser);
-                }
-
-                if (matchedUser) {
+                try {
+                    await signInWithEmailAndPassword(auth, idToEmail(idVal), pinToPassword(pinVal));
                     clearAttempts();
-                    const storage = remember ? localStorage : sessionStorage;
-                    storage.setItem(LOGIN_STORAGE_KEY, 'true');
-                    storage.setItem(USER_NAME_STORAGE_KEY, matchedUser.name || '');
-                    showApp(matchedUser.name);
-                } else {
-                    const attempts = registerFailedAttempt();
-                    if (getLockRemainingMs() > 0) {
-                        startLockCountdown();
+                    // onAuthStateChanged сам покажет приложение и подтянет имя
+                } catch (signInErr) {
+                    const isMissingUser = signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential';
+                    if (isMissingUser && idVal === BOOTSTRAP_ID && pinVal === BOOTSTRAP_PIN) {
+                        // Самый первый запуск — создаём главный аккаунт-администратор
+                        const cred = await createUserWithEmailAndPassword(auth, idToEmail(idVal), pinToPassword(pinVal));
+                        await setDoc(doc(employeesCollection, cred.user.uid), { id: idVal, name: BOOTSTRAP_NAME });
+                        clearAttempts();
                     } else {
-                        showLoginError(`Невірний ID або PIN (спроба ${attempts}/${MAX_ATTEMPTS})`);
-                        btn.disabled = false;
-                        btn.innerText = 'Увійти';
+                        throw signInErr;
                     }
                 }
             } catch (err) {
-                console.error('Auth error:', err);
-                showLoginError('Помилка перевірки. Перевірте інтернет.');
-                btn.disabled = false;
-                btn.innerText = 'Увійти';
+                console.error('Auth error:', err.code || err);
+                const attempts = registerFailedAttempt();
+                if (getLockRemainingMs() > 0) {
+                    startLockCountdown();
+                } else {
+                    showLoginError(`Невірний ID або PIN (спроба ${attempts}/${MAX_ATTEMPTS})`);
+                    btn.disabled = false;
+                    btn.innerText = 'Увійти';
+                }
             }
         }
 
-        // Автовход, если сессия уже была подтверждена на этом устройстве
-        (function initAuthState() {
-            const loggedIn = localStorage.getItem(LOGIN_STORAGE_KEY) === 'true' || sessionStorage.getItem(LOGIN_STORAGE_KEY) === 'true';
-            if (loggedIn) {
-                const name = localStorage.getItem(USER_NAME_STORAGE_KEY) || sessionStorage.getItem(USER_NAME_STORAGE_KEY) || '';
+        // Единая точка правды о статусе входа — реагирует на настоящую сессию Firebase Auth
+        onAuthStateChanged(auth, async (user) => {
+            const btn = document.getElementById('login-btn');
+            if (user) {
+                let name = '';
+                try {
+                    const empSnap = await getDoc(doc(employeesCollection, user.uid));
+                    if (empSnap.exists()) name = empSnap.data().name || '';
+                } catch (e) { console.error('Employee lookup error:', e); }
                 showApp(name);
-            } else if (getLockRemainingMs() > 0) {
-                startLockCountdown();
+            } else {
+                showLoginScreen();
             }
-        })();
+            btn.disabled = false;
+            btn.innerText = 'Увійти';
+        });
+
+        if (getLockRemainingMs() > 0) {
+            startLockCountdown();
+        }
 
         document.getElementById('login-btn').addEventListener('click', attemptLogin);
         document.getElementById('login-pin').addEventListener('keydown', (e) => {
@@ -739,6 +787,64 @@
                 btn.innerText = 'Показать';
             }
         });
+
+        // ===== Добавление сотрудника (используем отдельный вторичный экземпляр Firebase,
+        // чтобы создание нового аккаунта не выбивало из системы текущего вошедшего) =====
+        async function addEmployee() {
+            const newId = document.getElementById('new-emp-id').value.trim();
+            const newPin = document.getElementById('new-emp-pin').value.trim();
+            const newName = document.getElementById('new-emp-name').value.trim();
+            const errorEl = document.getElementById('add-emp-error');
+            const btn = document.getElementById('add-emp-btn');
+            errorEl.innerText = '';
+
+            if (!newId || !newPin || !newName) {
+                errorEl.innerText = 'Заполните все поля';
+                return;
+            }
+            if (newPin.length < 4) {
+                errorEl.innerText = 'PIN должен быть не короче 4 цифр';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerText = '...';
+
+            const secondaryApp = initializeApp(firebaseConfig, 'secondary-' + Date.now());
+            const secondaryAuth = getAuth(secondaryApp);
+
+            try {
+                const cred = await createUserWithEmailAndPassword(secondaryAuth, idToEmail(newId), pinToPassword(newPin));
+                await setDoc(doc(collection(db, 'employees'), cred.user.uid), { id: newId, name: newName });
+                await signOut(secondaryAuth);
+                await deleteApp(secondaryApp);
+                closeAddEmployeeModal();
+                document.getElementById('new-emp-id').value = '';
+                document.getElementById('new-emp-pin').value = '';
+                document.getElementById('new-emp-name').value = '';
+            } catch (err) {
+                console.error('Add employee error:', err);
+                if (err.code === 'auth/email-already-in-use') {
+                    errorEl.innerText = 'Сотрудник с таким ID уже существует';
+                } else if (err.code === 'auth/weak-password') {
+                    errorEl.innerText = 'PIN слишком короткий (нужно от 6 символов)';
+                } else {
+                    errorEl.innerText = 'Ошибка при добавлении';
+                }
+                try { await deleteApp(secondaryApp); } catch (e) {}
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Добавить';
+            }
+        }
+
+        function openAddEmployeeModal() {
+            document.getElementById('add-emp-error').innerText = '';
+            document.getElementById('add-employee-overlay').classList.add('open');
+        }
+        function closeAddEmployeeModal() {
+            document.getElementById('add-employee-overlay').classList.remove('open');
+        }
 
         let records = [];
         let currentLang = 'ru';
@@ -1027,15 +1133,15 @@
             if (e.target.id === 'modal-overlay') closeModal();
         });
 
-        function logout() {
-            localStorage.removeItem(LOGIN_STORAGE_KEY);
-            localStorage.removeItem(USER_NAME_STORAGE_KEY);
-            sessionStorage.removeItem(LOGIN_STORAGE_KEY);
-            sessionStorage.removeItem(USER_NAME_STORAGE_KEY);
-            document.getElementById('app-content').style.display = 'none';
-            document.getElementById('login-screen').classList.remove('hidden');
+        async function logout() {
+            try {
+                await signOut(auth);
+            } catch (err) {
+                console.error('Logout error:', err);
+            }
             document.getElementById('login-id').value = '';
             document.getElementById('login-pin').value = '';
+            // showLoginScreen() вызовется автоматически через onAuthStateChanged
         }
 
         // Делаем функции доступными для onclick в разметке (модульный скрипт изолирован от глобальной области)
@@ -1048,6 +1154,9 @@
         window.deleteRecord = deleteRecord;
         window.renderTable = renderTable;
         window.logout = logout;
+        window.addEmployee = addEmployee;
+        window.openAddEmployeeModal = openAddEmployeeModal;
+        window.closeAddEmployeeModal = closeAddEmployeeModal;
     </script>
 </body>
 </html>
