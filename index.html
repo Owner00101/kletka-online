@@ -758,8 +758,10 @@
                     if (empSnap.exists()) name = empSnap.data().name || '';
                 } catch (e) { console.error('Employee lookup error:', e); }
                 showApp(name);
+                subscribeToRecords();
             } else {
                 showLoginScreen();
+                unsubscribeFromRecords();
             }
             btn.disabled = false;
             btn.innerText = 'Увійти';
@@ -978,16 +980,28 @@
             return `${dd}.${mm}.${yyyy}`;
         }
 
-        // Живая подписка на изменения — все, кто открыл страницу, видят обновления сразу
-        onSnapshot(recordsCollection, (snapshot) => {
-            records = snapshot.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
-            records.sort((a, b) => (a.seq || 0) - (b.seq || 0));
-            renderTable();
-        }, (err) => {
-            console.error('Firestore error:', err);
-            const tbody = document.getElementById('inventory-list');
-            tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Ошибка подключения к базе данных. Проверьте интернет и правила безопасности Firestore.</td></tr>`;
-        });
+        // Живая подписка на изменения — запускается только после подтверждённого входа,
+        // так как правила Firestore теперь требуют аутентификацию
+        let unsubscribeRecords = null;
+        function subscribeToRecords() {
+            if (unsubscribeRecords) return; // уже подписаны
+            unsubscribeRecords = onSnapshot(recordsCollection, (snapshot) => {
+                records = snapshot.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
+                records.sort((a, b) => (a.seq || 0) - (b.seq || 0));
+                renderTable();
+            }, (err) => {
+                console.error('Firestore error:', err);
+                const tbody = document.getElementById('inventory-list');
+                tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Ошибка подключения к базе данных. Проверьте интернет и правила безопасности Firestore.</td></tr>`;
+            });
+        }
+        function unsubscribeFromRecords() {
+            if (unsubscribeRecords) {
+                unsubscribeRecords();
+                unsubscribeRecords = null;
+            }
+            records = [];
+        }
 
         function nextDisplayId() {
             const maxNum = records.reduce((max, r) => {
