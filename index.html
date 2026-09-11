@@ -814,10 +814,13 @@
 
             const secondaryApp = initializeApp(firebaseConfig, 'secondary-' + Date.now());
             const secondaryAuth = getAuth(secondaryApp);
+            const secondaryDb = getFirestore(secondaryApp);
 
             try {
                 const cred = await createUserWithEmailAndPassword(secondaryAuth, idToEmail(newId), pinToPassword(newPin));
-                await setDoc(doc(collection(db, 'employees'), cred.user.uid), { id: newId, name: newName });
+                // Пишем через secondaryDb, т.к. правила разрешают сотруднику создавать только свою запись —
+                // а через основной db запрос ушёл бы от имени администратора, а не нового сотрудника
+                await setDoc(doc(collection(secondaryDb, 'employees'), cred.user.uid), { id: newId, name: newName });
                 await signOut(secondaryAuth);
                 await deleteApp(secondaryApp);
                 closeAddEmployeeModal();
