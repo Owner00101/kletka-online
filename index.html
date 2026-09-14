@@ -496,6 +496,31 @@
             text-align: center;
             color: var(--text-muted);
         }
+        /* ===== Dashboard: сводка и плитки категорий ===== */
+        .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 28px; }
+        .stat-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; }
+        .stat-card .num { font-size: 20px; font-weight: 800; color: var(--emerald); }
+        .stat-card .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+        .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 14px; }
+
+        .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
+        .category-tile {
+            background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 16px;
+            padding: 20px; cursor: pointer; transition: all 0.15s ease; text-align: left;
+        }
+        .category-tile:hover { border-color: var(--emerald); background: #24304a; transform: translateY(-2px); }
+        .category-tile .icon { font-size: 26px; margin-bottom: 10px; display: block; }
+        .category-tile .label { font-size: 15px; font-weight: 700; color: var(--text-main); margin-bottom: 4px; }
+        .category-tile .count { font-size: 22px; font-weight: 800; color: var(--emerald); }
+        .category-tile .count-label { font-size: 11px; color: var(--text-muted); }
+
+        .back-link {
+            display: inline-flex; align-items: center; gap: 6px; color: var(--emerald); background: none;
+            border: none; cursor: pointer; font-size: 13px; font-weight: 600; margin-bottom: 16px; padding: 0;
+        }
+        .back-link:hover { color: var(--emerald-light); }
+
     </style>
 </head>
 <body>
@@ -549,27 +574,67 @@
         </button>
     </header>
 
-    <div class="controls-bar">
-        <input type="text" class="search-input" id="search-input" placeholder="Поиск инструмента..." oninput="renderTable()">
-        <button class="btn btn-add" id="btn-add" onclick="openAddModal()">+ Добавить запись</button>
+    <!-- ГЛАВНАЯ: сводка и плитки категорий -->
+    <div id="dashboard-view">
+        <div class="stat-row" id="stat-row"></div>
+        <div class="section-title">Категории</div>
+        <div class="category-grid" id="category-grid"></div>
     </div>
 
-    <div class="table-container">
-        <table>
-            <thead>
-                <tr>
-                    <th id="th-id">ID</th>
-                    <th id="th-name">Наименование</th>
-                    <th id="th-employee">Сотрудник</th>
-                    <th id="th-status">Статус</th>
-                    <th id="th-date">Дата записи</th>
-                    <th id="th-actions"></th>
-                </tr>
-            </thead>
-            <tbody id="inventory-list">
-                <tr><td colspan="6" class="loading" id="loading-row">Загрузка...</td></tr>
-            </tbody>
-        </table>
+    <!-- ВИД: Инструменты (Kletka) -->
+    <div id="tools-view" style="display:none;">
+        <button class="back-link" onclick="window.showDashboard()">← Все категории</button>
+
+        <div class="controls-bar">
+            <input type="text" class="search-input" id="search-input" placeholder="Поиск инструмента..." oninput="renderTable()">
+            <button class="btn btn-add" id="btn-add" onclick="openAddModal()">+ Добавить запись</button>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th id="th-id">ID</th>
+                        <th id="th-name">Наименование</th>
+                        <th id="th-employee">Сотрудник</th>
+                        <th id="th-status">Статус</th>
+                        <th id="th-date">Дата записи</th>
+                        <th id="th-actions"></th>
+                    </tr>
+                </thead>
+                <tbody id="inventory-list">
+                    <tr><td colspan="6" class="loading" id="loading-row">Загрузка...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- ВИД: Техника (категории вроде "Мониторы") -->
+    <div id="tech-view" style="display:none;">
+        <button class="back-link" onclick="window.showDashboard()">← Все категории</button>
+
+        <div class="controls-bar">
+            <input type="text" class="search-input" id="tech-search-input" placeholder="Поиск по модели, серийному номеру, Asset code..." oninput="renderTechTable()">
+            <button class="btn btn-add" onclick="window.openAddTechModal()">+ Добавить</button>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Asset Code</th>
+                        <th>Название / модель</th>
+                        <th>Серийный номер</th>
+                        <th>Статус</th>
+                        <th>Дата записи</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="tech-items-list">
+                    <tr><td colspan="6" class="loading">Загрузка...</td></tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <!-- Modal for add/edit -->
@@ -635,6 +700,38 @@
         </div>
     </div>
 
+    <!-- Modal for add/edit tech item -->
+    <div class="modal-overlay" id="tech-modal-overlay">
+        <div class="modal">
+            <h2 id="tech-modal-title">Добавить технику</h2>
+            <div class="field">
+                <label>Название / модель</label>
+                <input type="text" id="tech-field-name" placeholder="Например: Dell P2419H 24&quot;">
+            </div>
+            <div class="field">
+                <label>Серийный номер</label>
+                <input type="text" id="tech-field-serial" placeholder="S/N">
+            </div>
+            <div class="field">
+                <label>Asset code</label>
+                <input type="text" id="tech-field-asset" placeholder="Инвентарный код">
+            </div>
+            <div class="field">
+                <label>Статус</label>
+                <select id="tech-field-status">
+                    <option value="kletka">В наличии</option>
+                    <option value="issued">Выдано</option>
+                    <option value="broken">Неисправно</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="window.closeTechModal()">Отмена</button>
+                <button class="btn btn-add" onclick="window.saveTechItem()" id="tech-btn-save">Сохранить</button>
+            </div>
+            <div class="save-indicator" id="tech-save-indicator"></div>
+        </div>
+    </div>
+
     </div><!-- /app-content -->
 
     <script type="module">
@@ -665,9 +762,22 @@
         const recordsCollection = collection(db, 'records');
         const employeesCollection = collection(db, 'employees');
         const activityCollection = collection(db, 'activity_log');
+        const techItemsCollection = collection(db, 'tech_items');
+
+        // Категории техники — легко расширить позже, просто добавив новый объект в массив
+        const TECH_CATEGORIES = [
+            { key: 'monitors', label: 'Мониторы', icon: '🖥️', prefix: 'MON' }
+        ];
+        function techCategoryLabel(key) {
+            const c = TECH_CATEGORIES.find(c => c.key === key);
+            return c ? c.label : key;
+        }
 
         let currentUserName = '';
         let isAdmin = false;
+        let techItems = [];
+        let currentTechCategory = null;
+        let editingTechId = null;
 
         async function logActivity(action, message) {
             try {
@@ -706,6 +816,63 @@
         function showLoginScreen() {
             document.getElementById('app-content').style.display = 'none';
             document.getElementById('login-screen').classList.remove('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('dashboard-view').style.display = 'block';
+            document.getElementById('tools-view').style.display = 'none';
+            document.getElementById('tech-view').style.display = 'none';
+            renderDashboard();
+        }
+
+        function openToolsView() {
+            document.getElementById('dashboard-view').style.display = 'none';
+            document.getElementById('tools-view').style.display = 'block';
+            document.getElementById('tech-view').style.display = 'none';
+        }
+
+        function openTechCategory(key) {
+            currentTechCategory = key;
+            document.getElementById('dashboard-view').style.display = 'none';
+            document.getElementById('tools-view').style.display = 'none';
+            document.getElementById('tech-view').style.display = 'block';
+            document.getElementById('tech-search-input').value = '';
+            renderTechTable();
+        }
+
+        function renderDashboard() {
+            const statRow = document.getElementById('stat-row');
+            const grid = document.getElementById('category-grid');
+            if (!statRow || !grid) return;
+
+            const allStatuses = [...records.map(r => r.status), ...techItems.map(i => i.status)];
+            statRow.innerHTML = `
+                <div class="stat-card"><div class="num">${records.length + techItems.length}</div><div class="lbl">Всего единиц</div></div>
+                <div class="stat-card"><div class="num">${allStatuses.filter(s => s === 'kletka').length}</div><div class="lbl">В наличии</div></div>
+                <div class="stat-card"><div class="num">${allStatuses.filter(s => s === 'issued').length}</div><div class="lbl">Выдано</div></div>
+                <div class="stat-card"><div class="num">${allStatuses.filter(s => s === 'broken').length}</div><div class="lbl">Неисправно</div></div>
+            `;
+
+            const toolsTile = `
+                <button class="category-tile" onclick="window.openToolsView()">
+                    <span class="icon">🔧</span>
+                    <div class="label">Инструменты</div>
+                    <div class="count">${records.length}</div>
+                    <div class="count-label">единиц</div>
+                </button>
+            `;
+            const techTiles = TECH_CATEGORIES.map(cat => {
+                const count = techItems.filter(i => i.category === cat.key).length;
+                return `
+                    <button class="category-tile" onclick="window.openTechCategory('${cat.key}')">
+                        <span class="icon">${cat.icon}</span>
+                        <div class="label">${cat.label}</div>
+                        <div class="count">${count}</div>
+                        <div class="count-label">единиц</div>
+                    </button>
+                `;
+            }).join('');
+            grid.innerHTML = toolsTile + techTiles;
         }
 
         function showLoginError(msg) {
@@ -821,10 +988,13 @@
                 document.getElementById('add-emp-nav-btn').style.display = isAdmin ? 'inline-block' : 'none';
                 showApp(name);
                 subscribeToRecords();
+                subscribeToTechItems();
                 subscribeToActivity();
+                showDashboard();
             } else {
                 showLoginScreen();
                 unsubscribeFromRecords();
+                unsubscribeFromTechItems();
                 unsubscribeFromActivity();
                 currentUserName = '';
                 isAdmin = false;
@@ -1066,6 +1236,7 @@
                 records = snapshot.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
                 records.sort((a, b) => (a.seq || 0) - (b.seq || 0));
                 renderTable();
+                renderDashboard();
             }, (err) => {
                 console.error('Firestore error:', err);
                 const tbody = document.getElementById('inventory-list');
@@ -1079,6 +1250,161 @@
             }
             records = [];
         }
+
+        // ===== Техника (категории вроде "Мониторы") =====
+        let unsubscribeTechItems = null;
+        function subscribeToTechItems() {
+            if (unsubscribeTechItems) return;
+            unsubscribeTechItems = onSnapshot(techItemsCollection, (snapshot) => {
+                techItems = snapshot.docs.map(d => ({ firestoreId: d.id, ...d.data() }));
+                techItems.sort((a, b) => (a.seq || 0) - (b.seq || 0));
+                if (currentTechCategory) renderTechTable();
+                renderDashboard();
+            }, (err) => {
+                console.error('Firestore error:', err);
+                const tbody = document.getElementById('tech-items-list');
+                if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="empty-state">Ошибка подключения к базе данных. Проверьте правила безопасности Firestore.</td></tr>`;
+            });
+        }
+        function unsubscribeFromTechItems() {
+            if (unsubscribeTechItems) {
+                unsubscribeTechItems();
+                unsubscribeTechItems = null;
+            }
+            techItems = [];
+        }
+
+        function nextTechDisplayId(categoryKey) {
+            const cat = TECH_CATEGORIES.find(c => c.key === categoryKey);
+            const prefix = cat ? cat.prefix : 'ITEM';
+            const catItems = techItems.filter(i => i.category === categoryKey);
+            const maxNum = catItems.reduce((max, i) => {
+                const num = parseInt(String(i.displayId || '').replace(prefix + '-', ''), 10);
+                return isNaN(num) ? max : Math.max(max, num);
+            }, 0);
+            return `${prefix}-${String(maxNum + 1).padStart(3, '0')}`;
+        }
+        function nextTechSeq() { return techItems.reduce((max, i) => Math.max(max, i.seq || 0), 0) + 1; }
+
+        function renderTechTable() {
+            const tbody = document.getElementById('tech-items-list');
+            const q = document.getElementById('tech-search-input').value.trim().toLowerCase();
+            let filtered = techItems.filter(i => i.category === currentTechCategory);
+
+            if (q) {
+                filtered = filtered.filter(i =>
+                    (i.name || '').toLowerCase().includes(q) ||
+                    (i.serial || '').toLowerCase().includes(q) ||
+                    (i.assetCode || '').toLowerCase().includes(q) ||
+                    (i.displayId || '').toLowerCase().includes(q)
+                );
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="empty-state">${q ? 'Ничего не найдено' : 'Пока нет записей в этой категории'}</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(i => `
+                <tr>
+                    <td>${escapeHtml(i.displayId || '')}</td>
+                    <td>${escapeHtml(i.name || '')}</td>
+                    <td>${escapeHtml(i.serial || '')}</td>
+                    <td>
+                        <select class="status-badge status-${i.status}" onchange="window.changeTechStatus('${i.firestoreId}', this.value)">
+                            <option value="kletka" ${i.status === 'kletka' ? 'selected' : ''}>В наличии</option>
+                            <option value="issued" ${i.status === 'issued' ? 'selected' : ''}>Выдано</option>
+                            <option value="broken" ${i.status === 'broken' ? 'selected' : ''}>Неисправно</option>
+                        </select>
+                    </td>
+                    <td>${formatDate(i.date)}</td>
+                    <td class="actions-cell">
+                        <button class="btn btn-secondary btn-icon" onclick="window.openEditTechModal('${i.firestoreId}')">Изм.</button>
+                        <button class="btn btn-danger btn-icon" onclick="window.deleteTechItem('${i.firestoreId}')">Удал.</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function openAddTechModal() {
+            editingTechId = null;
+            document.getElementById('tech-modal-title').innerText = `Добавить: ${techCategoryLabel(currentTechCategory)}`;
+            document.getElementById('tech-field-name').value = '';
+            document.getElementById('tech-field-serial').value = '';
+            document.getElementById('tech-field-asset').value = '';
+            document.getElementById('tech-field-status').value = 'kletka';
+            document.getElementById('tech-save-indicator').innerText = '';
+            document.getElementById('tech-modal-overlay').classList.add('open');
+        }
+        function openEditTechModal(id) {
+            const item = techItems.find(i => i.firestoreId === id);
+            if (!item) return;
+            editingTechId = id;
+            document.getElementById('tech-modal-title').innerText = `Изменить: ${techCategoryLabel(currentTechCategory)}`;
+            document.getElementById('tech-field-name').value = item.name || '';
+            document.getElementById('tech-field-serial').value = item.serial || '';
+            document.getElementById('tech-field-asset').value = item.assetCode || '';
+            document.getElementById('tech-field-status').value = item.status || 'kletka';
+            document.getElementById('tech-save-indicator').innerText = '';
+            document.getElementById('tech-modal-overlay').classList.add('open');
+        }
+        function closeTechModal() { document.getElementById('tech-modal-overlay').classList.remove('open'); }
+
+        async function saveTechItem() {
+            const name = document.getElementById('tech-field-name').value.trim();
+            const serial = document.getElementById('tech-field-serial').value.trim();
+            const assetCode = document.getElementById('tech-field-asset').value.trim();
+            const status = document.getElementById('tech-field-status').value;
+            const indicator = document.getElementById('tech-save-indicator');
+
+            if (!name) { indicator.innerText = 'Заполните название/модель'; return; }
+
+            indicator.innerText = '...';
+            try {
+                if (editingTechId) {
+                    await updateDoc(doc(db, 'tech_items', editingTechId), { name, serial, assetCode, status });
+                    logActivity('edit', `Изменена запись (${techCategoryLabel(currentTechCategory)}): ${name}`);
+                } else {
+                    await addDoc(techItemsCollection, {
+                        category: currentTechCategory,
+                        displayId: nextTechDisplayId(currentTechCategory),
+                        seq: nextTechSeq(),
+                        name, serial, assetCode, status,
+                        date: new Date().toISOString()
+                    });
+                    logActivity('add', `Добавлена запись (${techCategoryLabel(currentTechCategory)}): ${name}`);
+                }
+                indicator.innerText = 'Сохранено';
+                closeTechModal();
+            } catch (err) {
+                console.error('Firestore error:', err);
+                indicator.innerText = 'Ошибка сохранения';
+            }
+        }
+
+        async function changeTechStatus(id, newStatus) {
+            try {
+                const item = techItems.find(i => i.firestoreId === id);
+                await updateDoc(doc(db, 'tech_items', id), { status: newStatus });
+                if (item) {
+                    const labels = { kletka: 'В наличии', issued: 'Выдано', broken: 'Неисправно' };
+                    logActivity('status', `Статус "${item.name}" изменён на "${labels[newStatus] || newStatus}"`);
+                }
+            } catch (err) { console.error('Firestore error:', err); alert('Ошибка сохранения'); }
+        }
+
+        async function deleteTechItem(id) {
+            if (!confirm('Удалить эту запись?')) return;
+            try {
+                const item = techItems.find(i => i.firestoreId === id);
+                await deleteDoc(doc(db, 'tech_items', id));
+                if (item) logActivity('delete', `Удалена запись (${techCategoryLabel(currentTechCategory)}): ${item.name}`);
+            } catch (err) { console.error('Firestore error:', err); alert('Ошибка сохранения'); }
+        }
+
+        document.getElementById('tech-modal-overlay').addEventListener('click', (e) => {
+            if (e.target.id === 'tech-modal-overlay') closeTechModal();
+        });
 
         // Журнал действий (история)
         let unsubscribeActivity = null;
@@ -1300,6 +1626,15 @@
         window.closeAddEmployeeModal = closeAddEmployeeModal;
         window.openHistoryModal = openHistoryModal;
         window.closeHistoryModal = closeHistoryModal;
+        window.showDashboard = showDashboard;
+        window.openToolsView = openToolsView;
+        window.openTechCategory = openTechCategory;
+        window.openAddTechModal = openAddTechModal;
+        window.openEditTechModal = openEditTechModal;
+        window.closeTechModal = closeTechModal;
+        window.saveTechItem = saveTechItem;
+        window.changeTechStatus = changeTechStatus;
+        window.deleteTechItem = deleteTechItem;
     </script>
 </body>
 </html>
