@@ -465,6 +465,32 @@
             min-height: 16px;
         }
 
+        .history-list {
+            max-height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .history-item {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 10px 12px;
+        }
+
+        .history-message {
+            font-size: 13px;
+            color: var(--text-main);
+            margin-bottom: 4px;
+        }
+
+        .history-meta {
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
         .loading {
             padding: 40px;
             text-align: center;
@@ -516,7 +542,8 @@
             <button class="lang-btn" data-lang="pl" onclick="setLanguage('pl')">PL</button>
             <button class="lang-btn" data-lang="en" onclick="setLanguage('en')">EN</button>
         </div>
-        <button class="btn btn-secondary btn-icon" onclick="window.openAddEmployeeModal()" style="margin-left:8px;">+ Сотрудник</button>
+        <button class="btn btn-secondary btn-icon" onclick="window.openAddEmployeeModal()" style="margin-left:8px; display:none;" id="add-emp-nav-btn">+ Сотрудник</button>
+        <button class="btn btn-secondary btn-icon" onclick="window.openHistoryModal()" style="margin-left:8px;">История</button>
         <button class="btn btn-secondary btn-icon" onclick="window.logout()" style="margin-left:8px;" id="logout-btn">
             <span id="current-user-name"></span> Выйти
         </button>
@@ -583,7 +610,7 @@
             </div>
             <div class="field">
                 <label>PIN</label>
-                <input type="text" id="new-emp-pin" inputmode="numeric" placeholder="4-6 цифр" maxlength="6">
+                <input type="text" id="new-emp-pin" inputmode="numeric" placeholder="Не короче 6 цифр" maxlength="8">
             </div>
             <div class="field">
                 <label>Имя сотрудника</label>
@@ -597,13 +624,25 @@
         </div>
     </div>
 
+    <!-- Modal for history log -->
+    <div class="modal-overlay" id="history-overlay">
+        <div class="modal" style="width: 480px; max-width: 92vw;">
+            <h2>История действий</h2>
+            <div id="history-list" class="history-list"></div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="window.closeHistoryModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
     </div><!-- /app-content -->
 
     <script type="module">
         import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
         import {
             getFirestore, collection, onSnapshot,
-            addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc
+            addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc,
+            query, orderBy, limit
         } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
         import {
             getAuth, onAuthStateChanged, signInWithEmailAndPassword,
@@ -625,6 +664,23 @@
         const auth = getAuth(app);
         const recordsCollection = collection(db, 'records');
         const employeesCollection = collection(db, 'employees');
+        const activityCollection = collection(db, 'activity_log');
+
+        let currentUserName = '';
+        let isAdmin = false;
+
+        async function logActivity(action, message) {
+            try {
+                await addDoc(activityCollection, {
+                    action,
+                    message,
+                    actor: currentUserName || 'Неизвестно',
+                    timestamp: Date.now()
+                });
+            } catch (e) {
+                console.error('Activity log error:', e);
+            }
+        }
 
         // ID/PIN превращаем в email/пароль для настоящей Firebase-авторизации —
         // человек по-прежнему вводит только ID и PIN, а под капотом это полноценный аккаунт
@@ -729,7 +785,7 @@
                     if (isMissingUser && idVal === BOOTSTRAP_ID && pinVal === BOOTSTRAP_PIN) {
                         // Самый первый запуск — создаём главный аккаунт-администратор
                         const cred = await createUserWithEmailAndPassword(auth, idToEmail(idVal), pinToPassword(pinVal));
-                        await setDoc(doc(employeesCollection, cred.user.uid), { id: idVal, name: BOOTSTRAP_NAME });
+                        await setDoc(doc(employeesCollection, cred.user.uid), { id: idVal, name: BOOTSTRAP_NAME, role: 'staff' });
                         clearAttempts();
                     } else {
                         throw signInErr;
@@ -753,15 +809,25 @@
             const btn = document.getElementById('login-btn');
             if (user) {
                 let name = '';
+                isAdmin = false;
                 try {
                     const empSnap = await getDoc(doc(employeesCollection, user.uid));
-                    if (empSnap.exists()) name = empSnap.data().name || '';
+                    if (empSnap.exists()) {
+                        name = empSnap.data().name || '';
+                        isAdmin = empSnap.data().role === 'admin';
+                    }
                 } catch (e) { console.error('Employee lookup error:', e); }
+                currentUserName = name;
+                document.getElementById('add-emp-nav-btn').style.display = isAdmin ? 'inline-block' : 'none';
                 showApp(name);
                 subscribeToRecords();
+                subscribeToActivity();
             } else {
                 showLoginScreen();
                 unsubscribeFromRecords();
+                unsubscribeFromActivity();
+                currentUserName = '';
+                isAdmin = false;
             }
             btn.disabled = false;
             btn.innerText = 'Увійти';
@@ -793,6 +859,11 @@
         // ===== Добавление сотрудника (используем отдельный вторичный экземпляр Firebase,
         // чтобы создание нового аккаунта не выбивало из системы текущего вошедшего) =====
         async function addEmployee() {
+            if (!isAdmin) {
+                document.getElementById('add-emp-error').innerText = 'Только администратор может добавлять сотрудников';
+                return;
+            }
+
             const newId = document.getElementById('new-emp-id').value.trim();
             const newPin = document.getElementById('new-emp-pin').value.trim();
             const newName = document.getElementById('new-emp-name').value.trim();
@@ -804,8 +875,8 @@
                 errorEl.innerText = 'Заполните все поля';
                 return;
             }
-            if (newPin.length < 4) {
-                errorEl.innerText = 'PIN должен быть не короче 4 цифр';
+            if (newPin.length < 6) {
+                errorEl.innerText = 'PIN должен быть не короче 6 цифр';
                 return;
             }
 
@@ -819,10 +890,13 @@
             try {
                 const cred = await createUserWithEmailAndPassword(secondaryAuth, idToEmail(newId), pinToPassword(newPin));
                 // Пишем через secondaryDb, т.к. правила разрешают сотруднику создавать только свою запись —
-                // а через основной db запрос ушёл бы от имени администратора, а не нового сотрудника
-                await setDoc(doc(collection(secondaryDb, 'employees'), cred.user.uid), { id: newId, name: newName });
+                // а через основной db запрос ушёл бы от имени администратора, а не нового сотрудника.
+                // Роль всегда "staff" при самостоятельном создании — так требуют правила безопасности,
+                // повысить до администратора можно только вручную через консоль Firebase.
+                await setDoc(doc(collection(secondaryDb, 'employees'), cred.user.uid), { id: newId, name: newName, role: 'staff' });
                 await signOut(secondaryAuth);
                 await deleteApp(secondaryApp);
+                logActivity('employee', `Добавлен сотрудник: ${newName} (ID ${newId})`);
                 closeAddEmployeeModal();
                 document.getElementById('new-emp-id').value = '';
                 document.getElementById('new-emp-pin').value = '';
@@ -1006,6 +1080,47 @@
             records = [];
         }
 
+        // Журнал действий (история)
+        let unsubscribeActivity = null;
+        function subscribeToActivity() {
+            if (unsubscribeActivity) return;
+            const q = query(activityCollection, orderBy('timestamp', 'desc'), limit(50));
+            unsubscribeActivity = onSnapshot(q, (snapshot) => {
+                const list = document.getElementById('history-list');
+                if (!list) return;
+                if (snapshot.empty) {
+                    list.innerHTML = `<div class="empty-state">Пока нет действий</div>`;
+                    return;
+                }
+                list.innerHTML = snapshot.docs.map(d => {
+                    const data = d.data();
+                    const dt = new Date(data.timestamp);
+                    const timeStr = dt.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    return `
+                        <div class="history-item">
+                            <div class="history-message">${escapeHtml(data.message || '')}</div>
+                            <div class="history-meta">${escapeHtml(data.actor || '')} · ${timeStr}</div>
+                        </div>
+                    `;
+                }).join('');
+            }, (err) => {
+                console.error('Activity error:', err);
+            });
+        }
+        function unsubscribeFromActivity() {
+            if (unsubscribeActivity) {
+                unsubscribeActivity();
+                unsubscribeActivity = null;
+            }
+        }
+
+        function openHistoryModal() {
+            document.getElementById('history-overlay').classList.add('open');
+        }
+        function closeHistoryModal() {
+            document.getElementById('history-overlay').classList.remove('open');
+        }
+
         function nextDisplayId() {
             const maxNum = records.reduce((max, r) => {
                 const num = parseInt(String(r.displayId || '').replace('#', ''), 10);
@@ -1111,6 +1226,7 @@
             try {
                 if (editingId) {
                     await updateDoc(doc(db, 'records', editingId), { name, employee, status });
+                    logActivity('edit', `Изменена запись: ${name} (сотрудник: ${employee})`);
                 } else {
                     await addDoc(recordsCollection, {
                         displayId: nextDisplayId(),
@@ -1118,6 +1234,7 @@
                         name, employee, status,
                         date: new Date().toISOString()
                     });
+                    logActivity('add', `Добавлена запись: ${name} (сотрудник: ${employee})`);
                 }
                 indicator.innerText = t().savedOk;
                 closeModal();
@@ -1129,7 +1246,12 @@
 
         async function changeStatus(id, newStatus) {
             try {
+                const record = records.find(r => r.firestoreId === id);
                 await updateDoc(doc(db, 'records', id), { status: newStatus });
+                if (record) {
+                    const statusLabels = { kletka: 'В клетке', issued: 'Выдано', broken: 'Неисправно' };
+                    logActivity('status', `Статус "${record.name}" изменён на "${statusLabels[newStatus] || newStatus}"`);
+                }
             } catch (err) {
                 console.error('Firestore error:', err);
                 alert(t().savedErr);
@@ -1139,7 +1261,9 @@
         async function deleteRecord(id) {
             if (!confirm(t().confirmDelete)) return;
             try {
+                const record = records.find(r => r.firestoreId === id);
                 await deleteDoc(doc(db, 'records', id));
+                if (record) logActivity('delete', `Удалена запись: ${record.name}`);
             } catch (err) {
                 console.error('Firestore error:', err);
                 alert(t().savedErr);
@@ -1174,6 +1298,8 @@
         window.addEmployee = addEmployee;
         window.openAddEmployeeModal = openAddEmployeeModal;
         window.closeAddEmployeeModal = closeAddEmployeeModal;
+        window.openHistoryModal = openHistoryModal;
+        window.closeHistoryModal = closeHistoryModal;
     </script>
 </body>
 </html>
