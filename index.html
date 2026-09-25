@@ -18,6 +18,10 @@
             --emerald: #10b981;
             --emerald-dark: #059669;
             --emerald-light: #34d399;
+            --blue: #3b82f6;
+            --blue-light: #60a5fa;
+            --orange: #f59e0b;
+            --orange-light: #fbbf24;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -189,10 +193,64 @@
         .home-status { font-size: 12px; font-weight: 700; color: var(--emerald-light); background: rgba(16,185,129,0.12); padding: 3px 10px; border-radius: 20px; }
         .home-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 
-        .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 12px; margin-bottom: 32px; }
-        .stat-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; }
-        .stat-card .num { font-size: 20px; font-weight: 800; color: var(--emerald-light); }
-        .stat-card .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+        /* ===== Метрики: 2 ряда по 4 карточки, с цветовой индикацией по типу учёта ===== */
+        .stat-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); margin: 0 0 10px; }
+        .stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+        @media (max-width: 900px) { .stat-row { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+        @media (max-width: 520px) { .stat-row { grid-template-columns: 1fr; } }
+
+        .stat-card {
+            background: var(--card-bg); border: 1px solid var(--border-color); border-left: 3px solid var(--border-color);
+            border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px;
+        }
+        .stat-card-top { display: flex; align-items: center; justify-content: space-between; }
+        .stat-card .stat-icon { font-size: 18px; line-height: 1; }
+        .stat-card .num { font-size: 24px; font-weight: 800; color: var(--text-main); }
+        .stat-card .lbl { font-size: 12px; color: var(--text-muted); }
+        .stat-card .stat-link {
+            align-self: flex-start; background: none; border: none; padding: 0; margin-top: 2px;
+            font-size: 12px; font-weight: 700; cursor: pointer; color: var(--text-muted);
+        }
+        .stat-card .stat-link:hover { text-decoration: underline; }
+
+        /* Нейтральный акцент (общий учёт) */
+        .stat-card.accent-neutral { border-left-color: var(--blue); }
+        .stat-card.accent-neutral .num { color: var(--blue-light); }
+        .stat-card.accent-neutral .stat-link { color: var(--blue-light); }
+        /* Предупреждение (требует внимания оператора) */
+        .stat-card.accent-warning { border-left-color: var(--orange); background: rgba(245, 158, 11, 0.06); }
+        .stat-card.accent-warning .num { color: var(--orange-light); }
+        .stat-card.accent-warning .stat-link { color: var(--orange-light); }
+        /* В процессе / штатная работа */
+        .stat-card.accent-success { border-left-color: var(--emerald); }
+        .stat-card.accent-success .num { color: var(--emerald-light); }
+        .stat-card.accent-success .stat-link { color: var(--emerald-light); }
+        /* Критично: брак, RMA, недостача */
+        .stat-card.accent-danger { border-left-color: var(--danger-color); background: rgba(239, 68, 68, 0.07); }
+        .stat-card.accent-danger .num { color: var(--danger-color); }
+        .stat-card.accent-danger .stat-link { color: var(--danger-color); }
+
+        /* ===== Панель быстрых действий ===== */
+        .quick-actions { display: flex; gap: 12px; margin-bottom: 32px; flex-wrap: wrap; }
+        .qa-btn {
+            border: none; border-radius: 10px; padding: 14px 20px; font-size: 14px; font-weight: 700;
+            cursor: pointer; display: flex; align-items: center; gap: 8px; white-space: nowrap; transition: filter 0.15s ease, border-color 0.15s ease;
+        }
+        .qa-btn.qa-primary { background: linear-gradient(135deg, var(--emerald-light), var(--emerald-dark)); color: #052e21; }
+        .qa-btn.qa-primary:hover { filter: brightness(1.08); }
+        .qa-btn.qa-blue { background: linear-gradient(135deg, var(--blue-light), var(--blue)); color: #08203f; }
+        .qa-btn.qa-blue:hover { filter: brightness(1.08); }
+        .qa-search { flex: 1; min-width: 220px; display: flex; align-items: center; gap: 8px; background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 10px; padding: 6px 6px 6px 14px; }
+        .qa-search:focus-within { border-color: var(--emerald); }
+        .qa-search input { flex: 1; background: none; border: none; outline: none; color: var(--text-main); font-size: 14px; padding: 8px 0; }
+        .qa-search input::placeholder { color: var(--text-muted); }
+        .qa-search button { background: var(--sidebar-bg); border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 8px; padding: 8px 12px; cursor: pointer; font-weight: 700; }
+        .qa-search button:hover { color: var(--emerald-light); border-color: var(--emerald); }
+
+        /* ===== Индикатор синхронизации/сети в шапке ===== */
+        .sync-indicator { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text-muted); padding: 8px 4px; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 0 3px rgba(16,185,129,0.18); }
+        .sync-indicator.offline .sync-dot { background: var(--danger-color); box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
 
         .section-title { font-size: 13px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); margin-bottom: 14px; }
 
@@ -322,6 +380,8 @@
             <!-- ОСНОВНАЯ ОБЛАСТЬ -->
             <div class="main-area">
                 <div class="topbar">
+                    <!-- Индикатор статуса сети/синхронизации: переключается через window.setSyncStatus(true|false) -->
+                    <div class="sync-indicator" id="sync-indicator"><span class="sync-dot"></span><span id="sync-label" data-i18n="sync_online">Синхронизировано</span></div>
                     <select class="lang-select" id="lang-select" onchange="window.setLanguage(this.value)">
                         <option value="ru">RU — Русский</option>
                         <option value="uk">UA — Українська</option>
@@ -342,7 +402,28 @@
                     </div>
                     <div class="home-sub" data-i18n="home_sub">Импорт из Excel, поставки, перемещения и заказы — всё в одном месте</div>
 
-                    <div class="stat-row" id="stat-row"></div>
+                    <!-- Строка 1: IT-техника (штучный учёт по S/N и Asset Code) -->
+                    <div class="stat-group-title" data-i18n="stat_group_tech">IT-техника и оборудование</div>
+                    <div class="stat-row" id="stat-row-tech"></div>
+
+                    <!-- Строка 2: Бюро-материалы и логистика (количественный учёт по SKU) -->
+                    <div class="stat-group-title" data-i18n="stat_group_office">Бюро-материалы и логистика</div>
+                    <div class="stat-row" id="stat-row-office"></div>
+
+                    <!-- Панель быстрых действий -->
+                    <div class="quick-actions">
+                        <button class="qa-btn qa-primary" onclick="window.openPage('delivery-receive')">
+                            <span>🟢</span><span data-i18n="qa_receive_tech">+ Принять технику (Scan S/N)</span>
+                        </button>
+                        <button class="qa-btn qa-blue" onclick="window.openPage('bureau-issue')">
+                            <span>🔵</span><span data-i18n="qa_issue_office">+ Выдать бюро-материалы</span>
+                        </button>
+                        <div class="qa-search">
+                            <span>🔍</span>
+                            <input type="text" id="qa-search-input" data-i18n-placeholder="qa_search_placeholder" placeholder="Быстрый поиск по S/N или Asset Code">
+                            <button onclick="window.runQuickSearch()" data-i18n="qa_search_btn">Поиск</button>
+                        </div>
+                    </div>
 
                     <div class="section-title" data-i18n="modules_title">Модули системы</div>
                     <div class="module-grid" id="module-grid"></div>
@@ -639,6 +720,16 @@
                   modules_title: 'Модули системы',
                   stat_tech: 'Техника', stat_delivery: 'Доставки', stat_suppliers: 'Поставщики', stat_popr: 'PO/PR',
                   stat_office: 'Бюро материалы', stat_issued: 'Выдано', stat_broken: 'Неисправно', stat_kletka: 'В клетке', stat_written_off: 'Списано',
+                  stat_group_tech: 'IT-техника и оборудование', stat_group_office: 'Бюро-материалы и логистика',
+                  stat_tech_total: 'Всего техники на складе', stat_tech_wait_tag: 'Ждёт Asset Tag',
+                  stat_tech_in_process: 'В процессе', stat_tech_broken_rma: 'Неисправно / В клетке (RMA)',
+                  stat_office_total: 'Бюро-материалы (SKU)', stat_office_low_stock: 'Мало на складе',
+                  stat_office_po_expected: 'Ожидаемые доставки (PO/PR)', stat_office_transfers_transit: 'Трансферы в пути',
+                  stat_link_view: 'Посмотреть', stat_link_scan: 'Сканировать', stat_link_go: 'Перейти',
+                  qa_receive_tech: '+ Принять технику (Scan S/N)', qa_issue_office: '+ Выдать бюро-материалы',
+                  qa_search_placeholder: 'Быстрый поиск по S/N или Asset Code', qa_search_btn: 'Поиск',
+                  m_bureau_label: 'Бюро-материалы', m_bureau_desc: 'Каталог и расход канцелярии',
+                  sync_online: 'Синхронизировано', sync_offline: 'Нет связи',
                   m_material_label: 'Material Master', m_material_desc: 'Справочник материалов и остатков',
                   m_excel_label: 'Импорт/Экспорт Excel', m_excel_desc: 'Загрузка и выгрузка данных из таблиц',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Календарь поставок',
@@ -657,6 +748,16 @@
                   modules_title: 'Модулі системи',
                   stat_tech: 'Техніка', stat_delivery: 'Доставки', stat_suppliers: 'Постачальники', stat_popr: 'PO/PR',
                   stat_office: 'Офісні матеріали', stat_issued: 'Видано', stat_broken: 'Несправно', stat_kletka: 'У клітці', stat_written_off: 'Списано',
+                  stat_group_tech: 'IT-техніка та обладнання', stat_group_office: 'Офісні матеріали та логістика',
+                  stat_tech_total: 'Всього техніки на складі', stat_tech_wait_tag: 'Очікує Asset Tag',
+                  stat_tech_in_process: 'В процесі', stat_tech_broken_rma: 'Несправно / У клітці (RMA)',
+                  stat_office_total: 'Офісні матеріали (SKU)', stat_office_low_stock: 'Мало на складі',
+                  stat_office_po_expected: 'Очікувані доставки (PO/PR)', stat_office_transfers_transit: 'Трансфери в дорозі',
+                  stat_link_view: 'Подивитися', stat_link_scan: 'Сканувати', stat_link_go: 'Перейти',
+                  qa_receive_tech: '+ Прийняти техніку (Scan S/N)', qa_issue_office: '+ Видати офісні матеріали',
+                  qa_search_placeholder: 'Швидкий пошук за S/N або Asset Code', qa_search_btn: 'Пошук',
+                  m_bureau_label: 'Офісні матеріали', m_bureau_desc: 'Каталог і витрата канцелярії',
+                  sync_online: 'Синхронізовано', sync_offline: 'Немає зв\'язку',
                   m_material_label: 'Material Master', m_material_desc: 'Довідник матеріалів і залишків',
                   m_excel_label: 'Імпорт/Експорт Excel', m_excel_desc: 'Завантаження і вивантаження даних',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Календар поставок',
@@ -675,6 +776,16 @@
                   modules_title: 'Moduły systemu',
                   stat_tech: 'Technika', stat_delivery: 'Dostawy', stat_suppliers: 'Dostawcy', stat_popr: 'PO/PR',
                   stat_office: 'Materiały biurowe', stat_issued: 'Wydane', stat_broken: 'Uszkodzone', stat_kletka: 'W klatce', stat_written_off: 'Spisane',
+                  stat_group_tech: 'Technika IT i sprzęt', stat_group_office: 'Materiały biurowe i logistyka',
+                  stat_tech_total: 'Cała technika na magazynie', stat_tech_wait_tag: 'Czeka na Asset Tag',
+                  stat_tech_in_process: 'W trakcie', stat_tech_broken_rma: 'Uszkodzone / W klatce (RMA)',
+                  stat_office_total: 'Materiały biurowe (SKU)', stat_office_low_stock: 'Niski stan magazynowy',
+                  stat_office_po_expected: 'Oczekiwane dostawy (PO/PR)', stat_office_transfers_transit: 'Transfery w drodze',
+                  stat_link_view: 'Zobacz', stat_link_scan: 'Skanuj', stat_link_go: 'Przejdź',
+                  qa_receive_tech: '+ Przyjmij technikę (Scan S/N)', qa_issue_office: '+ Wydaj materiały biurowe',
+                  qa_search_placeholder: 'Szybkie wyszukiwanie po S/N lub Asset Code', qa_search_btn: 'Szukaj',
+                  m_bureau_label: 'Materiały biurowe', m_bureau_desc: 'Katalog i zużycie artykułów biurowych',
+                  sync_online: 'Zsynchronizowano', sync_offline: 'Brak połączenia',
                   m_material_label: 'Material Master', m_material_desc: 'Baza materiałów i stanów magazynowych',
                   m_excel_label: 'Import/Eksport Excel', m_excel_desc: 'Wczytywanie i eksport danych',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Kalendarz dostaw',
@@ -693,6 +804,16 @@
                   modules_title: 'System modules',
                   stat_tech: 'Tech equipment', stat_delivery: 'Deliveries', stat_suppliers: 'Suppliers', stat_popr: 'PO/PR',
                   stat_office: 'Office supplies', stat_issued: 'Issued', stat_broken: 'Broken', stat_kletka: 'In cage', stat_written_off: 'Written off',
+                  stat_group_tech: 'IT equipment', stat_group_office: 'Office supplies & logistics',
+                  stat_tech_total: 'Total equipment on warehouse', stat_tech_wait_tag: 'Waiting for Asset Tag',
+                  stat_tech_in_process: 'In process', stat_tech_broken_rma: 'Broken / In cage (RMA)',
+                  stat_office_total: 'Office supplies (SKU)', stat_office_low_stock: 'Low stock',
+                  stat_office_po_expected: 'Expected deliveries (PO/PR)', stat_office_transfers_transit: 'Transfers in transit',
+                  stat_link_view: 'View', stat_link_scan: 'Scan', stat_link_go: 'Go',
+                  qa_receive_tech: '+ Receive equipment (Scan S/N)', qa_issue_office: '+ Issue office supplies',
+                  qa_search_placeholder: 'Quick search by S/N or Asset Code', qa_search_btn: 'Search',
+                  m_bureau_label: 'Office supplies', m_bureau_desc: 'Catalog and consumption of stationery',
+                  sync_online: 'Synced', sync_offline: 'Offline',
                   m_material_label: 'Material Master', m_material_desc: 'Materials catalog and stock levels',
                   m_excel_label: 'Excel Import/Export', m_excel_desc: 'Upload and export data',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Delivery calendar',
@@ -732,7 +853,10 @@
             'po-pr': { iconKey: '📄', labelKey: 'nav_popr' },
             'transfer': { iconKey: '🔁', labelKey: 'm_transfer_label' },
             'transfer-in': { iconKey: '⬇️', labelKey: 'nav_transfer_in' },
-            'transfer-out': { iconKey: '⬆️', labelKey: 'nav_transfer_out' }
+            'transfer-out': { iconKey: '⬆️', labelKey: 'nav_transfer_out' },
+            'bureau-materials': { iconKey: '🗂️', labelKey: 'm_bureau_label' },
+            'bureau-issue': { iconKey: '🔵', labelKey: 'qa_issue_office' },
+            'rma-cage': { iconKey: '🚫', labelKey: 'stat_tech_broken_rma' }
         };
         let currentPageKey = null;
 
@@ -766,19 +890,46 @@
             setActiveNav(key);
         }
 
+        // Конфиг 8 карточек метрик: [accent-класс, иконка, ключ числа (для привязки реальных данных),
+        // ключ подписи, ключ ссылки-действия, страница/обработчик при клике]
+        // TODO: заменить STAT_VALUES.<key> на реальные агрегаты из Firestore (Material Master / Бюро-материалы) для currentWarehouse
+        const STAT_VALUES = {
+            tech_total: 0, tech_wait_tag: 0, tech_in_process: 0, tech_broken_rma: 0,
+            office_total: 0, office_low_stock: 0, office_po_expected: 0, office_transfers_transit: 0
+        };
+        const TECH_STATS = [
+            { key: 'tech_total', accent: 'accent-neutral', icon: '🖥️', lbl: 'stat_tech_total', link: 'stat_link_view', page: 'material-master' },
+            { key: 'tech_wait_tag', accent: 'accent-warning', icon: '🏷️', lbl: 'stat_tech_wait_tag', link: 'stat_link_scan', page: 'delivery-receive' },
+            { key: 'tech_in_process', accent: 'accent-success', icon: '⚙️', lbl: 'stat_tech_in_process', link: 'stat_link_go', page: 'material-master' },
+            { key: 'tech_broken_rma', accent: 'accent-danger', icon: '🚫', lbl: 'stat_tech_broken_rma', link: 'stat_link_go', page: 'rma-cage' }
+        ];
+        const OFFICE_STATS = [
+            { key: 'office_total', accent: 'accent-neutral', icon: '🗂️', lbl: 'stat_office_total', link: 'stat_link_go', page: 'bureau-materials' },
+            { key: 'office_low_stock', accent: 'accent-warning', icon: '⚠️', lbl: 'stat_office_low_stock', link: 'stat_link_view', page: 'bureau-materials' },
+            { key: 'office_po_expected', accent: 'accent-neutral', icon: '📦', lbl: 'stat_office_po_expected', link: 'stat_link_go', page: 'po-pr' },
+            { key: 'office_transfers_transit', accent: 'accent-neutral', icon: '🔁', lbl: 'stat_office_transfers_transit', link: 'stat_link_go', page: 'transfer' }
+        ];
+        function renderStatRow(elId, cards) {
+            const el = document.getElementById(elId);
+            if (!el) return;
+            el.innerHTML = cards.map(c => `
+                <div class="stat-card ${c.accent}">
+                    <div class="stat-card-top"><span class="stat-icon">${c.icon}</span></div>
+                    <div class="num">${STAT_VALUES[c.key]}</div>
+                    <div class="lbl">${t(c.lbl)}</div>
+                    <button class="stat-link" onclick="window.openPage('${c.page}')">${t(c.link)} →</button>
+                </div>
+            `).join('');
+        }
+
         function renderHome() {
             document.getElementById('home-warehouse-title').innerText = `${currentLang === 'en' ? 'Warehouse' : 'Склад'} ${currentWarehouse}`;
 
-            const statRow = document.getElementById('stat-row');
-            if (statRow) {
-                const stats = [
-                    ['stat_tech', '0'], ['stat_delivery', '0'], ['stat_suppliers', '0'], ['stat_popr', '0'],
-                    ['stat_office', '0'], ['stat_issued', '0'], ['stat_broken', '0'], ['stat_kletka', '0'], ['stat_written_off', '0']
-                ];
-                statRow.innerHTML = stats.map(([key, val]) => `
-                    <div class="stat-card"><div class="num">${val}</div><div class="lbl">${t(key)}</div></div>
-                `).join('');
-            }
+            renderStatRow('stat-row-tech', TECH_STATS);
+            renderStatRow('stat-row-office', OFFICE_STATS);
+
+            const searchInput = document.getElementById('qa-search-input');
+            if (searchInput) searchInput.placeholder = t('qa_search_placeholder');
 
             const grid = document.getElementById('module-grid');
             if (grid) {
@@ -787,6 +938,11 @@
                         <span class="icon">📦</span>
                         <div class="label">${t('m_material_label')}</div>
                         <div class="desc">${t('m_material_desc')}</div>
+                    </button>
+                    <button class="module-tile" onclick="window.openPage('bureau-materials')">
+                        <span class="icon">🗂️</span>
+                        <div class="label">${t('m_bureau_label')}</div>
+                        <div class="desc">${t('m_bureau_desc')}</div>
                     </button>
                     <button class="module-tile" onclick="window.openPage('excel-import-export')">
                         <span class="icon">📊</span>
@@ -822,6 +978,26 @@
             }
         }
 
+        // Быстрый поиск по S/N или Asset Code из панели быстрых действий
+        // TODO: заменить на реальный запрос к Material Master по currentWarehouse
+        function runQuickSearch() {
+            const val = (document.getElementById('qa-search-input') || {}).value || '';
+            openPage('search');
+            logActivity('quick_search', `Быстрый поиск: ${val}`);
+        }
+
+        // Переключение индикатора сети/синхронизации в шапке.
+        // Вызывать window.setSyncStatus(true) при восстановлении связи с Firestore,
+        // window.setSyncStatus(false) при обрыве (например, в onSnapshot error callback).
+        function setSyncStatus(isOnline) {
+            const el = document.getElementById('sync-indicator');
+            const label = document.getElementById('sync-label');
+            if (!el || !label) return;
+            el.classList.toggle('offline', !isOnline);
+            label.setAttribute('data-i18n', isOnline ? 'sync_online' : 'sync_offline');
+            label.innerText = t(isOnline ? 'sync_online' : 'sync_offline');
+        }
+
         function selectWarehouse(code) {
             currentWarehouse = code;
             document.querySelectorAll('.warehouse-btn').forEach(b => b.classList.toggle('active', b.dataset.wh === code));
@@ -839,6 +1015,8 @@
         window.showHome = showHome;
         window.openPage = openPage;
         window.selectWarehouse = selectWarehouse;
+        window.runQuickSearch = runQuickSearch;
+        window.setSyncStatus = setSyncStatus;
         window.logout = logout;
         window.addEmployee = addEmployee;
         window.openAddEmployeeModal = openAddEmployeeModal;
