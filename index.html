@@ -6,13 +6,13 @@
     <title>DC3 Stock Suite</title>
     <style>
         :root {
-            --bg-color: #0f172a;
-            --card-bg: #1e293b;
-            --card-bg-hover: #24304a;
-            --sidebar-bg: #0b1424;
+            --bg-color: #071c16;
+            --card-bg: #10281f;
+            --card-bg-hover: #163629;
+            --sidebar-bg: #04140f;
             --text-main: #f8fafc;
-            --text-muted: #94a3b8;
-            --border-color: #334155;
+            --text-muted: #9fb8ac;
+            --border-color: #1f3d30;
             --danger-color: #ef4444;
             --danger-hover: #dc2626;
             --emerald: #10b981;
@@ -145,19 +145,19 @@
 
         .sidebar-nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
         .nav-group { margin-bottom: 22px; }
-        .nav-group-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); padding: 0 10px; margin-bottom: 8px; white-space: nowrap; }
+        .nav-group-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.9px; color: var(--text-muted); padding: 0 10px; margin-bottom: 10px; white-space: nowrap; }
         .sidebar.collapsed .nav-group-title { display: none; }
 
         .nav-item {
-            display: flex; align-items: center; gap: 10px; width: 100%; background: none; border: none; text-align: left;
-            color: var(--text-muted); padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: 14px;
-            font-weight: 500; margin-bottom: 2px; border-left: 3px solid transparent; white-space: nowrap;
+            display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; text-align: left;
+            color: #d5e6de; padding: 11px 12px; border-radius: 8px; cursor: pointer; font-size: 15px;
+            font-weight: 600; margin-bottom: 3px; border-left: 3px solid transparent; white-space: nowrap;
         }
-        .nav-item .nav-icon { font-size: 16px; width: 20px; text-align: center; flex-shrink: 0; }
+        .nav-item .nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; }
         .nav-item span.nav-label { overflow: hidden; }
         .sidebar.collapsed .nav-item span.nav-label { display: none; }
-        .nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text-main); }
-        .nav-item.active { background: rgba(16, 185, 129, 0.12); color: var(--emerald-light); border-left-color: var(--emerald); font-weight: 700; }
+        .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
+        .nav-item.active { background: rgba(16, 185, 129, 0.16); color: var(--emerald-light); border-left-color: var(--emerald); font-weight: 700; }
 
         .sidebar-warehouses { padding: 14px 12px; border-top: 1px solid var(--border-color); }
         .warehouse-row { display: flex; gap: 6px; }
@@ -175,10 +175,11 @@
             display: flex; justify-content: flex-end; align-items: center; gap: 10px; padding: 14px 24px;
             border-bottom: 1px solid var(--border-color); flex-wrap: wrap;
         }
-        .lang-switcher { display: flex; gap: 4px; background: var(--card-bg); padding: 4px; border-radius: 8px; border: 1px solid var(--border-color); }
-        .lang-btn { background: transparent; border: none; color: var(--text-muted); padding: 5px 10px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
-        .lang-btn.active { background: var(--emerald); color: #052e21; }
-        .lang-btn:hover:not(.active) { color: var(--text-main); }
+        .lang-select {
+            background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main);
+            padding: 8px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; outline: none;
+        }
+        .lang-select:focus { border-color: var(--emerald); }
 
         .page-container { padding: 28px; max-width: 1200px; margin: 0 auto; width: 100%; }
 
@@ -321,14 +322,13 @@
             <!-- ОСНОВНАЯ ОБЛАСТЬ -->
             <div class="main-area">
                 <div class="topbar">
-                    <div class="lang-switcher">
-                        <button class="lang-btn active" data-lang="ru" onclick="window.setLanguage('ru')">RU</button>
-                        <button class="lang-btn" data-lang="uk" onclick="window.setLanguage('uk')">UA</button>
-                        <button class="lang-btn" data-lang="pl" onclick="window.setLanguage('pl')">PL</button>
-                        <button class="lang-btn" data-lang="en" onclick="window.setLanguage('en')">EN</button>
-                    </div>
+                    <select class="lang-select" id="lang-select" onchange="window.setLanguage(this.value)">
+                        <option value="ru">RU — Русский</option>
+                        <option value="uk">UA — Українська</option>
+                        <option value="pl">PL — Polski</option>
+                        <option value="en">EN — English</option>
+                    </select>
                     <button class="btn btn-secondary btn-icon" onclick="window.openAddEmployeeModal()" style="display:none;" id="add-emp-nav-btn">+ Сотрудник</button>
-                    <button class="btn btn-secondary btn-icon" onclick="window.openHistoryModal()" data-i18n="btn_history">История</button>
                     <button class="btn btn-secondary btn-icon" onclick="window.logout()" id="logout-btn">
                         <span id="current-user-name"></span> <span data-i18n="btn_logout">Выйти</span>
                     </button>
@@ -634,13 +634,17 @@
                   nav_home: 'Главная страница', nav_material: 'Material Master', nav_regions: 'Регионы и склады', nav_search: 'Поиск товара',
                   nav_calendar: 'Календарь', nav_receive: 'Прием', nav_issue: 'Выдача', nav_popr: 'PO/PR',
                   nav_transfer_in: 'Трансфер прием', nav_transfer_out: 'Трансфер отправка',
-                  btn_history: 'История', btn_logout: 'Выйти', status_active: 'Активен',
+                  btn_logout: 'Выйти', status_active: 'Активен',
                   home_sub: 'Импорт из Excel, поставки, перемещения и заказы — всё в одном месте',
                   modules_title: 'Модули системы',
-                  stat_material: 'Материалы', stat_delivery: 'Доставки', stat_suppliers: 'Поставщики', stat_popr: 'PO/PR',
-                  m_material_label: 'Material Master', m_material_desc: 'Справочник материалов, импорт/экспорт Excel',
-                  m_delivery_label: 'Delivery', m_delivery_desc: 'Календарь, прием и выдача поставок',
-                  m_transfer_label: 'Transfer / PO&PR', m_transfer_desc: 'Перемещения между складами и заказы',
+                  stat_tech: 'Техника', stat_delivery: 'Доставки', stat_suppliers: 'Поставщики', stat_popr: 'PO/PR',
+                  stat_office: 'Бюро материалы', stat_issued: 'Выдано', stat_broken: 'Неисправно', stat_kletka: 'В клетке', stat_written_off: 'Списано',
+                  m_material_label: 'Material Master', m_material_desc: 'Справочник материалов и остатков',
+                  m_excel_label: 'Импорт/Экспорт Excel', m_excel_desc: 'Загрузка и выгрузка данных из таблиц',
+                  m_delivery_label: 'Delivery', m_delivery_desc: 'Календарь поставок',
+                  m_receive_issue_label: 'Прием / Выдача', m_receive_issue_desc: 'Быстрый доступ к приёму и выдаче',
+                  m_transfer_label: 'Transfer', m_transfer_desc: 'Перемещения между складами',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Заказы на закупку',
                   m_history_label: 'История', m_history_desc: 'Журнал всех действий в системе',
                   back_home: '← Главная страница',
                   ph_desc: 'Раздел в разработке — как только определим набор полей, добавим сюда полноценный функционал.' },
@@ -648,13 +652,17 @@
                   nav_home: 'Головна сторінка', nav_material: 'Material Master', nav_regions: 'Регіони й склади', nav_search: 'Пошук товару',
                   nav_calendar: 'Календар', nav_receive: 'Прийом', nav_issue: 'Видача', nav_popr: 'PO/PR',
                   nav_transfer_in: 'Трансфер прийом', nav_transfer_out: 'Трансфер відправка',
-                  btn_history: 'Історія', btn_logout: 'Вийти', status_active: 'Активний',
+                  btn_logout: 'Вийти', status_active: 'Активний',
                   home_sub: 'Імпорт з Excel, поставки, переміщення і замовлення — все в одному місці',
                   modules_title: 'Модулі системи',
-                  stat_material: 'Матеріали', stat_delivery: 'Доставки', stat_suppliers: 'Постачальники', stat_popr: 'PO/PR',
-                  m_material_label: 'Material Master', m_material_desc: 'Довідник матеріалів, імпорт/експорт Excel',
-                  m_delivery_label: 'Delivery', m_delivery_desc: 'Календар, прийом і видача поставок',
-                  m_transfer_label: 'Transfer / PO&PR', m_transfer_desc: 'Переміщення між складами і замовлення',
+                  stat_tech: 'Техніка', stat_delivery: 'Доставки', stat_suppliers: 'Постачальники', stat_popr: 'PO/PR',
+                  stat_office: 'Офісні матеріали', stat_issued: 'Видано', stat_broken: 'Несправно', stat_kletka: 'У клітці', stat_written_off: 'Списано',
+                  m_material_label: 'Material Master', m_material_desc: 'Довідник матеріалів і залишків',
+                  m_excel_label: 'Імпорт/Експорт Excel', m_excel_desc: 'Завантаження і вивантаження даних',
+                  m_delivery_label: 'Delivery', m_delivery_desc: 'Календар поставок',
+                  m_receive_issue_label: 'Прийом / Видача', m_receive_issue_desc: 'Швидкий доступ до прийому і видачі',
+                  m_transfer_label: 'Transfer', m_transfer_desc: 'Переміщення між складами',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Замовлення на закупівлю',
                   m_history_label: 'Історія', m_history_desc: 'Журнал усіх дій в системі',
                   back_home: '← Головна сторінка',
                   ph_desc: 'Розділ у розробці — щойно визначимо набір полів, додамо сюди повноцінний функціонал.' },
@@ -662,13 +670,17 @@
                   nav_home: 'Strona główna', nav_material: 'Material Master', nav_regions: 'Regiony i magazyny', nav_search: 'Szukaj towaru',
                   nav_calendar: 'Kalendarz', nav_receive: 'Przyjęcie', nav_issue: 'Wydanie', nav_popr: 'PO/PR',
                   nav_transfer_in: 'Transfer przyjęcie', nav_transfer_out: 'Transfer wysyłka',
-                  btn_history: 'Historia', btn_logout: 'Wyjdź', status_active: 'Aktywny',
+                  btn_logout: 'Wyjdź', status_active: 'Aktywny',
                   home_sub: 'Import z Excel, dostawy, przenosiny i zamówienia — wszystko w jednym miejscu',
                   modules_title: 'Moduły systemu',
-                  stat_material: 'Materiały', stat_delivery: 'Dostawy', stat_suppliers: 'Dostawcy', stat_popr: 'PO/PR',
-                  m_material_label: 'Material Master', m_material_desc: 'Baza materiałów, import/eksport Excel',
-                  m_delivery_label: 'Delivery', m_delivery_desc: 'Kalendarz, przyjęcie i wydanie dostaw',
-                  m_transfer_label: 'Transfer / PO&PR', m_transfer_desc: 'Przenosiny między magazynami i zamówienia',
+                  stat_tech: 'Technika', stat_delivery: 'Dostawy', stat_suppliers: 'Dostawcy', stat_popr: 'PO/PR',
+                  stat_office: 'Materiały biurowe', stat_issued: 'Wydane', stat_broken: 'Uszkodzone', stat_kletka: 'W klatce', stat_written_off: 'Spisane',
+                  m_material_label: 'Material Master', m_material_desc: 'Baza materiałów i stanów magazynowych',
+                  m_excel_label: 'Import/Eksport Excel', m_excel_desc: 'Wczytywanie i eksport danych',
+                  m_delivery_label: 'Delivery', m_delivery_desc: 'Kalendarz dostaw',
+                  m_receive_issue_label: 'Przyjęcie / Wydanie', m_receive_issue_desc: 'Szybki dostęp do przyjęcia i wydania',
+                  m_transfer_label: 'Transfer', m_transfer_desc: 'Przenosiny między magazynami',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Zamówienia zakupu',
                   m_history_label: 'Historia', m_history_desc: 'Dziennik wszystkich działań w systemie',
                   back_home: '← Strona główna',
                   ph_desc: 'Sekcja w budowie — gdy określimy pola, dodamy tu pełną funkcjonalność.' },
@@ -676,13 +688,17 @@
                   nav_home: 'Home', nav_material: 'Material Master', nav_regions: 'Regions & warehouses', nav_search: 'Search product',
                   nav_calendar: 'Calendar', nav_receive: 'Receive', nav_issue: 'Issue', nav_popr: 'PO/PR',
                   nav_transfer_in: 'Transfer in', nav_transfer_out: 'Transfer out',
-                  btn_history: 'History', btn_logout: 'Log out', status_active: 'Active',
+                  btn_logout: 'Log out', status_active: 'Active',
                   home_sub: 'Excel import, deliveries, transfers and orders — all in one place',
                   modules_title: 'System modules',
-                  stat_material: 'Materials', stat_delivery: 'Deliveries', stat_suppliers: 'Suppliers', stat_popr: 'PO/PR',
-                  m_material_label: 'Material Master', m_material_desc: 'Materials catalog, Excel import/export',
-                  m_delivery_label: 'Delivery', m_delivery_desc: 'Calendar, receiving and issuing deliveries',
-                  m_transfer_label: 'Transfer / PO&PR', m_transfer_desc: 'Transfers between warehouses and orders',
+                  stat_tech: 'Tech equipment', stat_delivery: 'Deliveries', stat_suppliers: 'Suppliers', stat_popr: 'PO/PR',
+                  stat_office: 'Office supplies', stat_issued: 'Issued', stat_broken: 'Broken', stat_kletka: 'In cage', stat_written_off: 'Written off',
+                  m_material_label: 'Material Master', m_material_desc: 'Materials catalog and stock levels',
+                  m_excel_label: 'Excel Import/Export', m_excel_desc: 'Upload and export data',
+                  m_delivery_label: 'Delivery', m_delivery_desc: 'Delivery calendar',
+                  m_receive_issue_label: 'Receive / Issue', m_receive_issue_desc: 'Quick access to receiving and issuing',
+                  m_transfer_label: 'Transfer', m_transfer_desc: 'Transfers between warehouses',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Purchase orders',
                   m_history_label: 'History', m_history_desc: 'Log of all actions in the system',
                   back_home: '← Home',
                   ph_desc: 'Section in progress — once we define the fields, full functionality will appear here.' }
@@ -691,7 +707,7 @@
 
         function setLanguage(lang) {
             currentLang = lang;
-            document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+            document.getElementById('lang-select').value = lang;
             applyLanguage();
         }
 
@@ -706,12 +722,15 @@
         // ===== Навигация: главная / страницы-заглушки =====
         const PAGES = {
             'material-master': { iconKey: '📦', labelKey: 'nav_material' },
+            'excel-import-export': { iconKey: '📊', labelKey: 'm_excel_label' },
             'regions': { iconKey: '🗺️', labelKey: 'nav_regions' },
             'search': { iconKey: '🔍', labelKey: 'nav_search' },
             'delivery-calendar': { iconKey: '📅', labelKey: 'nav_calendar' },
             'delivery-receive': { iconKey: '📥', labelKey: 'nav_receive' },
             'delivery-issue': { iconKey: '📤', labelKey: 'nav_issue' },
+            'receive-issue': { iconKey: '📥', labelKey: 'm_receive_issue_label' },
             'po-pr': { iconKey: '📄', labelKey: 'nav_popr' },
+            'transfer': { iconKey: '🔁', labelKey: 'm_transfer_label' },
             'transfer-in': { iconKey: '⬇️', labelKey: 'nav_transfer_in' },
             'transfer-out': { iconKey: '⬆️', labelKey: 'nav_transfer_out' }
         };
@@ -752,12 +771,13 @@
 
             const statRow = document.getElementById('stat-row');
             if (statRow) {
-                statRow.innerHTML = `
-                    <div class="stat-card"><div class="num">0</div><div class="lbl">${t('stat_material')}</div></div>
-                    <div class="stat-card"><div class="num">0</div><div class="lbl">${t('stat_delivery')}</div></div>
-                    <div class="stat-card"><div class="num">0</div><div class="lbl">${t('stat_suppliers')}</div></div>
-                    <div class="stat-card"><div class="num">0</div><div class="lbl">${t('stat_popr')}</div></div>
-                `;
+                const stats = [
+                    ['stat_tech', '0'], ['stat_delivery', '0'], ['stat_suppliers', '0'], ['stat_popr', '0'],
+                    ['stat_office', '0'], ['stat_issued', '0'], ['stat_broken', '0'], ['stat_kletka', '0'], ['stat_written_off', '0']
+                ];
+                statRow.innerHTML = stats.map(([key, val]) => `
+                    <div class="stat-card"><div class="num">${val}</div><div class="lbl">${t(key)}</div></div>
+                `).join('');
             }
 
             const grid = document.getElementById('module-grid');
@@ -768,15 +788,30 @@
                         <div class="label">${t('m_material_label')}</div>
                         <div class="desc">${t('m_material_desc')}</div>
                     </button>
+                    <button class="module-tile" onclick="window.openPage('excel-import-export')">
+                        <span class="icon">📊</span>
+                        <div class="label">${t('m_excel_label')}</div>
+                        <div class="desc">${t('m_excel_desc')}</div>
+                    </button>
                     <button class="module-tile" onclick="window.openPage('delivery-calendar')">
                         <span class="icon">🚚</span>
                         <div class="label">${t('m_delivery_label')}</div>
                         <div class="desc">${t('m_delivery_desc')}</div>
                     </button>
-                    <button class="module-tile" onclick="window.openPage('po-pr')">
+                    <button class="module-tile" onclick="window.openPage('receive-issue')">
+                        <span class="icon">📥</span>
+                        <div class="label">${t('m_receive_issue_label')}</div>
+                        <div class="desc">${t('m_receive_issue_desc')}</div>
+                    </button>
+                    <button class="module-tile" onclick="window.openPage('transfer')">
                         <span class="icon">🔁</span>
                         <div class="label">${t('m_transfer_label')}</div>
                         <div class="desc">${t('m_transfer_desc')}</div>
+                    </button>
+                    <button class="module-tile" onclick="window.openPage('po-pr')">
+                        <span class="icon">📄</span>
+                        <div class="label">${t('m_popr_label')}</div>
+                        <div class="desc">${t('m_popr_desc')}</div>
                     </button>
                     <button class="module-tile" onclick="window.openHistoryModal()">
                         <span class="icon">🕓</span>
