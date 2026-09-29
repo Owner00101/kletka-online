@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DC3 Stock Suite</title>
+    <title>Kletka Online</title>
     <style>
         :root {
             --bg-color: #071c16;
@@ -57,7 +57,7 @@
             text-align: center;
         }
         .login-title {
-            font-size: 30px; font-weight: 800; letter-spacing: -1px; margin-bottom: 4px;
+            font-size: 24px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 4px;
             background: linear-gradient(135deg, var(--emerald-light), var(--emerald));
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
@@ -135,14 +135,15 @@
         .sidebar {
             width: 240px; flex-shrink: 0; background: var(--sidebar-bg); border-right: 1px solid var(--border-color);
             display: flex; flex-direction: column; transition: width 0.2s ease; overflow: hidden;
+            /* Шторка зафиксирована на весь экран и не скроллится с содержимым главной страницы;
+               внутренний скролл есть только у .sidebar-nav ниже */
+            position: sticky; top: 0; align-self: flex-start; height: 100vh;
         }
         .sidebar.collapsed { width: 64px; }
 
-        .sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px; border-bottom: 1px solid var(--border-color); }
-        .sidebar-logo {
-            font-size: 20px; font-weight: 800; letter-spacing: -0.5px; white-space: nowrap;
-            background: linear-gradient(135deg, var(--emerald-light), var(--emerald)); -webkit-background-clip: text; background-clip: text; color: transparent;
-        }
+        .sidebar-top { display: flex; align-items: center; justify-content: space-between; padding: 18px 16px; border-bottom: 1px solid var(--border-color); flex-shrink: 0; }
+        .sidebar-logo { display: flex; align-items: center; white-space: nowrap; overflow: hidden; }
+        .sidebar-logo-img { height: 32px; max-width: 168px; width: auto; object-fit: contain; display: block; }
         .sidebar.collapsed .sidebar-logo { display: none; }
         .sidebar-toggle { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px; }
         .sidebar-toggle:hover { color: var(--emerald-light); }
@@ -163,7 +164,7 @@
         .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
         .nav-item.active { background: rgba(16, 185, 129, 0.16); color: var(--emerald-light); border-left-color: var(--emerald); font-weight: 700; }
 
-        .sidebar-warehouses { padding: 14px 12px; border-top: 1px solid var(--border-color); }
+        .sidebar-warehouses { padding: 14px 12px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
         .warehouse-row { display: flex; gap: 6px; }
         .sidebar.collapsed .warehouse-row { flex-direction: column; }
         .warehouse-btn {
@@ -198,6 +199,14 @@
         .stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
         @media (max-width: 900px) { .stat-row { grid-template-columns: repeat(2, minmax(0,1fr)); } }
         @media (max-width: 520px) { .stat-row { grid-template-columns: 1fr; } }
+        /* Строка IT-техники: 5 карточек (Неисправно разбито на 2 стадии инвентаризации: В клетке / Списано) */
+        .stat-row.stat-row-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+        @media (max-width: 1100px) { .stat-row.stat-row-5 { grid-template-columns: repeat(3, minmax(0,1fr)); } }
+        @media (max-width: 640px) { .stat-row.stat-row-5 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+        @media (max-width: 400px) { .stat-row.stat-row-5 { grid-template-columns: 1fr; } }
+        /* Пара карточек одной стадии инвентаризации брака — визуально связаны общей рамкой */
+        .stat-pair { display: contents; }
+        .stat-card.accent-danger.stage-2 { border-left-color: var(--danger-hover); background: rgba(239, 68, 68, 0.11); }
 
         .stat-card {
             background: var(--card-bg); border: 1px solid var(--border-color); border-left: 3px solid var(--border-color);
@@ -280,6 +289,13 @@
         .placeholder-page .picon { font-size: 40px; margin-bottom: 16px; }
         .placeholder-page h2 { font-size: 20px; margin-bottom: 10px; color: var(--emerald-light); }
         .placeholder-page p { font-size: 14px; color: var(--text-muted); max-width: 460px; margin: 0 auto; line-height: 1.5; }
+
+        /* ===== Таблица принятых поставок (PO/PR) ===== */
+        .popr-table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
+        .popr-table th { text-align: left; padding: 10px 12px; color: var(--text-muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border-color); }
+        .popr-table td { padding: 12px; border-bottom: 1px solid var(--border-color); color: var(--text-main); }
+        .popr-table tbody tr:hover { background: var(--card-bg-hover); }
+        .btn-icon { padding: 6px 14px; font-size: 12px; }
     </style>
 </head>
 <body>
@@ -287,7 +303,7 @@
     <!-- Экран входа -->
     <div class="login-screen" id="login-screen">
         <div class="login-card">
-            <div class="login-title">DC3</div>
+            <div class="login-title">Kletka Online</div>
             <img class="login-logo" src="logo.png" alt="Kletka Online" draggable="false" oncontextmenu="return false;">
             <div class="login-hint">ID та PIN-код</div>
 
@@ -319,7 +335,7 @@
             <!-- ШТОРКА -->
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-top">
-                    <div class="sidebar-logo">DC3</div>
+                    <div class="sidebar-logo"><img class="sidebar-logo-img" src="logo.png" alt="Kletka Online"></div>
                     <button class="sidebar-toggle" id="sidebar-toggle-btn" title="Свернуть/развернуть">☰</button>
                 </div>
 
@@ -404,7 +420,7 @@
 
                     <!-- Строка 1: IT-техника (штучный учёт по S/N и Asset Code) -->
                     <div class="stat-group-title" data-i18n="stat_group_tech">IT-техника и оборудование</div>
-                    <div class="stat-row" id="stat-row-tech"></div>
+                    <div class="stat-row stat-row-5" id="stat-row-tech"></div>
 
                     <!-- Строка 2: Бюро-материалы и логистика (количественный учёт по SKU) -->
                     <div class="stat-group-title" data-i18n="stat_group_office">Бюро-материалы и логистика</div>
@@ -467,6 +483,31 @@
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="window.closeHistoryModal()">Закрыть</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Modal редактирования приёма (PO/PR): исправление ошибок ввода — модель/SKU, S/N, количество -->
+    <div class="modal-overlay" id="edit-receipt-overlay">
+        <div class="modal">
+            <h2 id="edit-receipt-title">Редактирование приёма</h2>
+            <input type="hidden" id="edit-receipt-id">
+            <div class="field">
+                <label data-i18n="popr_col_model">Модель / SKU</label>
+                <input type="text" id="edit-receipt-model">
+            </div>
+            <div class="field">
+                <label data-i18n="popr_col_sn">S/N</label>
+                <input type="text" id="edit-receipt-sn">
+            </div>
+            <div class="field">
+                <label data-i18n="popr_col_qty">Кол-во</label>
+                <input type="number" id="edit-receipt-qty" min="0">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="window.closeEditReceiptModal()" data-i18n="popr_cancel_btn">Отмена</button>
+                <button class="btn btn-add" onclick="window.saveEditedReceipt()" data-i18n="popr_save_btn">Сохранить</button>
+            </div>
+            <div class="save-indicator" id="edit-receipt-saved"></div>
         </div>
     </div>
 
@@ -722,7 +763,7 @@
                   stat_office: 'Бюро материалы', stat_issued: 'Выдано', stat_broken: 'Неисправно', stat_kletka: 'В клетке', stat_written_off: 'Списано',
                   stat_group_tech: 'IT-техника и оборудование', stat_group_office: 'Бюро-материалы и логистика',
                   stat_tech_total: 'Всего техники на складе', stat_tech_wait_tag: 'Ждёт Asset Tag',
-                  stat_tech_in_process: 'В процессе', stat_tech_broken_rma: 'Неисправно / В клетке (RMA)',
+                  stat_tech_in_process: 'В процессе', stat_tech_cage: 'В клетке (ждёт списания)', stat_tech_written_off: 'Списано (акт оформлен)',
                   stat_office_total: 'Бюро-материалы (SKU)', stat_office_low_stock: 'Мало на складе',
                   stat_office_po_expected: 'Ожидаемые доставки (PO/PR)', stat_office_transfers_transit: 'Трансферы в пути',
                   stat_link_view: 'Посмотреть', stat_link_scan: 'Сканировать', stat_link_go: 'Перейти',
@@ -733,9 +774,12 @@
                   m_material_label: 'Material Master', m_material_desc: 'Справочник материалов и остатков',
                   m_excel_label: 'Импорт/Экспорт Excel', m_excel_desc: 'Загрузка и выгрузка данных из таблиц',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Календарь поставок',
-                  m_receive_issue_label: 'Прием / Выдача', m_receive_issue_desc: 'Быстрый доступ к приёму и выдаче',
+                  m_receive_issue_label: 'Прием / Выдача', m_receive_issue_desc: 'Журнал операционного приёма и выдачи штучной техники и бюро-товаров (канцелярии)',
                   m_transfer_label: 'Transfer', m_transfer_desc: 'Перемещения между складами',
-                  m_popr_label: 'PO/PR', m_popr_desc: 'Заказы на закупку',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Просмотр всех принятых поставок и редактирование данных приёма',
+                  popr_table_title: 'Принятые поставки', popr_col_id: 'Приём №', popr_col_date: 'Дата', popr_col_type: 'Тип', popr_col_model: 'Модель / SKU', popr_col_sn: 'S/N', popr_col_qty: 'Кол-во', popr_col_wh: 'Склад', popr_col_actions: '',
+                  popr_edit_btn: 'Редактировать', popr_type_tech: 'Техника', popr_type_office: 'Бюро-материалы',
+                  popr_edit_title: 'Редактирование приёма', popr_save_btn: 'Сохранить', popr_cancel_btn: 'Отмена', popr_saved_msg: 'Изменения сохранены',
                   m_history_label: 'История', m_history_desc: 'Журнал всех действий в системе',
                   back_home: '← Главная страница',
                   ph_desc: 'Раздел в разработке — как только определим набор полей, добавим сюда полноценный функционал.' },
@@ -750,7 +794,7 @@
                   stat_office: 'Офісні матеріали', stat_issued: 'Видано', stat_broken: 'Несправно', stat_kletka: 'У клітці', stat_written_off: 'Списано',
                   stat_group_tech: 'IT-техніка та обладнання', stat_group_office: 'Офісні матеріали та логістика',
                   stat_tech_total: 'Всього техніки на складі', stat_tech_wait_tag: 'Очікує Asset Tag',
-                  stat_tech_in_process: 'В процесі', stat_tech_broken_rma: 'Несправно / У клітці (RMA)',
+                  stat_tech_in_process: 'В процесі', stat_tech_cage: 'У клітці (очікує списання)', stat_tech_written_off: 'Списано (акт оформлено)',
                   stat_office_total: 'Офісні матеріали (SKU)', stat_office_low_stock: 'Мало на складі',
                   stat_office_po_expected: 'Очікувані доставки (PO/PR)', stat_office_transfers_transit: 'Трансфери в дорозі',
                   stat_link_view: 'Подивитися', stat_link_scan: 'Сканувати', stat_link_go: 'Перейти',
@@ -761,9 +805,12 @@
                   m_material_label: 'Material Master', m_material_desc: 'Довідник матеріалів і залишків',
                   m_excel_label: 'Імпорт/Експорт Excel', m_excel_desc: 'Завантаження і вивантаження даних',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Календар поставок',
-                  m_receive_issue_label: 'Прийом / Видача', m_receive_issue_desc: 'Швидкий доступ до прийому і видачі',
+                  m_receive_issue_label: 'Прийом / Видача', m_receive_issue_desc: 'Журнал операційного прийому і видачі штучної техніки та офісних товарів (канцелярії)',
                   m_transfer_label: 'Transfer', m_transfer_desc: 'Переміщення між складами',
-                  m_popr_label: 'PO/PR', m_popr_desc: 'Замовлення на закупівлю',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Перегляд усіх прийнятих поставок і редагування даних прийому',
+                  popr_table_title: 'Прийняті поставки', popr_col_id: 'Прийом №', popr_col_date: 'Дата', popr_col_type: 'Тип', popr_col_model: 'Модель / SKU', popr_col_sn: 'S/N', popr_col_qty: 'Кількість', popr_col_wh: 'Склад', popr_col_actions: '',
+                  popr_edit_btn: 'Редагувати', popr_type_tech: 'Техніка', popr_type_office: 'Офісні матеріали',
+                  popr_edit_title: 'Редагування прийому', popr_save_btn: 'Зберегти', popr_cancel_btn: 'Скасувати', popr_saved_msg: 'Зміни збережено',
                   m_history_label: 'Історія', m_history_desc: 'Журнал усіх дій в системі',
                   back_home: '← Головна сторінка',
                   ph_desc: 'Розділ у розробці — щойно визначимо набір полів, додамо сюди повноцінний функціонал.' },
@@ -778,7 +825,7 @@
                   stat_office: 'Materiały biurowe', stat_issued: 'Wydane', stat_broken: 'Uszkodzone', stat_kletka: 'W klatce', stat_written_off: 'Spisane',
                   stat_group_tech: 'Technika IT i sprzęt', stat_group_office: 'Materiały biurowe i logistyka',
                   stat_tech_total: 'Cała technika na magazynie', stat_tech_wait_tag: 'Czeka na Asset Tag',
-                  stat_tech_in_process: 'W trakcie', stat_tech_broken_rma: 'Uszkodzone / W klatce (RMA)',
+                  stat_tech_in_process: 'W trakcie', stat_tech_cage: 'W klatce (czeka na spisanie)', stat_tech_written_off: 'Spisane (protokół gotowy)',
                   stat_office_total: 'Materiały biurowe (SKU)', stat_office_low_stock: 'Niski stan magazynowy',
                   stat_office_po_expected: 'Oczekiwane dostawy (PO/PR)', stat_office_transfers_transit: 'Transfery w drodze',
                   stat_link_view: 'Zobacz', stat_link_scan: 'Skanuj', stat_link_go: 'Przejdź',
@@ -789,9 +836,12 @@
                   m_material_label: 'Material Master', m_material_desc: 'Baza materiałów i stanów magazynowych',
                   m_excel_label: 'Import/Eksport Excel', m_excel_desc: 'Wczytywanie i eksport danych',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Kalendarz dostaw',
-                  m_receive_issue_label: 'Przyjęcie / Wydanie', m_receive_issue_desc: 'Szybki dostęp do przyjęcia i wydania',
+                  m_receive_issue_label: 'Przyjęcie / Wydanie', m_receive_issue_desc: 'Dziennik operacyjnego przyjęcia i wydania techniki oraz artykułów biurowych',
                   m_transfer_label: 'Transfer', m_transfer_desc: 'Przenosiny między magazynami',
-                  m_popr_label: 'PO/PR', m_popr_desc: 'Zamówienia zakupu',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Przegląd przyjętych dostaw i edycja danych przyjęcia',
+                  popr_table_title: 'Przyjęte dostawy', popr_col_id: 'Przyjęcie nr', popr_col_date: 'Data', popr_col_type: 'Typ', popr_col_model: 'Model / SKU', popr_col_sn: 'S/N', popr_col_qty: 'Ilość', popr_col_wh: 'Magazyn', popr_col_actions: '',
+                  popr_edit_btn: 'Edytuj', popr_type_tech: 'Technika', popr_type_office: 'Materiały biurowe',
+                  popr_edit_title: 'Edycja przyjęcia', popr_save_btn: 'Zapisz', popr_cancel_btn: 'Anuluj', popr_saved_msg: 'Zmiany zapisane',
                   m_history_label: 'Historia', m_history_desc: 'Dziennik wszystkich działań w systemie',
                   back_home: '← Strona główna',
                   ph_desc: 'Sekcja w budowie — gdy określimy pola, dodamy tu pełną funkcjonalność.' },
@@ -806,7 +856,7 @@
                   stat_office: 'Office supplies', stat_issued: 'Issued', stat_broken: 'Broken', stat_kletka: 'In cage', stat_written_off: 'Written off',
                   stat_group_tech: 'IT equipment', stat_group_office: 'Office supplies & logistics',
                   stat_tech_total: 'Total equipment on warehouse', stat_tech_wait_tag: 'Waiting for Asset Tag',
-                  stat_tech_in_process: 'In process', stat_tech_broken_rma: 'Broken / In cage (RMA)',
+                  stat_tech_in_process: 'In process', stat_tech_cage: 'In cage (awaiting write-off)', stat_tech_written_off: 'Written off (report filed)',
                   stat_office_total: 'Office supplies (SKU)', stat_office_low_stock: 'Low stock',
                   stat_office_po_expected: 'Expected deliveries (PO/PR)', stat_office_transfers_transit: 'Transfers in transit',
                   stat_link_view: 'View', stat_link_scan: 'Scan', stat_link_go: 'Go',
@@ -817,9 +867,12 @@
                   m_material_label: 'Material Master', m_material_desc: 'Materials catalog and stock levels',
                   m_excel_label: 'Excel Import/Export', m_excel_desc: 'Upload and export data',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Delivery calendar',
-                  m_receive_issue_label: 'Receive / Issue', m_receive_issue_desc: 'Quick access to receiving and issuing',
+                  m_receive_issue_label: 'Receive / Issue', m_receive_issue_desc: 'Operational log of receiving and issuing unit-tracked equipment and office supplies',
                   m_transfer_label: 'Transfer', m_transfer_desc: 'Transfers between warehouses',
-                  m_popr_label: 'PO/PR', m_popr_desc: 'Purchase orders',
+                  m_popr_label: 'PO/PR', m_popr_desc: 'Review all received shipments and edit receipt data',
+                  popr_table_title: 'Received shipments', popr_col_id: 'Receipt #', popr_col_date: 'Date', popr_col_type: 'Type', popr_col_model: 'Model / SKU', popr_col_sn: 'S/N', popr_col_qty: 'Qty', popr_col_wh: 'Warehouse', popr_col_actions: '',
+                  popr_edit_btn: 'Edit', popr_type_tech: 'Equipment', popr_type_office: 'Office supplies',
+                  popr_edit_title: 'Edit receipt', popr_save_btn: 'Save', popr_cancel_btn: 'Cancel', popr_saved_msg: 'Changes saved',
                   m_history_label: 'History', m_history_desc: 'Log of all actions in the system',
                   back_home: '← Home',
                   ph_desc: 'Section in progress — once we define the fields, full functionality will appear here.' }
@@ -856,7 +909,8 @@
             'transfer-out': { iconKey: '⬆️', labelKey: 'nav_transfer_out' },
             'bureau-materials': { iconKey: '🗂️', labelKey: 'm_bureau_label' },
             'bureau-issue': { iconKey: '🔵', labelKey: 'qa_issue_office' },
-            'rma-cage': { iconKey: '🚫', labelKey: 'stat_tech_broken_rma' }
+            'rma-cage': { iconKey: '🚫', labelKey: 'stat_tech_cage' },
+            'write-off': { iconKey: '📝', labelKey: 'stat_tech_written_off' }
         };
         let currentPageKey = null;
 
@@ -879,29 +933,97 @@
             document.getElementById('home-view').style.display = 'none';
             const pv = document.getElementById('page-view');
             pv.style.display = 'block';
-            pv.innerHTML = `
-                <button class="back-link" onclick="window.showHome()">${t('back_home')}</button>
-                <div class="placeholder-page">
-                    <div class="picon">${p.iconKey}</div>
-                    <h2>${t(p.labelKey)}</h2>
-                    <p>${t('ph_desc')}</p>
+            if (key === 'po-pr') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>` + renderPoPrTable();
+            } else {
+                pv.innerHTML = `
+                    <button class="back-link" onclick="window.showHome()">${t('back_home')}</button>
+                    <div class="placeholder-page">
+                        <div class="picon">${p.iconKey}</div>
+                        <h2>${t(p.labelKey)}</h2>
+                        <p>${t('ph_desc')}</p>
+                    </div>
+                `;
+            }
+            setActiveNav(key);
+        }
+
+        // ===== PO/PR: просмотр принятых поставок (техника + бюро-материалы) и редактирование приёма =====
+        // TODO: заменить RECEIPTS на реальную выборку принятых приёмов из Firestore по currentWarehouse
+        const RECEIPTS = [
+            { id: 'RCV-1042', date: '2026-09-20', type: 'tech', model: 'Dell OptiPlex 7020', sn: 'SN-88213', qty: 1, wh: 'DC1' },
+            { id: 'RCV-1043', date: '2026-09-21', type: 'tech', model: 'HP EliteBook 840', sn: 'SN-77410', qty: 1, wh: 'DC1' },
+            { id: 'RCV-1044', date: '2026-09-22', type: 'office', model: 'Бумага A4 (SKU-2201)', sn: '—', qty: 40, wh: 'DC2' },
+            { id: 'RCV-1045', date: '2026-09-23', type: 'office', model: 'Картриджи HP 26A (SKU-2350)', sn: '—', qty: 12, wh: 'DC3' }
+        ];
+
+        function renderPoPrTable() {
+            const rows = RECEIPTS.map(r => `
+                <tr>
+                    <td>${r.id}</td><td>${r.date}</td>
+                    <td>${r.type === 'tech' ? t('popr_type_tech') : t('popr_type_office')}</td>
+                    <td>${escapeHtml(r.model)}</td><td>${escapeHtml(r.sn)}</td><td>${r.qty}</td><td>${r.wh}</td>
+                    <td><button class="btn btn-secondary btn-icon" onclick="window.openEditReceiptModal('${r.id}')">${t('popr_edit_btn')}</button></td>
+                </tr>
+            `).join('');
+            return `
+                <div class="placeholder-page" style="text-align:left; padding: 28px;">
+                    <h2 style="margin-bottom:16px;">${t('popr_table_title')}</h2>
+                    <div style="overflow-x:auto;">
+                        <table class="popr-table">
+                            <thead><tr>
+                                <th>${t('popr_col_id')}</th><th>${t('popr_col_date')}</th><th>${t('popr_col_type')}</th>
+                                <th>${t('popr_col_model')}</th><th>${t('popr_col_sn')}</th><th>${t('popr_col_qty')}</th>
+                                <th>${t('popr_col_wh')}</th><th>${t('popr_col_actions')}</th>
+                            </tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
                 </div>
             `;
-            setActiveNav(key);
+        }
+
+        function openEditReceiptModal(id) {
+            const r = RECEIPTS.find(x => x.id === id);
+            if (!r) return;
+            document.getElementById('edit-receipt-id').value = r.id;
+            document.getElementById('edit-receipt-title').innerText = `${t('popr_edit_title')} — ${r.id}`;
+            document.getElementById('edit-receipt-model').value = r.model;
+            document.getElementById('edit-receipt-sn').value = r.sn;
+            document.getElementById('edit-receipt-qty').value = r.qty;
+            document.getElementById('edit-receipt-saved').innerText = '';
+            document.getElementById('edit-receipt-overlay').classList.add('open');
+        }
+        function closeEditReceiptModal() { document.getElementById('edit-receipt-overlay').classList.remove('open'); }
+        // TODO: заменить локальное обновление массива на updateDoc() в Firestore по id приёма
+        function saveEditedReceipt() {
+            const id = document.getElementById('edit-receipt-id').value;
+            const r = RECEIPTS.find(x => x.id === id);
+            if (!r) return;
+            r.model = document.getElementById('edit-receipt-model').value.trim();
+            r.sn = document.getElementById('edit-receipt-sn').value.trim();
+            r.qty = parseInt(document.getElementById('edit-receipt-qty').value, 10) || r.qty;
+            logActivity('receipt_edit', `Исправлен приём ${id}: ${r.model}, S/N ${r.sn}, кол-во ${r.qty}`);
+            document.getElementById('edit-receipt-saved').innerText = t('popr_saved_msg');
+            if (currentPageKey === 'po-pr') openPage('po-pr');
         }
 
         // Конфиг 8 карточек метрик: [accent-класс, иконка, ключ числа (для привязки реальных данных),
         // ключ подписи, ключ ссылки-действия, страница/обработчик при клике]
         // TODO: заменить STAT_VALUES.<key> на реальные агрегаты из Firestore (Material Master / Бюро-материалы) для currentWarehouse
         const STAT_VALUES = {
-            tech_total: 0, tech_wait_tag: 0, tech_in_process: 0, tech_broken_rma: 0,
+            tech_total: 0, tech_wait_tag: 0, tech_in_process: 0, tech_cage: 0, tech_written_off: 0,
             office_total: 0, office_low_stock: 0, office_po_expected: 0, office_transfers_transit: 0
         };
+        // «Неисправно» разбито на 2 стадии инвентаризации по Asset Code/S/N:
+        // 1) tech_cage — техника физически в зоне «Клетка», акт списания ещё не оформлен
+        // 2) tech_written_off — акт списания оформлен, процесс завершён
         const TECH_STATS = [
             { key: 'tech_total', accent: 'accent-neutral', icon: '🖥️', lbl: 'stat_tech_total', link: 'stat_link_view', page: 'material-master' },
             { key: 'tech_wait_tag', accent: 'accent-warning', icon: '🏷️', lbl: 'stat_tech_wait_tag', link: 'stat_link_scan', page: 'delivery-receive' },
             { key: 'tech_in_process', accent: 'accent-success', icon: '⚙️', lbl: 'stat_tech_in_process', link: 'stat_link_go', page: 'material-master' },
-            { key: 'tech_broken_rma', accent: 'accent-danger', icon: '🚫', lbl: 'stat_tech_broken_rma', link: 'stat_link_go', page: 'rma-cage' }
+            { key: 'tech_cage', accent: 'accent-danger', icon: '🚫', lbl: 'stat_tech_cage', link: 'stat_link_go', page: 'rma-cage' },
+            { key: 'tech_written_off', accent: 'accent-danger', accentExtra: 'stage-2', icon: '📝', lbl: 'stat_tech_written_off', link: 'stat_link_go', page: 'write-off' }
         ];
         const OFFICE_STATS = [
             { key: 'office_total', accent: 'accent-neutral', icon: '🗂️', lbl: 'stat_office_total', link: 'stat_link_go', page: 'bureau-materials' },
@@ -913,7 +1035,7 @@
             const el = document.getElementById(elId);
             if (!el) return;
             el.innerHTML = cards.map(c => `
-                <div class="stat-card ${c.accent}">
+                <div class="stat-card ${c.accent}${c.accentExtra ? ' ' + c.accentExtra : ''}">
                     <div class="stat-card-top"><span class="stat-icon">${c.icon}</span></div>
                     <div class="num">${STAT_VALUES[c.key]}</div>
                     <div class="lbl">${t(c.lbl)}</div>
@@ -949,15 +1071,15 @@
                         <div class="label">${t('m_excel_label')}</div>
                         <div class="desc">${t('m_excel_desc')}</div>
                     </button>
-                    <button class="module-tile" onclick="window.openPage('delivery-calendar')">
-                        <span class="icon">🚚</span>
-                        <div class="label">${t('m_delivery_label')}</div>
-                        <div class="desc">${t('m_delivery_desc')}</div>
-                    </button>
                     <button class="module-tile" onclick="window.openPage('receive-issue')">
                         <span class="icon">📥</span>
                         <div class="label">${t('m_receive_issue_label')}</div>
                         <div class="desc">${t('m_receive_issue_desc')}</div>
+                    </button>
+                    <button class="module-tile" onclick="window.openPage('delivery-calendar')">
+                        <span class="icon">🚚</span>
+                        <div class="label">${t('m_delivery_label')}</div>
+                        <div class="desc">${t('m_delivery_desc')}</div>
                     </button>
                     <button class="module-tile" onclick="window.openPage('transfer')">
                         <span class="icon">🔁</span>
@@ -1023,6 +1145,9 @@
         window.closeAddEmployeeModal = closeAddEmployeeModal;
         window.openHistoryModal = openHistoryModal;
         window.closeHistoryModal = closeHistoryModal;
+        window.openEditReceiptModal = openEditReceiptModal;
+        window.closeEditReceiptModal = closeEditReceiptModal;
+        window.saveEditedReceipt = saveEditedReceipt;
     </script>
 </body>
 </html>
