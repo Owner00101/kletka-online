@@ -370,6 +370,9 @@
                         <button class="nav-item" data-key="asset-ledger" onclick="window.openPage('asset-ledger')">
                             <span class="nav-icon">📒</span><span class="nav-label" data-i18n="nav_ledger">Asset Ledger</span>
                         </button>
+                        <button class="nav-item" data-key="components" onclick="window.openPage('components')">
+                            <span class="nav-icon">🔌</span><span class="nav-label" data-i18n="nav_components">Комплектующие</span>
+                        </button>
                         <button class="nav-item" data-key="regions" onclick="window.openPage('regions')">
                             <span class="nav-icon">🗺️</span><span class="nav-label" data-i18n="nav_regions">Регионы и склады</span>
                         </button>
@@ -566,7 +569,7 @@
         import {
             getFirestore, collection, onSnapshot,
             addDoc, updateDoc, deleteDoc, doc, getDoc, setDoc,
-            query, orderBy, limit, where, getDocs, writeBatch
+            query, orderBy, limit, where, getDocs, writeBatch, increment
         } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
         import {
             getAuth, onAuthStateChanged, signInWithEmailAndPassword,
@@ -947,6 +950,7 @@
         const PAGES = {
             'material-master': { iconKey: '📦', labelKey: 'nav_material' },
             'asset-ledger': { iconKey: '📒', labelKey: 'm_ledger_label' },
+            'components': { iconKey: '🔌', labelKey: 'm_components_label' },
             'excel-import-export': { iconKey: '📊', labelKey: 'm_excel_label' },
             'regions': { iconKey: '🗺️', labelKey: 'nav_regions' },
             'search': { iconKey: '🔍', labelKey: 'nav_search' },
@@ -991,6 +995,9 @@
             } else if (key === 'asset-ledger') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderAssetLedger(pv);
+            } else if (key === 'components') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderComponents(pv);
             } else if (key === 'excel-import-export') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderImportExport(pv);
@@ -1118,45 +1125,26 @@
 
             const grid = document.getElementById('module-grid');
             if (grid) {
-                grid.innerHTML = `
-                    <button class="module-tile" onclick="window.openPage('material-master')">
-                        <span class="icon">📦</span>
-                        <div class="label">${t('m_material_label')}</div>
-                        <div class="desc">${t('m_material_desc')}</div>
-                    </button>
-                    <button class="module-tile" onclick="window.openPage('asset-ledger')">
-                        <span class="icon">📒</span>
-                        <div class="label">${t('m_ledger_label')}</div>
-                        <div class="desc">${t('m_ledger_desc')}</div>
-                    </button>
-                    <button class="module-tile" onclick="window.openPage('bureau-materials')">
-                        <span class="icon">🗂️</span>
-                        <div class="label">${t('m_bureau_label')}</div>
-                        <div class="desc">${t('m_bureau_desc')}</div>
-                    </button>
-                    <button class="module-tile" onclick="window.openPage('excel-import-export')">
-                        <span class="icon">📊</span>
-                        <div class="label">${t('m_excel_label')}</div>
-                        <div class="desc">${t('m_excel_desc')}</div>
-                    </button>
-                    <button class="module-tile" onclick="window.openPage('receive-issue')">
-                        <span class="icon">📥</span>
-                        <div class="label">${t('m_receive_issue_label')}</div>
-                        <div class="desc">${t('m_receive_issue_desc')}</div>
-                    </button>
-                    <!-- Временно скрыто: плитка «Delivery» (delivery-calendar) -->
-                    <!-- Временно скрыто: плитка «Transfer» (трансферы в пути) -->
-                    <button class="module-tile" onclick="window.openPage('po-pr')">
-                        <span class="icon">📄</span>
-                        <div class="label">${t('m_popr_label')}</div>
-                        <div class="desc">${t('m_popr_desc')}</div>
-                    </button>
-                    <button class="module-tile" onclick="window.openHistoryModal()">
-                        <span class="icon">🕓</span>
-                        <div class="label">${t('m_history_label')}</div>
-                        <div class="desc">${t('m_history_desc')}</div>
-                    </button>
-                `;
+                // Порядок плиток = порядок на главной. [страница, иконка, префикс ключей i18n, «новое»]
+                // «Delivery» (delivery-calendar) по-прежнему временно скрыта.
+                const tiles = [
+                    ['material-master', '📦', 'm_material'],
+                    ['asset-ledger', '📒', 'm_ledger'],
+                    ['components', '🔌', 'm_components', true],
+                    ['bureau-materials', '🗂️', 'm_bureau'],
+                    ['receive-issue', '📥', 'm_receive_issue'],
+                    ['transfer', '🔁', 'm_transfer'],
+                    ['po-pr', '📄', 'm_popr'],
+                    ['excel-import-export', '📊', 'm_excel'],
+                    [null, '🕓', 'm_history']
+                ];
+                grid.innerHTML = tiles.map(([page, icon, k, isNew]) => `
+                    <button class="module-tile" style="position:relative;" onclick="${page ? `window.openPage('${page}')` : 'window.openHistoryModal()'}">
+                        ${isNew ? `<span class="absolute right-3.5 top-3.5 rounded-full bg-klt-emerald/20 px-2 py-0.5 text-[10px] font-bold text-klt-emerald-light">${t('m_new_badge')}</span>` : ''}
+                        <span class="icon">${icon}</span>
+                        <div class="label">${t(k + '_label')}</div>
+                        <div class="desc">${t(k + '_desc')}</div>
+                    </button>`).join('');
             }
         }
 
@@ -1185,6 +1173,7 @@
             document.querySelectorAll('.warehouse-btn').forEach(b => b.classList.toggle('active', b.dataset.wh === code));
             renderHome();
             loadCageCount();
+            if (currentPageKey === 'components') openPage('components');   // остатки привязаны к складу
             // Пока переключение склада меняет только заголовок — данные по складам подключим,
             // когда определим структуру Material Master/Delivery для каждого DC отдельно.
         }
@@ -1587,6 +1576,436 @@
             }
         }
 
+        // ===== i18n: модуль «Комплектующие» (uk/pl фолбэчатся на ru через t()) =====
+        Object.assign(TR.ru, {
+            nav_components: 'Комплектующие', m_components_label: 'Комплектующие', m_components_desc: 'Кабели, блоки питания, переходники и обвязка',
+            m_new_badge: 'Новое',
+            m_transfer_label: 'Трансфер', m_transfer_desc: 'Отправка на прошивку в IT-офис или на другие DC',
+            cmp_title: 'Учет комплектующих и кабелей', cmp_view_grid: 'Сетка карточек', cmp_view_table: 'Таблица',
+            cmp_add: '+ Добавить товар', cmp_search_ph: 'Поиск по названию или SKU',
+            cmp_cat_all: 'Все', cmp_cat_cables: 'Кабели', cmp_cat_psu: 'Блоки питания', cmp_cat_adapters: 'Переходники', cmp_cat_brackets: 'Кронштейны', cmp_cat_other: 'Прочее',
+            cmp_unit: 'шт.', cmp_low: 'Мало на складе', cmp_issue: 'Выдать', cmp_min: 'Минимум: {n}', cmp_count: 'Позиций: {n}',
+            cmp_empty: 'По этому фильтру ничего не найдено', cmp_empty_first: 'Здесь пока пусто. Добавьте первый товар или загрузите список через Импорт / Экспорт.',
+            cmp_load_err: 'Не удалось загрузить комплектующие (проверьте связь / права Firestore)',
+            cmp_col_photo: 'Фото', cmp_col_name: 'Название', cmp_col_sku: 'SKU', cmp_col_cat: 'Категория', cmp_col_qty: 'Остаток', cmp_col_min: 'Минимум',
+            cmp_photo_view: 'Открыть фото',
+            cmp_new_title: 'Новый товар', cmp_f_name: 'Название товара', cmp_f_cat: 'Категория', cmp_f_sku: 'SKU / Внутренний артикул',
+            cmp_f_qty: 'Начальное количество', cmp_f_min: 'Минимальный остаток (Alert Limit)', cmp_f_img: 'Изображение',
+            cmp_f_img_file: 'Загрузить файл', cmp_f_img_url: 'или ссылка на картинку (https://…)', cmp_f_desc: 'Описание / спецификация',
+            cmp_ph_name: 'Например: Кабель DisplayPort 1.8m', cmp_save: 'Сохранить', cmp_cancel: 'Отмена',
+            cmp_err_name: 'Укажите название товара', cmp_err_sku: 'Укажите SKU', cmp_err_num: 'Количество и минимальный остаток — целые числа от 0',
+            cmp_err_url: 'Ссылка на изображение должна начинаться с http:// или https://', cmp_err_img: 'Не удалось прочитать изображение',
+            cmp_err_dup: 'Позиция с таким SKU уже есть на складе {wh}', cmp_err_save: 'Не удалось сохранить (проверьте связь / права Firestore)',
+            cmp_added: 'Товар добавлен', cmp_adj_err: 'Не удалось изменить остаток',
+            cmp_issue_title: 'Выдача: {name}', cmp_issue_avail: 'Доступно: {n} шт.', cmp_issue_to_emp: 'Сотрудник', cmp_issue_to_proc: 'Процесс',
+            cmp_issue_target_emp: 'ФИО / ID сотрудника', cmp_issue_target_proc: 'Название / номер процесса', cmp_issue_qty: 'Количество',
+            cmp_issue_note: 'Комментарий (необязательно)', cmp_issue_do: 'Выдать', cmp_err_target: 'Укажите получателя',
+            cmp_err_issue_qty: 'Количество: от 1 до {n}', cmp_issued: 'Выдано: {name} × {qty}',
+            ie_target_cmp: 'Комплектующие', ie_cmp_desc: 'Кабели, БП, переходники: SKU, категории, остатки и лимиты (в структуре Material Master)'
+        });
+        Object.assign(TR.en, {
+            nav_components: 'Components', m_components_label: 'Components', m_components_desc: 'Cables, power supplies, adapters and accessories',
+            m_new_badge: 'New',
+            m_transfer_desc: 'Send for flashing to the IT office or to other DCs',
+            cmp_title: 'Components & cables inventory', cmp_view_grid: 'Card grid', cmp_view_table: 'Table',
+            cmp_add: '+ Add item', cmp_search_ph: 'Search by name or SKU',
+            cmp_cat_all: 'All', cmp_cat_cables: 'Cables', cmp_cat_psu: 'Power supplies', cmp_cat_adapters: 'Adapters', cmp_cat_brackets: 'Brackets', cmp_cat_other: 'Other',
+            cmp_unit: 'pcs', cmp_low: 'Low stock', cmp_issue: 'Issue', cmp_min: 'Minimum: {n}', cmp_count: 'Items: {n}',
+            cmp_empty: 'Nothing matches this filter', cmp_empty_first: 'Nothing here yet. Add the first item or upload a list via Import / Export.',
+            cmp_load_err: 'Could not load components (check connection / Firestore rules)',
+            cmp_col_photo: 'Photo', cmp_col_name: 'Name', cmp_col_sku: 'SKU', cmp_col_cat: 'Category', cmp_col_qty: 'Stock', cmp_col_min: 'Minimum',
+            cmp_photo_view: 'Open photo',
+            cmp_new_title: 'New item', cmp_f_name: 'Item name', cmp_f_cat: 'Category', cmp_f_sku: 'SKU / internal part number',
+            cmp_f_qty: 'Initial quantity', cmp_f_min: 'Minimum stock (alert limit)', cmp_f_img: 'Image',
+            cmp_f_img_file: 'Upload file', cmp_f_img_url: 'or image link (https://…)', cmp_f_desc: 'Description / specification',
+            cmp_ph_name: 'E.g. DisplayPort cable 1.8m', cmp_save: 'Save', cmp_cancel: 'Cancel',
+            cmp_err_name: 'Enter the item name', cmp_err_sku: 'Enter the SKU', cmp_err_num: 'Quantity and minimum stock must be whole numbers from 0',
+            cmp_err_url: 'Image link must start with http:// or https://', cmp_err_img: 'Could not read the image',
+            cmp_err_dup: 'An item with this SKU already exists in warehouse {wh}', cmp_err_save: 'Could not save (check connection / Firestore rules)',
+            cmp_added: 'Item added', cmp_adj_err: 'Could not change the stock',
+            cmp_issue_title: 'Issue: {name}', cmp_issue_avail: 'Available: {n} pcs', cmp_issue_to_emp: 'Employee', cmp_issue_to_proc: 'Process',
+            cmp_issue_target_emp: 'Employee name / ID', cmp_issue_target_proc: 'Process name / number', cmp_issue_qty: 'Quantity',
+            cmp_issue_note: 'Comment (optional)', cmp_issue_do: 'Issue', cmp_err_target: 'Enter the recipient',
+            cmp_err_issue_qty: 'Quantity: 1 to {n}', cmp_issued: 'Issued: {name} × {qty}',
+            ie_target_cmp: 'Components', ie_cmp_desc: 'Cables, PSUs, adapters: SKU, categories, stock and limits (Material Master structure)'
+        });
+
+        // =====================================================================
+        // КОМПЛЕКТУЮЩИЕ (кабели, БП, переходники, кронштейны)
+        // Хранение: коллекция material_master (структура Material Master), документ {WH}__{SKU}
+        // с признаком group:'components'. Asset Ledger (assets/*) не затрагивается.
+        // Остаток меняется атомарно через increment(), движения пишутся в component_movements
+        // (best-effort) и в общий журнал активности. Фото: файл ужимается на клиенте до ~480px JPEG
+        // и хранится в документе (Storage-SDK не подключён) либо задаётся ссылкой http(s).
+        // =====================================================================
+        const CMP_CATS = ['cables', 'psu', 'adapters', 'brackets', 'other'];
+        const CMP_ICON = { cables: '🔌', psu: '⚡', adapters: '🔁', brackets: '🔩', other: '📦' };
+        const cmpCatKey = v => {
+            const s = String(v == null ? '' : v).trim().toLowerCase();
+            if (CMP_CATS.includes(s)) return s;
+            if (/кабел|шнур|cable|cord/.test(s)) return 'cables';
+            if (/блок|питан|psu|power|charger|заряд/.test(s)) return 'psu';
+            if (/перех|адаптер|adapter|adaptor|dongle/.test(s)) return 'adapters';
+            if (/кроншт|bracket|mount|стойк|holder|креп/.test(s)) return 'brackets';
+            return 'other';
+        };
+        const cmpAttr = s => escapeHtml(String(s)).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        const cmpSafeImg = s => /^(https?:\/\/|data:image\/(jpeg|png|webp|gif);base64,)/i.test(String(s || '')) ? String(s) : '';
+        const cmpFromDoc = d => {
+            const x = d.data();
+            return {
+                id: d.id, sku: String(x.sku || d.id.split('__').slice(1).join('__')), name: String(x.name || ''),
+                category: cmpCatKey(x.category), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0),
+                image: x.image || '', description: x.description || ''
+            };
+        };
+
+        let cmpItems = [];
+        let cmpView = 'grid';
+        let cmpCat = 'all';
+        let cmpQuery = '';
+        let cmpRedraw = () => {};
+        try { cmpView = localStorage.getItem('kletka_cmp_view') === 'table' ? 'table' : 'grid'; } catch (e) { /* storage недоступен */ }
+
+        function cmpToast(text, kind) {
+            let el = document.getElementById('cmp-toast');
+            if (!el) {
+                el = document.createElement('div'); el.id = 'cmp-toast';
+                el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:120;';
+                document.body.appendChild(el);
+            }
+            el.className = 'rounded-lg border border-solid px-4 py-2.5 text-[13px] font-semibold shadow-lg ' +
+                (kind === 'err' ? 'border-red-400/40 bg-[#2a1214] text-red-300' : 'border-klt-emerald/40 bg-[#0c2a20] text-klt-emerald-light');
+            el.textContent = text; el.style.display = 'block';
+            clearTimeout(el._t); el._t = setTimeout(() => { el.style.display = 'none'; }, 3200);
+        }
+
+        function cmpModal(inner, wide) {
+            const ov = document.createElement('div');
+            ov.className = 'fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/60 p-4';
+            ov.innerHTML = `<div role="dialog" aria-modal="true" class="my-auto w-full ${wide ? 'max-w-[640px]' : 'max-w-[480px]'} rounded-2xl border border-solid border-klt-line bg-klt-card p-6">${inner}</div>`;
+            const onKey = e => { if (e.key === 'Escape') close(); };
+            function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
+            ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
+            document.addEventListener('keydown', onKey);
+            document.body.appendChild(ov);
+            return { ov, close, $: s => ov.querySelector(s) };
+        }
+
+        // Движение остатка: журнал активности + отдельная коллекция (ошибка записи не блокирует операцию)
+        async function cmpLogMove(it, type, qty, extra) {
+            try {
+                await addDoc(collection(db, 'component_movements'), Object.assign({
+                    sku: it.sku, name: it.name, type, qty, warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: Date.now()
+                }, extra || {}));
+            } catch (e) { console.warn('component_movements:', e); }
+        }
+
+        function cmpReadImage(file) {
+            return new Promise((resolve, reject) => {
+                const fr = new FileReader();
+                fr.onerror = reject;
+                fr.onload = () => {
+                    const img = new Image();
+                    img.onerror = reject;
+                    img.onload = () => {
+                        const k = Math.min(1, 480 / Math.max(img.width, img.height));
+                        const c = document.createElement('canvas');
+                        c.width = Math.max(1, Math.round(img.width * k)); c.height = Math.max(1, Math.round(img.height * k));
+                        const ctx = c.getContext('2d');
+                        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+                        ctx.drawImage(img, 0, 0, c.width, c.height);
+                        resolve(c.toDataURL('image/jpeg', 0.8));
+                    };
+                    img.src = fr.result;
+                };
+                fr.readAsDataURL(file);
+            });
+        }
+
+        const CMP_FLD = 'w-full rounded-lg border border-solid border-klt-line bg-klt-bg px-3 py-2.5 text-sm text-slate-50 outline-none placeholder:text-klt-muted focus:border-klt-emerald';
+        const CMP_LBL = 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-klt-muted';
+        const CMP_BTN = 'cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-3 py-2 text-sm font-bold text-slate-50 transition hover:border-klt-emerald hover:text-klt-emerald-light disabled:cursor-not-allowed disabled:opacity-40';
+        const CMP_BTN_MAIN = 'cursor-pointer rounded-lg border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark px-4 py-2 text-sm font-bold text-[#052e21] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
+
+        function cmpQtyTone(it) {
+            const zero = it.qty <= 0, low = it.qty <= it.minQty;
+            return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-klt-emerald-light' };
+        }
+        function cmpActions(it, compact) {
+            const id = cmpAttr(it.id);
+            return `<div class="flex gap-2 ${compact ? 'justify-end' : 'mt-4'}">
+                <button type="button" data-cmp-act="dec" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} aria-label="−1" class="${CMP_BTN}">− 1</button>
+                <button type="button" data-cmp-act="inc" data-id="${id}" aria-label="+1" class="${CMP_BTN}">+ 1</button>
+                <button type="button" data-cmp-act="issue" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">${t('cmp_issue')}</button>
+            </div>`;
+        }
+        function cmpPhoto(it, cls) {
+            const img = cmpSafeImg(it.image);
+            return `<span class="absolute inset-0 flex items-center justify-center ${cls} opacity-50">${CMP_ICON[it.category]}</span>` +
+                (img ? `<button type="button" data-cmp-act="photo" data-id="${cmpAttr(it.id)}" aria-label="${cmpAttr(t('cmp_photo_view'))}" class="absolute inset-0 cursor-zoom-in border-0 bg-transparent p-0"><img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="h-full w-full object-cover"></button>` : '');
+        }
+
+        function cmpCard(it) {
+            const tn = cmpQtyTone(it);
+            return `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid bg-klt-bg ${tn.zero ? 'border-red-500/70' : tn.low ? 'border-klt-orange/70' : 'border-klt-line'}">
+                <div class="relative aspect-[4/3] bg-klt-card">
+                    ${cmpPhoto(it, 'text-5xl')}
+                    ${tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t('cmp_low')}</span>` : ''}
+                </div>
+                <div class="flex flex-1 flex-col p-4">
+                    <h3 class="text-[15px] font-bold leading-snug text-slate-50">${escapeHtml(it.name)}</h3>
+                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
+                        <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${t('cmp_cat_' + it.category)}</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline gap-1.5">
+                        <span class="text-4xl font-extrabold leading-none ${tn.num}">${it.qty}</span>
+                        <span class="text-sm text-klt-muted">${t('cmp_unit')}</span>
+                        <span class="ml-auto text-[11px] text-klt-muted">${fmt(t('cmp_min'), { n: it.minQty })}</span>
+                    </div>
+                    ${cmpActions(it, false)}
+                </div>
+            </article>`;
+        }
+
+        function cmpTable(list) {
+            const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+            const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-middle text-slate-50';
+            return `<div class="overflow-x-auto"><table class="w-full min-w-[820px] border-collapse text-[13px]">
+                <thead><tr>
+                    <th class="${th} w-16">${t('cmp_col_photo')}</th><th class="${th}">${t('cmp_col_name')}</th><th class="${th}">${t('cmp_col_sku')}</th>
+                    <th class="${th}">${t('cmp_col_cat')}</th><th class="${th}">${t('cmp_col_qty')}</th><th class="${th}">${t('cmp_col_min')}</th><th class="${th}"></th>
+                </tr></thead>
+                <tbody>${list.map(it => {
+                    const tn = cmpQtyTone(it);
+                    return `<tr class="transition hover:bg-klt-hover">
+                        <td class="${td}"><div class="relative h-11 w-11 overflow-hidden rounded-lg bg-klt-bg">${cmpPhoto(it, 'text-xl')}</div></td>
+                        <td class="${td} font-semibold">${escapeHtml(it.name)}</td>
+                        <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</td>
+                        <td class="${td} text-klt-muted">${t('cmp_cat_' + it.category)}</td>
+                        <td class="${td}"><span class="text-lg font-extrabold ${tn.num}">${it.qty}</span> <span class="text-klt-muted">${t('cmp_unit')}</span>
+                            ${tn.low ? `<span class="ml-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${tn.zero ? 'bg-red-500/20 text-red-300' : 'bg-klt-orange/20 text-klt-orange-light'}">${t('cmp_low')}</span>` : ''}</td>
+                        <td class="${td} text-klt-muted">${it.minQty}</td>
+                        <td class="${td}">${cmpActions(it, true)}</td>
+                    </tr>`;
+                }).join('')}</tbody></table></div>`;
+        }
+
+        async function cmpAdjust(it, d) {
+            if (it.qty + d < 0) return;
+            it.qty += d; cmpRedraw(it.id, d > 0 ? 'inc' : 'dec');
+            try {
+                await updateDoc(doc(db, 'material_master', it.id), { qty: increment(d), updatedAt: Date.now(), updatedBy: currentUserName });
+                cmpLogMove(it, d > 0 ? 'adjust_plus' : 'adjust_minus', Math.abs(d));
+            } catch (e) {
+                console.error(e); it.qty -= d; cmpRedraw(it.id, d > 0 ? 'inc' : 'dec');
+                cmpToast(t('cmp_adj_err'), 'err');
+            }
+        }
+
+        function cmpOpenPhoto(it) {
+            const img = cmpSafeImg(it.image); if (!img) return;
+            const m = cmpModal(`
+                <img src="${cmpAttr(img)}" alt="" class="max-h-[60vh] w-full rounded-xl bg-klt-bg object-contain">
+                <h3 class="mt-4 text-lg font-bold text-slate-50">${escapeHtml(it.name)}</h3>
+                <div class="mt-1 text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${t('cmp_cat_' + it.category)}</div>
+                ${it.description ? `<p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-klt-muted">${escapeHtml(it.description)}</p>` : ''}
+                <div class="mt-5 flex justify-end"><button type="button" id="cmp-x" class="${CMP_BTN}">${t('btn_close')}</button></div>`, true);
+            m.$('#cmp-x').onclick = m.close;
+        }
+
+        function cmpOpenIssue(it) {
+            let toType = 'emp';
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">${fmt(t('cmp_issue_title'), { name: escapeHtml(it.name) })}</h2>
+                <p class="mb-4 mt-1 text-xs text-klt-muted">${fmt(t('cmp_issue_avail'), { n: it.qty })}</p>
+                <div class="mb-3.5 inline-flex overflow-hidden rounded-lg border border-solid border-klt-line" id="cmp-i-seg"></div>
+                <div class="mb-3.5"><label class="${CMP_LBL}" id="cmp-i-tl"></label><input id="cmp-i-to" type="text" autocomplete="off" class="${CMP_FLD}"></div>
+                <div class="mb-3.5"><label class="${CMP_LBL}">${t('cmp_issue_qty')}</label><input id="cmp-i-qty" type="number" min="1" max="${it.qty}" step="1" inputmode="numeric" value="1" class="${CMP_FLD}"></div>
+                <div class="mb-1"><label class="${CMP_LBL}">${t('cmp_issue_note')}</label><input id="cmp-i-note" type="text" autocomplete="off" class="${CMP_FLD}"></div>
+                <div id="cmp-i-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="cmp-i-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="cmp-i-ok" class="${CMP_BTN_MAIN}">${t('cmp_issue_do')}</button></div>`);
+            const drawSeg = () => {
+                m.$('#cmp-i-seg').innerHTML = [['emp', 'cmp_issue_to_emp'], ['proc', 'cmp_issue_to_proc']].map(([k, l]) =>
+                    `<button type="button" data-k="${k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${toType === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${t(l)}</button>`).join('');
+                m.$('#cmp-i-tl').textContent = t(toType === 'emp' ? 'cmp_issue_target_emp' : 'cmp_issue_target_proc');
+            };
+            drawSeg();
+            m.$('#cmp-i-seg').onclick = e => { const b = e.target.closest('[data-k]'); if (b) { toType = b.dataset.k; drawSeg(); m.$('#cmp-i-to').focus(); } };
+            m.$('#cmp-i-cancel').onclick = m.close;
+            m.$('#cmp-i-to').focus();
+            m.$('#cmp-i-ok').onclick = async () => {
+                const err = m.$('#cmp-i-err'), okBtn = m.$('#cmp-i-ok');
+                const to = m.$('#cmp-i-to').value.trim(), raw = m.$('#cmp-i-qty').value.trim(), note = m.$('#cmp-i-note').value.trim();
+                const qty = /^\d+$/.test(raw) ? parseInt(raw, 10) : 0;
+                if (!to) { err.textContent = t('cmp_err_target'); return; }
+                if (qty < 1 || qty > it.qty) { err.textContent = fmt(t('cmp_err_issue_qty'), { n: it.qty }); return; }
+                okBtn.disabled = true; err.textContent = '';
+                try {
+                    await updateDoc(doc(db, 'material_master', it.id), { qty: increment(-qty), updatedAt: Date.now(), updatedBy: currentUserName });
+                    it.qty -= qty; cmpRedraw();
+                    cmpLogMove(it, 'issue', qty, { toType, to, note });
+                    logActivity('issue', `Комплектующие: выдано «${it.name}» (${it.sku}) × ${qty} → ${toType === 'emp' ? 'сотрудник' : 'процесс'} ${to}, склад ${currentWarehouse}`);
+                    m.close(); cmpToast(fmt(t('cmp_issued'), { name: it.name, qty }), 'ok');
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+            };
+        }
+
+        function cmpOpenAdd() {
+            let fileImg = null;
+            const m = cmpModal(`
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">🔌 ${t('cmp_new_title')}</h2>
+                <div class="grid gap-3.5 sm:grid-cols-2">
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="cmp-f-name">${t('cmp_f_name')}</label><input id="cmp-f-name" type="text" autocomplete="off" placeholder="${cmpAttr(t('cmp_ph_name'))}" class="${CMP_FLD}"></div>
+                    <div><label class="${CMP_LBL}" for="cmp-f-cat">${t('cmp_f_cat')}</label>
+                        <select id="cmp-f-cat" class="cursor-pointer ${CMP_FLD}">${CMP_CATS.map(c => `<option value="${c}">${t('cmp_cat_' + c)}</option>`).join('')}</select></div>
+                    <div><label class="${CMP_LBL}" for="cmp-f-sku">${t('cmp_f_sku')}</label><input id="cmp-f-sku" type="text" autocomplete="off" placeholder="CBL-DP-18" class="${CMP_FLD} font-mono"></div>
+                    <div><label class="${CMP_LBL}" for="cmp-f-qty">${t('cmp_f_qty')}</label><input id="cmp-f-qty" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
+                    <div><label class="${CMP_LBL}" for="cmp-f-min">${t('cmp_f_min')}</label><input id="cmp-f-min" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('cmp_f_img')}</label>
+                        <div class="flex items-center gap-3">
+                            <div id="cmp-f-prev" class="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg"></div>
+                            <div class="flex min-w-0 flex-1 flex-col gap-2">
+                                <label class="${CMP_BTN} inline-block self-start text-[13px]">${t('cmp_f_img_file')}<input id="cmp-f-file" type="file" accept="image/*" class="hidden"></label>
+                                <input id="cmp-f-url" type="url" autocomplete="off" placeholder="${cmpAttr(t('cmp_f_img_url'))}" class="${CMP_FLD}">
+                            </div>
+                        </div></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="cmp-f-desc">${t('cmp_f_desc')}</label><textarea id="cmp-f-desc" rows="3" class="${CMP_FLD} resize-y"></textarea></div>
+                </div>
+                <div id="cmp-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="cmp-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="cmp-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
+            const $ = m.$, err = $('#cmp-f-err');
+            const prev = src => { $('#cmp-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
+            prev('');
+            $('#cmp-f-file').onchange = async e => {
+                const f = e.target.files[0]; if (!f) return;
+                try { fileImg = await cmpReadImage(f); $('#cmp-f-url').value = ''; prev(fileImg); err.textContent = ''; }
+                catch (x) { console.error(x); fileImg = null; prev(''); err.textContent = t('cmp_err_img'); }
+            };
+            $('#cmp-f-url').oninput = e => { const u = e.target.value.trim(); if (u) fileImg = null; prev(cmpSafeImg(u)); };
+            $('#cmp-f-cancel').onclick = m.close;
+            $('#cmp-f-name').focus();
+            $('#cmp-f-ok').onclick = async () => {
+                const okBtn = $('#cmp-f-ok');
+                const name = $('#cmp-f-name').value.trim(), sku = normCode($('#cmp-f-sku').value), desc = $('#cmp-f-desc').value.trim();
+                const qRaw = $('#cmp-f-qty').value.trim(), mRaw = $('#cmp-f-min').value.trim();
+                const url = $('#cmp-f-url').value.trim();
+                if (!name) { err.textContent = t('cmp_err_name'); return; }
+                if (!sku) { err.textContent = t('cmp_err_sku'); return; }
+                if (!/^\d+$/.test(qRaw) || !/^\d+$/.test(mRaw)) { err.textContent = t('cmp_err_num'); return; }
+                if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
+                const id = `${currentWarehouse}__${sku.replace(/\//g, '_')}`;
+                okBtn.disabled = true; err.textContent = '';
+                try {
+                    const ref = doc(db, 'material_master', id);
+                    if ((await getDoc(ref)).exists()) { err.textContent = fmt(t('cmp_err_dup'), { wh: currentWarehouse }); okBtn.disabled = false; return; }
+                    const now = Date.now();
+                    const data = {
+                        sku, name, category: $('#cmp-f-cat').value, qty: parseInt(qRaw, 10), minQty: parseInt(mRaw, 10), unit: 'шт.',
+                        image: fileImg || url || '', description: desc, group: 'components', warehouse: currentWarehouse,
+                        createdAt: now, updatedAt: now, updatedBy: currentUserName
+                    };
+                    await setDoc(ref, data);
+                    cmpItems.push(cmpFromDoc({ id, data: () => data }));
+                    logActivity('add', `Комплектующие: добавлен «${name}» (${sku}) × ${data.qty}, склад ${currentWarehouse}`);
+                    m.close(); cmpRedraw(); cmpToast(t('cmp_added'), 'ok');
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+            };
+        }
+
+        async function renderComponents(pv) {
+            const wrap = document.createElement('div');
+            wrap.className = 'rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            const seg = on => `cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${on ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}`;
+            wrap.innerHTML = `
+                <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="flex items-center gap-2.5 text-xl font-bold text-klt-emerald-light">🔌 ${t('cmp_title')}
+                            <span class="rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                        <p class="mt-1 text-[13px] text-klt-muted">${t('m_components_desc')}</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div id="cmp-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="cmp-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
+                        <button type="button" id="cmp-add" class="${CMP_BTN_MAIN}">${t('cmp_add')}</button>
+                    </div>
+                </div>
+                <input id="cmp-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('cmp_search_ph'))}" value="${cmpAttr(cmpQuery)}" class="mb-3 ${CMP_FLD}">
+                <div id="cmp-chips" class="mb-3 flex flex-wrap gap-2"></div>
+                <div id="cmp-count" class="mb-3 text-xs text-klt-muted"></div>
+                <div id="cmp-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
+            pv.appendChild(wrap);
+            const $ = id => wrap.querySelector('#' + id);
+
+            function drawChrome() {
+                $('cmp-seg').innerHTML = [['grid', '🔲', 'cmp_view_grid'], ['table', '☰', 'cmp_view_table']].map(([k, ic, l]) =>
+                    `<button type="button" data-cmp-view="${k}" aria-pressed="${cmpView === k}" class="${seg(cmpView === k)}">${ic} ${t(l)}</button>`).join('');
+                const cnt = { all: cmpItems.length };
+                CMP_CATS.forEach(c => { cnt[c] = cmpItems.filter(x => x.category === c).length; });
+                $('cmp-chips').innerHTML = ['all', ...CMP_CATS].map(c => {
+                    const on = cmpCat === c;
+                    return `<button type="button" data-cmp-cat="${c}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${t('cmp_cat_' + c)} <span class="opacity-70">${cnt[c]}</span></button>`;
+                }).join('');
+            }
+            function drawList() {
+                const q = cmpQuery.trim().toLowerCase();
+                const list = cmpItems
+                    .filter(x => (cmpCat === 'all' || x.category === cmpCat) && (!q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q)))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+                $('cmp-count').textContent = fmt(t('cmp_count'), { n: list.length });
+                if (!list.length) {
+                    $('cmp-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${cmpItems.length ? t('cmp_empty') : t('cmp_empty_first')}</div>`;
+                    return;
+                }
+                $('cmp-list').innerHTML = cmpView === 'grid'
+                    ? `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${list.map(cmpCard).join('')}</div>`
+                    : cmpTable(list);
+            }
+            // после перерисовки возвращаем фокус на нажатую кнопку (клавиатурный сценарий −1/+1)
+            cmpRedraw = (focusId, focusAct) => {
+                if (!wrap.isConnected) return;
+                drawChrome(); drawList();
+                if (focusId) {
+                    const b = wrap.querySelector(`[data-cmp-act="${focusAct}"][data-id="${CSS.escape(focusId)}"]`);
+                    if (b && !b.disabled) b.focus();
+                }
+            };
+
+            wrap.addEventListener('click', e => {
+                const v = e.target.closest('[data-cmp-view]');
+                if (v) {
+                    cmpView = v.dataset.cmpView;
+                    try { localStorage.setItem('kletka_cmp_view', cmpView); } catch (x) { /* ignore */ }
+                    drawChrome(); drawList(); return;
+                }
+                const c = e.target.closest('[data-cmp-cat]');
+                if (c) { cmpCat = c.dataset.cmpCat; drawChrome(); drawList(); return; }
+                const b = e.target.closest('[data-cmp-act]');
+                if (!b || b.disabled) return;
+                const it = cmpItems.find(x => x.id === b.dataset.id); if (!it) return;
+                const a = b.dataset.cmpAct;
+                if (a === 'inc') cmpAdjust(it, 1);
+                else if (a === 'dec') cmpAdjust(it, -1);
+                else if (a === 'issue') cmpOpenIssue(it);
+                else if (a === 'photo') cmpOpenPhoto(it);
+            });
+            $('cmp-search').addEventListener('input', e => { cmpQuery = e.target.value; drawList(); });
+            $('cmp-add').onclick = cmpOpenAdd;
+            $('cmp-ie').onclick = () => openImportExport('components');
+
+            drawChrome();
+            try {
+                const snap = await getDocs(query(collection(db, 'material_master'),
+                    where('warehouse', '==', currentWarehouse), where('group', '==', 'components')));
+                cmpItems = snap.docs.map(cmpFromDoc);
+            } catch (e) {
+                console.error(e);
+                if (wrap.isConnected) $('cmp-list').innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('cmp_load_err')}</div>`;
+                return;
+            }
+            if (wrap.isConnected) { drawChrome(); drawList(); }
+        }
+
         // =====================================================================
         // ИМПОРТ / ЭКСПОРТ (Tailwind) — переключатель целевой базы
         // Каждая база пишет/читает строго свою коллекцию Firestore, состояние файла привязано
@@ -1620,7 +2039,42 @@
                     ['qty', 'minQty'].forEach(k => { const n = numOrNull(r[k] == null ? '' : r[k]); if (n !== null) d[k] = n; });
                     return d;
                 },
-                async fetchAll() { return (await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse)))).docs.map(d => d.data()); }
+                // комплектующие (group:'components') выгружаются отдельной базой — в общий файл Material Master не попадают
+                async fetchAll() { return (await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse)))).docs.map(d => d.data()).filter(d => d.group !== 'components'); }
+            },
+            components: {
+                icon: '🔌', labelKey: 'ie_target_cmp', descKey: 'ie_cmp_desc', collection: 'material_master', file: 'components',
+                required: ['sku', 'name'], optional: ['category', 'qty', 'minQty', 'imageUrl', 'description'],
+                identity: ['sku'],
+                headers: { sku: 'SKU', name: 'Name', category: 'Category', qty: 'Qty', minQty: 'Min Qty', imageUrl: 'Image URL', description: 'Description' },
+                aliases: {
+                    sku: ['sku', 'артикул', 'materialnumber', 'material', 'номенклатура', 'код'],
+                    name: ['name', 'наименование', 'название', 'товар'],
+                    category: ['category', 'категория', 'группа'],
+                    qty: ['qty', 'quantity', 'количество', 'колво', 'остаток', 'stock'],
+                    minQty: ['minqty', 'min', 'минимум', 'минколво', 'alertlimit'],
+                    imageUrl: ['imageurl', 'image', 'photo', 'фото', 'изображение', 'картинка'],
+                    description: ['description', 'описание', 'спецификация', 'spec']
+                },
+                preview: ['sku', 'name', 'category', 'qty', 'minQty'],
+                show: (f, v) => f === 'category' ? t('cmp_cat_' + v) : v,
+                id: d => `${currentWarehouse}__${String(d.sku).replace(/\//g, '_')}`,
+                build(r) {
+                    const sku = normCode(r.sku), name = String(r.name || '').trim();
+                    if (!sku || !name) return null;
+                    const d = { sku, name, group: 'components', warehouse: currentWarehouse, unit: 'шт.', category: cmpCatKey(r.category) };
+                    ['qty', 'minQty'].forEach(k => { const n = numOrNull(r[k] == null ? '' : r[k]); if (n !== null) d[k] = Math.max(0, n); });
+                    const img = String(r.imageUrl || '').trim(); if (/^https?:\/\//i.test(img)) d.image = img;
+                    if (String(r.description || '').trim()) d.description = String(r.description).trim();
+                    return d;
+                },
+                async fetchAll() {
+                    const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'components')));
+                    return snap.docs.map(d => {
+                        const x = d.data();
+                        return { ...x, category: t('cmp_cat_' + cmpCatKey(x.category)), imageUrl: /^https?:\/\//i.test(x.image || '') ? x.image : '' };   // data:-фото в Excel не выгружаются
+                    });
+                }
             },
             ledger: {
                 icon: '📒', labelKey: 'ie_target_led', descKey: 'ie_led_desc', collection: 'assets', file: 'asset-ledger',
@@ -1776,7 +2230,7 @@
             const th = 'border-b border-solid border-klt-line px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
 
             root.innerHTML = `
-                <div class="flex flex-col gap-3 sm:flex-row">${tab('material')}${tab('ledger')}</div>
+                <div class="flex flex-col gap-3 sm:flex-row">${tab('material')}${tab('components')}${tab('ledger')}</div>
 
                 <div class="mt-4 rounded-xl border border-solid border-klt-line bg-klt-bg p-4">
                     <div class="mb-2 text-[11px] font-bold uppercase tracking-wider text-klt-muted">${t('ie_cols_req')}</div>
@@ -1801,7 +2255,7 @@
                     <div class="overflow-x-auto rounded-xl border border-solid border-klt-line">
                         <table class="w-full min-w-[520px] border-collapse text-[13px]">
                             <thead><tr>${cfg.preview.map(f => `<th class="${th}">${escapeHtml(cfg.headers[f])}</th>`).join('')}</tr></thead>
-                            <tbody>${s.items.slice(0, 5).map(x => `<tr>${cfg.preview.map(f => `<td class="border-b border-solid border-klt-line px-3 py-2 text-slate-50">${escapeHtml(x.data[f] == null ? '—' : x.data[f])}</td>`).join('')}</tr>`).join('')}</tbody>
+                            <tbody>${s.items.slice(0, 5).map(x => `<tr>${cfg.preview.map(f => `<td class="border-b border-solid border-klt-line px-3 py-2 text-slate-50">${escapeHtml(x.data[f] == null ? '—' : (cfg.show ? cfg.show(f, x.data[f]) : x.data[f]))}</td>`).join('')}</tr>`).join('')}</tbody>
                         </table>
                     </div>
                 </div>` : ''}
