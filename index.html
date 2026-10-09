@@ -2458,9 +2458,10 @@
                 preview: ['assetCode', 'sn', 'name', 'status', 'assignedTo', 'warehouse'],
                 id: d => codeDocId(d.assetCode),
                 build(r) {
-                    const assetCode = normCode(r.assetCode), sn = normCode(r.sn);
-                    if (!assetCode || !sn) return null;
-                    const d = { assetCode, sn };
+                    let assetCode = normCode(r.assetCode); const sn = normCode(r.sn);
+                    if (!assetCode && !sn) return null;                    // пропускаем только полностью пустые идентификаторы
+                    if (!assetCode) assetCode = 'NOCODE-' + sn;            // нет Asset Code → временный код на основе S/N
+                    const d = { assetCode, sn };                           // нет S/N → пустая строка, запись всё равно грузится
                     ['name', 'model', 'category', 'dept', 'po'].forEach(k => { if (String(r[k] || '').trim()) d[k] = String(r[k]).trim(); });
                     if (String(r.assignedTo || '').trim()) d.assignedTo = String(r.assignedTo).trim();
                     // статус без явного указания не трогаем — повторный импорт не сбросит выдачу
@@ -2516,6 +2517,10 @@
                 const seen = new Set();
                 raw.forEach(row => {
                     const r = {}; for (const h in map) r[map[h]] = row[h];
+                    if (ieTarget === 'ledger') {
+                        if (!normCode(r.sn) && normCode(r.assetCode)) ieState.noSn = (ieState.noSn || 0) + 1;
+                        if (!normCode(r.assetCode) && normCode(r.sn)) ieState.noCode = (ieState.noCode || 0) + 1;
+                    }
                     const data = cfg.build(r);
                     if (!data) { ieState.bad++; return; }
                     const id = cfg.id(data);
@@ -2613,6 +2618,7 @@
                 ${s && s.ready ? `
                 <div class="mt-4">
                     <div class="mb-2 text-xs text-klt-muted">${fmt(t('ie_stats'), { ok: s.items.length, bad: s.bad, dup: s.dup })}</div>
+                    ${(s.noSn || s.noCode) ? `<div class="mb-2 text-xs text-amber-300">⚠️ Загрузятся с пустыми полями: без S/N — ${s.noSn || 0}; без Asset Code (будет NOCODE-…) — ${s.noCode || 0}</div>` : ''}
                     <div class="mb-1 text-[11px] font-bold uppercase tracking-wider text-klt-muted">${t('ie_preview')}</div>
                     <div class="overflow-x-auto rounded-xl border border-solid border-klt-line">
                         <table class="w-full min-w-[520px] border-collapse text-[13px]">
