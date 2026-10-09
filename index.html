@@ -1630,6 +1630,99 @@
             ie_target_cmp: 'Components', ie_cmp_desc: 'Cables, PSUs, adapters: SKU, categories, stock and limits (Material Master structure)'
         });
 
+        // ===== i18n: приёмка, правка плиток, свои категории, архив (ru/en/uk/pl) =====
+        Object.assign(TR.ru, {
+            cmp_receive: 'Принять', cmp_receive_title: 'Приёмка: {name}', cmp_receive_cur: 'Сейчас на складе: {n} шт.',
+            cmp_receive_note: 'Комментарий (номер поставки / PO)', cmp_receive_do: 'Принять', cmp_err_receive_qty: 'Количество — целое число от 1',
+            cmp_received: 'Принято: {name} × {qty}',
+            cmp_edit: 'Редактировать', cmp_edit_title: 'Редактирование товара', cmp_f_qty_cur: 'Текущий остаток',
+            cmp_edit_ro: 'SKU и остаток здесь не меняются: SKU входит в ID документа, остаток меняется только через «Принять» и «Выдать»',
+            cmp_f_specs: 'Характеристики', cmp_spec_k: 'Параметр', cmp_spec_v: 'Значение (например, 1.8 м)', cmp_spec_add: '+ Добавить характеристику', cmp_spec_del: 'Удалить строку',
+            cmp_err_spec: 'В характеристиках заполните и параметр, и значение — или удалите строку', cmp_specs_more: '+ ещё {n}', cmp_col_specs: 'Характеристики',
+            cmp_saved: 'Изменения сохранены',
+            cmp_cat_cables: 'Кабели', cmp_cat_psu: 'Блоки питания', cmp_cat_adapters: 'Переходники', cmp_cat_brackets: 'Кронштейны', cmp_cat_other: 'Прочее',
+            cmp_cats_btn: 'Категории', cmp_cats_title: 'Категории комплектующих', cmp_cats_note: 'Общие для всех складов. Изменения сохраняются сразу.',
+            cmp_cat_icon: 'Иконка', cmp_cat_name_ph: 'Название категории', cmp_cat_new_ph: 'Новая категория', cmp_cat_add: 'Добавить',
+            cmp_cat_up: 'Выше', cmp_cat_down: 'Ниже', cmp_cat_locked: 'Категорию «Прочее» архивировать нельзя',
+            cmp_cat_err_name: 'Введите название категории', cmp_cat_err_dup: 'Категория с таким названием уже есть',
+            cmp_cat_added: 'Категория добавлена', cmp_cat_archived_toast: 'Категория в архиве', cmp_cat_restored: 'Категория восстановлена',
+            cmp_cat_archive_title: 'Архивировать категорию «{name}»', cmp_cat_archive_text: 'В этой категории плиток: {n}. Выберите категорию, куда их перенести.',
+            cmp_cat_move_to: 'Перенести в', cmp_cat_archive_do: 'Перенести и архивировать',
+            cmp_archive: 'В архив', cmp_archive_title: 'В архив: {name}',
+            cmp_archive_q: 'Плитка пропадёт из списка, поиска, счётчиков и экспорта. История движений сохранится, плитку можно восстановить.',
+            cmp_archive_stock: 'На складе ещё {n} шт.', cmp_archived_ok: 'Отправлено в архив: {name}',
+            cmp_restore: 'Восстановить', cmp_restored: 'Восстановлено: {name}', cmp_show_archive: 'Показать архив ({n})', cmp_in_archive: 'В архиве',
+            cmp_dup_archived: 'SKU {sku} уже есть в архиве: «{name}», остаток {n} шт. Восстановить её вместо создания новой?'
+        });
+        Object.assign(TR.en, {
+            cmp_receive: 'Receive', cmp_receive_title: 'Receive: {name}', cmp_receive_cur: 'Currently in stock: {n} pcs',
+            cmp_receive_note: 'Comment (delivery number / PO)', cmp_receive_do: 'Receive', cmp_err_receive_qty: 'Quantity must be a whole number from 1',
+            cmp_received: 'Received: {name} × {qty}',
+            cmp_edit: 'Edit', cmp_edit_title: 'Edit item', cmp_f_qty_cur: 'Current stock',
+            cmp_edit_ro: 'SKU and stock are not editable here: the SKU is part of the document ID, stock changes only via Receive and Issue',
+            cmp_f_specs: 'Specifications', cmp_spec_k: 'Parameter', cmp_spec_v: 'Value (e.g. 1.8 m)', cmp_spec_add: '+ Add specification', cmp_spec_del: 'Remove row',
+            cmp_err_spec: 'Fill in both the parameter and the value for each specification, or remove the row', cmp_specs_more: '+ {n} more', cmp_col_specs: 'Specifications',
+            cmp_saved: 'Changes saved',
+            cmp_cats_btn: 'Categories', cmp_cats_title: 'Component categories', cmp_cats_note: 'Shared by all warehouses. Changes are saved immediately.',
+            cmp_cat_icon: 'Icon', cmp_cat_name_ph: 'Category name', cmp_cat_new_ph: 'New category', cmp_cat_add: 'Add',
+            cmp_cat_up: 'Move up', cmp_cat_down: 'Move down', cmp_cat_locked: 'The “Other” category cannot be archived',
+            cmp_cat_err_name: 'Enter a category name', cmp_cat_err_dup: 'A category with this name already exists',
+            cmp_cat_added: 'Category added', cmp_cat_archived_toast: 'Category archived', cmp_cat_restored: 'Category restored',
+            cmp_cat_archive_title: 'Archive category “{name}”', cmp_cat_archive_text: 'This category contains {n} items. Choose a category to move them to.',
+            cmp_cat_move_to: 'Move to', cmp_cat_archive_do: 'Move and archive',
+            cmp_archive: 'Archive', cmp_archive_title: 'Archive: {name}',
+            cmp_archive_q: 'The item will disappear from the list, search, counters and export. Movement history is kept and the item can be restored.',
+            cmp_archive_stock: 'There are still {n} pcs in stock.', cmp_archived_ok: 'Archived: {name}',
+            cmp_restore: 'Restore', cmp_restored: 'Restored: {name}', cmp_show_archive: 'Show archive ({n})', cmp_in_archive: 'Archived',
+            cmp_dup_archived: 'SKU {sku} is already in the archive: “{name}”, stock {n} pcs. Restore it instead of creating a new one?'
+        });
+        Object.assign(TR.uk, {
+            cmp_receive: 'Прийняти', cmp_receive_title: 'Приймання: {name}', cmp_receive_cur: 'Зараз на складі: {n} шт.',
+            cmp_receive_note: 'Коментар (номер поставки / PO)', cmp_receive_do: 'Прийняти', cmp_err_receive_qty: 'Кількість — ціле число від 1',
+            cmp_received: 'Прийнято: {name} × {qty}',
+            cmp_edit: 'Редагувати', cmp_edit_title: 'Редагування товару', cmp_f_qty_cur: 'Поточний залишок',
+            cmp_edit_ro: 'SKU і залишок тут не змінюються: SKU входить до ID документа, залишок змінюється лише через «Прийняти» та «Видати»',
+            cmp_f_specs: 'Характеристики', cmp_spec_k: 'Параметр', cmp_spec_v: 'Значення (наприклад, 1.8 м)', cmp_spec_add: '+ Додати характеристику', cmp_spec_del: 'Видалити рядок',
+            cmp_err_spec: 'У характеристиках заповніть і параметр, і значення — або видаліть рядок', cmp_specs_more: '+ ще {n}', cmp_col_specs: 'Характеристики',
+            cmp_saved: 'Зміни збережено',
+            cmp_cat_all: 'Усі', cmp_cat_cables: 'Кабелі', cmp_cat_psu: 'Блоки живлення', cmp_cat_adapters: 'Перехідники', cmp_cat_brackets: 'Кронштейни', cmp_cat_other: 'Інше',
+            cmp_cats_btn: 'Категорії', cmp_cats_title: 'Категорії комплектуючих', cmp_cats_note: 'Спільні для всіх складів. Зміни зберігаються одразу.',
+            cmp_cat_icon: 'Іконка', cmp_cat_name_ph: 'Назва категорії', cmp_cat_new_ph: 'Нова категорія', cmp_cat_add: 'Додати',
+            cmp_cat_up: 'Вище', cmp_cat_down: 'Нижче', cmp_cat_locked: 'Категорію «Інше» архівувати не можна',
+            cmp_cat_err_name: 'Введіть назву категорії', cmp_cat_err_dup: 'Категорія з такою назвою вже є',
+            cmp_cat_added: 'Категорію додано', cmp_cat_archived_toast: 'Категорію архівовано', cmp_cat_restored: 'Категорію відновлено',
+            cmp_cat_archive_title: 'Архівувати категорію «{name}»', cmp_cat_archive_text: 'У цій категорії плиток: {n}. Оберіть категорію, куди їх перенести.',
+            cmp_cat_move_to: 'Перенести до', cmp_cat_archive_do: 'Перенести й архівувати',
+            cmp_archive: 'В архів', cmp_archive_title: 'В архів: {name}',
+            cmp_archive_q: 'Плитка зникне зі списку, пошуку, лічильників та експорту. Історія рухів збережеться, плитку можна відновити.',
+            cmp_archive_stock: 'На складі ще {n} шт.', cmp_archived_ok: 'Відправлено в архів: {name}',
+            cmp_restore: 'Відновити', cmp_restored: 'Відновлено: {name}', cmp_show_archive: 'Показати архів ({n})', cmp_in_archive: 'В архіві',
+            cmp_dup_archived: 'SKU {sku} уже є в архіві: «{name}», залишок {n} шт. Відновити її замість створення нової?'
+        });
+        Object.assign(TR.pl, {
+            cmp_receive: 'Przyjmij', cmp_receive_title: 'Przyjęcie: {name}', cmp_receive_cur: 'Obecnie na stanie: {n} szt.',
+            cmp_receive_note: 'Komentarz (numer dostawy / PO)', cmp_receive_do: 'Przyjmij', cmp_err_receive_qty: 'Ilość musi być liczbą całkowitą od 1',
+            cmp_received: 'Przyjęto: {name} × {qty}',
+            cmp_edit: 'Edytuj', cmp_edit_title: 'Edycja pozycji', cmp_f_qty_cur: 'Aktualny stan',
+            cmp_edit_ro: 'SKU i stanu nie można tu zmienić: SKU jest częścią ID dokumentu, stan zmienia się tylko przez „Przyjmij” i „Wydaj”',
+            cmp_f_specs: 'Parametry', cmp_spec_k: 'Parametr', cmp_spec_v: 'Wartość (np. 1,8 m)', cmp_spec_add: '+ Dodaj parametr', cmp_spec_del: 'Usuń wiersz',
+            cmp_err_spec: 'W parametrach uzupełnij nazwę i wartość albo usuń wiersz', cmp_specs_more: '+ jeszcze {n}', cmp_col_specs: 'Parametry',
+            cmp_saved: 'Zmiany zapisane',
+            cmp_cat_all: 'Wszystkie', cmp_cat_cables: 'Kable', cmp_cat_psu: 'Zasilacze', cmp_cat_adapters: 'Przejściówki', cmp_cat_brackets: 'Wsporniki', cmp_cat_other: 'Inne',
+            cmp_cats_btn: 'Kategorie', cmp_cats_title: 'Kategorie komponentów', cmp_cats_note: 'Wspólne dla wszystkich magazynów. Zmiany zapisują się od razu.',
+            cmp_cat_icon: 'Ikona', cmp_cat_name_ph: 'Nazwa kategorii', cmp_cat_new_ph: 'Nowa kategoria', cmp_cat_add: 'Dodaj',
+            cmp_cat_up: 'Wyżej', cmp_cat_down: 'Niżej', cmp_cat_locked: 'Kategorii „Inne” nie można archiwizować',
+            cmp_cat_err_name: 'Podaj nazwę kategorii', cmp_cat_err_dup: 'Kategoria o takiej nazwie już istnieje',
+            cmp_cat_added: 'Dodano kategorię', cmp_cat_archived_toast: 'Kategoria w archiwum', cmp_cat_restored: 'Kategoria przywrócona',
+            cmp_cat_archive_title: 'Archiwizuj kategorię „{name}”', cmp_cat_archive_text: 'Pozycji w tej kategorii: {n}. Wybierz kategorię, do której je przenieść.',
+            cmp_cat_move_to: 'Przenieś do', cmp_cat_archive_do: 'Przenieś i archiwizuj',
+            cmp_archive: 'Do archiwum', cmp_archive_title: 'Do archiwum: {name}',
+            cmp_archive_q: 'Pozycja zniknie z listy, wyszukiwania, liczników i eksportu. Historia ruchów zostaje, pozycję można przywrócić.',
+            cmp_archive_stock: 'Na magazynie nadal jest {n} szt.', cmp_archived_ok: 'Przeniesiono do archiwum: {name}',
+            cmp_restore: 'Przywróć', cmp_restored: 'Przywrócono: {name}', cmp_show_archive: 'Pokaż archiwum ({n})', cmp_in_archive: 'W archiwum',
+            cmp_dup_archived: 'SKU {sku} jest już w archiwum: „{name}”, stan {n} szt. Przywrócić je zamiast tworzyć nowe?'
+        });
+
         // =====================================================================
         // КОМПЛЕКТУЮЩИЕ (кабели, БП, переходники, кронштейны)
         // Хранение: коллекция material_master (структура Material Master), документ {WH}__{SKU}
@@ -1637,33 +1730,57 @@
         // Остаток меняется атомарно через increment(), движения пишутся в component_movements
         // (best-effort) и в общий журнал активности. Фото: файл ужимается на клиенте до ~480px JPEG
         // и хранится в документе (Storage-SDK не подключён) либо задаётся ссылкой http(s).
+        // Категории: коллекция component_categories (общие для всех складов), id = ключ, который хранится в плитке.
+        // Удаления документов нет: плитка получает archived:true (+archivedAt/archivedBy) и скрывается.
         // =====================================================================
-        const CMP_CATS = ['cables', 'psu', 'adapters', 'brackets', 'other'];
-        const CMP_ICON = { cables: '🔌', psu: '⚡', adapters: '🔁', brackets: '🔩', other: '📦' };
-        const cmpCatKey = v => {
-            const s = String(v == null ? '' : v).trim().toLowerCase();
-            if (CMP_CATS.includes(s)) return s;
-            if (/кабел|шнур|cable|cord/.test(s)) return 'cables';
-            if (/блок|питан|psu|power|charger|заряд/.test(s)) return 'psu';
-            if (/перех|адаптер|adapter|adaptor|dongle/.test(s)) return 'adapters';
-            if (/кроншт|bracket|mount|стойк|holder|креп/.test(s)) return 'brackets';
-            return 'other';
-        };
+        const CMP_SEED_CATS = [['cables', '🔌'], ['psu', '⚡'], ['adapters', '🔁'], ['brackets', '🔩'], ['other', '📦']];   // только для первого заполнения component_categories
         const cmpAttr = s => escapeHtml(String(s)).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
         const cmpSafeImg = s => /^(https?:\/\/|data:image\/(jpeg|png|webp|gif);base64,)/i.test(String(s || '')) ? String(s) : '';
+
+        let cmpCats = [];
+        let cmpCatsLoaded = false;
+        const cmpActiveCats = () => cmpCats.filter(c => !c.archived);
+        const cmpCatById = id => cmpCats.find(c => c.id === id) || cmpCats.find(c => c.id === 'other');
+        const cmpCatName = id => { const c = cmpCatById(id); return c ? c.name : t('cmp_cat_other'); };
+        const cmpCatIcon = id => { const c = cmpCatById(id); return c ? c.icon : '📦'; };
+        // Импорт: категория ищется по названию или ключу среди активных (названия сидов — на любом языке), неизвестная → «Прочее»
+        function cmpResolveCat(v) {
+            const s = String(v == null ? '' : v).trim().toLowerCase();
+            const hit = s && cmpActiveCats().find(c => c.id.toLowerCase() === s || c.name.toLowerCase() === s ||
+                Object.values(TR).some(l => String(l['cmp_cat_' + c.id] || '').toLowerCase() === s));
+            return hit ? hit.id : 'other';
+        }
+        async function cmpLoadCats() {
+            const col = collection(db, 'component_categories');
+            let snap = await getDocs(col);
+            if (snap.empty) {   // seed: те же ключи, что были зашиты, названия — из текущего языка
+                const b = writeBatch(db);
+                CMP_SEED_CATS.forEach(([id, icon], i) => b.set(doc(col, id), { id, name: t('cmp_cat_' + id), icon, order: i + 1, archived: false }));
+                await b.commit(); snap = await getDocs(col);
+            }
+            cmpCats = snap.docs.map(d => { const x = d.data(); return { id: d.id, name: String(x.name || d.id), icon: x.icon || '🏷️', order: Number(x.order) || 0, archived: x.archived === true }; })
+                .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'ru'));
+            cmpCatsLoaded = true;
+        }
+        const cmpEnsureCats = async () => { if (!cmpCatsLoaded) await cmpLoadCats(); };
+        const cmpIconOf = v => { v = String(v || '').trim(); const g = window.Intl && Intl.Segmenter ? [...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(v)][0] : null; return g ? g.segment : (Array.from(v)[0] || ''); };
+
         const cmpFromDoc = d => {
             const x = d.data();
             return {
                 id: d.id, sku: String(x.sku || d.id.split('__').slice(1).join('__')), name: String(x.name || ''),
-                category: cmpCatKey(x.category), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0),
-                image: x.image || '', description: x.description || ''
+                category: cmpCats.some(c => c.id === x.category) ? x.category : 'other', qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0),
+                image: x.image || '', description: x.description || '', archived: x.archived === true,
+                specs: (Array.isArray(x.specs) ? x.specs : []).map(s => ({ k: String((s && s.k) || '').trim(), v: String((s && s.v) || '').trim() })).filter(s => s.k || s.v)
             };
         };
+        const cmpLog = (action, msg) => logActivity(action, `Комплектующие: ${msg}, склад ${currentWarehouse}`);
 
         let cmpItems = [];
         let cmpView = 'grid';
         let cmpCat = 'all';
         let cmpQuery = '';
+        let cmpShowArch = false;
         let cmpRedraw = () => {};
         try { cmpView = localStorage.getItem('kletka_cmp_view') === 'table' ? 'table' : 'grid'; } catch (e) { /* storage недоступен */ }
 
@@ -1728,38 +1845,60 @@
         const CMP_BTN = 'cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-3 py-2 text-sm font-bold text-slate-50 transition hover:border-klt-emerald hover:text-klt-emerald-light disabled:cursor-not-allowed disabled:opacity-40';
         const CMP_BTN_MAIN = 'cursor-pointer rounded-lg border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark px-4 py-2 text-sm font-bold text-[#052e21] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 
+        const CMP_ICO = 'cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-2.5 py-2 text-sm leading-none text-slate-50 transition hover:border-klt-emerald disabled:cursor-not-allowed disabled:opacity-40';
+
         function cmpQtyTone(it) {
+            if (it.archived) return { zero: false, low: false, num: 'text-klt-muted' };
             const zero = it.qty <= 0, low = it.qty <= it.minQty;
             return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-klt-emerald-light' };
         }
+        // цифра остатка — кнопка «Принять» (у архивных плиток — просто число)
+        const cmpQtyEl = (it, cls) => it.archived ? `<span class="${cls}">${it.qty}</span>` :
+            `<button type="button" data-cmp-act="receive" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('cmp_receive'))}" aria-label="${cmpAttr(t('cmp_receive'))}" class="cursor-pointer border-0 bg-transparent p-0 underline decoration-dotted decoration-1 underline-offset-4 ${cls}">${it.qty}</button>`;
+        const cmpIcons = it => it.archived ? '' : ['edit|✏️|cmp_edit', 'archive|🗑️|cmp_archive'].map(s => {
+            const [a, ic, l] = s.split('|');
+            return `<button type="button" data-cmp-act="${a}" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t(l))}" aria-label="${cmpAttr(t(l))}" class="${CMP_ICO}">${ic}</button>`;
+        }).join('');
+        function cmpSpecsHtml(specs, max) {
+            if (!specs.length) return '';
+            const shown = max ? specs.slice(0, max) : specs;
+            return `<dl class="m-0 mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">${shown.map(s => `<dt class="text-klt-muted">${escapeHtml(s.k)}</dt><dd class="m-0 text-slate-50">${escapeHtml(s.v)}</dd>`).join('')}</dl>` +
+                (max && specs.length > max ? `<div class="mt-0.5 text-[11px] text-klt-muted">${fmt(t('cmp_specs_more'), { n: specs.length - max })}</div>` : '');
+        }
         function cmpActions(it, compact) {
-            const id = cmpAttr(it.id);
-            return `<div class="flex gap-2 ${compact ? 'justify-end' : 'mt-4'}">
+            const id = cmpAttr(it.id), pos = compact ? 'justify-end' : 'mt-4';
+            if (it.archived) return `<div class="flex gap-2 ${pos}"><button type="button" data-cmp-act="restore" data-id="${id}" class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">♻️ ${t('cmp_restore')}</button></div>`;
+            return `<div class="flex flex-wrap gap-2 ${pos}">
                 <button type="button" data-cmp-act="dec" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} aria-label="−1" class="${CMP_BTN}">− 1</button>
                 <button type="button" data-cmp-act="inc" data-id="${id}" aria-label="+1" class="${CMP_BTN}">+ 1</button>
+                <button type="button" data-cmp-act="receive" data-id="${id}" class="${CMP_BTN}">${t('cmp_receive')}</button>
                 <button type="button" data-cmp-act="issue" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">${t('cmp_issue')}</button>
+                ${compact ? cmpIcons(it) : ''}
             </div>`;
         }
         function cmpPhoto(it, cls) {
             const img = cmpSafeImg(it.image);
-            return `<span class="absolute inset-0 flex items-center justify-center ${cls} opacity-50">${CMP_ICON[it.category]}</span>` +
-                (img ? `<button type="button" data-cmp-act="photo" data-id="${cmpAttr(it.id)}" aria-label="${cmpAttr(t('cmp_photo_view'))}" class="absolute inset-0 cursor-zoom-in border-0 bg-transparent p-0"><img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="h-full w-full object-cover"></button>` : '');
+            return `<span class="absolute inset-0 flex items-center justify-center ${cls} opacity-50">${cmpCatIcon(it.category)}</span>` +
+                (img ? `<button type="button" data-cmp-act="details" data-id="${cmpAttr(it.id)}" aria-label="${cmpAttr(t('cmp_photo_view'))}" class="absolute inset-0 cursor-zoom-in border-0 bg-transparent p-0"><img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="h-full w-full object-cover"></button>` : '');
         }
+        const cmpNameBtn = (it, cls) => `<button type="button" data-cmp-act="details" data-id="${cmpAttr(it.id)}" class="cursor-pointer border-0 bg-transparent p-0 text-left text-slate-50 transition hover:text-klt-emerald-light ${cls}">${escapeHtml(it.name)}</button>`;
 
         function cmpCard(it) {
             const tn = cmpQtyTone(it);
-            return `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid bg-klt-bg ${tn.zero ? 'border-red-500/70' : tn.low ? 'border-klt-orange/70' : 'border-klt-line'}">
+            return `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid bg-klt-bg ${it.archived ? 'border-klt-line opacity-70' : tn.zero ? 'border-red-500/70' : tn.low ? 'border-klt-orange/70' : 'border-klt-line'}">
                 <div class="relative aspect-[4/3] bg-klt-card">
                     ${cmpPhoto(it, 'text-5xl')}
-                    ${tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t('cmp_low')}</span>` : ''}
+                    ${it.archived ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full bg-slate-600 px-2.5 py-1 text-[11px] font-bold text-white">🗄 ${t('cmp_in_archive')}</span>` :
+                      tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t('cmp_low')}</span>` : ''}
                 </div>
                 <div class="flex flex-1 flex-col p-4">
-                    <h3 class="text-[15px] font-bold leading-snug text-slate-50">${escapeHtml(it.name)}</h3>
+                    <div class="flex items-start gap-2">${cmpNameBtn(it, 'min-w-0 flex-1 text-[15px] font-bold leading-snug')}<span class="flex shrink-0 gap-1.5">${cmpIcons(it)}</span></div>
                     <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
-                        <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${t('cmp_cat_' + it.category)}</span>
+                        <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${cmpCatIcon(it.category)} ${escapeHtml(cmpCatName(it.category))}</span>
                     </div>
+                    ${cmpSpecsHtml(it.specs, 3)}
                     <div class="mt-3 flex items-baseline gap-1.5">
-                        <span class="text-4xl font-extrabold leading-none ${tn.num}">${it.qty}</span>
+                        ${cmpQtyEl(it, 'text-4xl font-extrabold leading-none ' + tn.num)}
                         <span class="text-sm text-klt-muted">${t('cmp_unit')}</span>
                         <span class="ml-auto text-[11px] text-klt-muted">${fmt(t('cmp_min'), { n: it.minQty })}</span>
                     </div>
@@ -1771,19 +1910,20 @@
         function cmpTable(list) {
             const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
             const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-middle text-slate-50';
-            return `<div class="overflow-x-auto"><table class="w-full min-w-[820px] border-collapse text-[13px]">
+            return `<div class="overflow-x-auto"><table class="w-full min-w-[1040px] border-collapse text-[13px]">
                 <thead><tr>
                     <th class="${th} w-16">${t('cmp_col_photo')}</th><th class="${th}">${t('cmp_col_name')}</th><th class="${th}">${t('cmp_col_sku')}</th>
-                    <th class="${th}">${t('cmp_col_cat')}</th><th class="${th}">${t('cmp_col_qty')}</th><th class="${th}">${t('cmp_col_min')}</th><th class="${th}"></th>
+                    <th class="${th}">${t('cmp_col_cat')}</th><th class="${th}">${t('cmp_col_specs')}</th><th class="${th}">${t('cmp_col_qty')}</th><th class="${th}">${t('cmp_col_min')}</th><th class="${th}"></th>
                 </tr></thead>
                 <tbody>${list.map(it => {
                     const tn = cmpQtyTone(it);
-                    return `<tr class="transition hover:bg-klt-hover">
+                    return `<tr class="transition hover:bg-klt-hover ${it.archived ? 'opacity-60' : ''}">
                         <td class="${td}"><div class="relative h-11 w-11 overflow-hidden rounded-lg bg-klt-bg">${cmpPhoto(it, 'text-xl')}</div></td>
-                        <td class="${td} font-semibold">${escapeHtml(it.name)}</td>
+                        <td class="${td} font-semibold">${cmpNameBtn(it, 'font-semibold')}${it.archived ? ` <span class="ml-1 rounded-full bg-slate-600 px-2 py-0.5 text-[11px] font-bold text-white">${t('cmp_in_archive')}</span>` : ''}</td>
                         <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</td>
-                        <td class="${td} text-klt-muted">${t('cmp_cat_' + it.category)}</td>
-                        <td class="${td}"><span class="text-lg font-extrabold ${tn.num}">${it.qty}</span> <span class="text-klt-muted">${t('cmp_unit')}</span>
+                        <td class="${td} text-klt-muted">${cmpCatIcon(it.category)} ${escapeHtml(cmpCatName(it.category))}</td>
+                        <td class="${td}">${cmpSpecsHtml(it.specs) || '<span class="text-klt-muted">—</span>'}</td>
+                        <td class="${td}">${cmpQtyEl(it, 'text-lg font-extrabold ' + tn.num)} <span class="text-klt-muted">${t('cmp_unit')}</span>
                             ${tn.low ? `<span class="ml-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${tn.zero ? 'bg-red-500/20 text-red-300' : 'bg-klt-orange/20 text-klt-orange-light'}">${t('cmp_low')}</span>` : ''}</td>
                         <td class="${td} text-klt-muted">${it.minQty}</td>
                         <td class="${td}">${cmpActions(it, true)}</td>
@@ -1803,15 +1943,76 @@
             }
         }
 
-        function cmpOpenPhoto(it) {
-            const img = cmpSafeImg(it.image); if (!img) return;
+        // Детали плитки: фото (если есть), описание и ВСЕ характеристики
+        function cmpOpenDetails(it) {
+            const img = cmpSafeImg(it.image);
             const m = cmpModal(`
-                <img src="${cmpAttr(img)}" alt="" class="max-h-[60vh] w-full rounded-xl bg-klt-bg object-contain">
-                <h3 class="mt-4 text-lg font-bold text-slate-50">${escapeHtml(it.name)}</h3>
-                <div class="mt-1 text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${t('cmp_cat_' + it.category)}</div>
+                ${img ? `<img src="${cmpAttr(img)}" alt="" class="mb-4 max-h-[50vh] w-full rounded-xl bg-klt-bg object-contain">` : ''}
+                <h3 class="text-lg font-bold text-slate-50">${escapeHtml(it.name)}</h3>
+                <div class="mt-1 text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${cmpCatIcon(it.category)} ${escapeHtml(cmpCatName(it.category))} · ${it.qty} ${t('cmp_unit')} · ${fmt(t('cmp_min'), { n: it.minQty })}${it.archived ? ' · ' + t('cmp_in_archive') : ''}</div>
                 ${it.description ? `<p class="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-klt-muted">${escapeHtml(it.description)}</p>` : ''}
+                ${cmpSpecsHtml(it.specs)}
                 <div class="mt-5 flex justify-end"><button type="button" id="cmp-x" class="${CMP_BTN}">${t('btn_close')}</button></div>`, true);
             m.$('#cmp-x').onclick = m.close;
+        }
+
+        // Приёмка: целое ≥1, фокус в поле, Enter подтверждает; атомарный increment()
+        function cmpOpenReceive(it) {
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">${fmt(t('cmp_receive_title'), { name: escapeHtml(it.name) })}</h2>
+                <p class="mb-4 mt-1 text-xs text-klt-muted">${fmt(t('cmp_receive_cur'), { n: it.qty })}</p>
+                <div class="mb-3.5"><label class="${CMP_LBL}" for="cmp-r-qty">${t('cmp_issue_qty')}</label><input id="cmp-r-qty" type="number" min="1" step="1" inputmode="numeric" class="${CMP_FLD}"></div>
+                <div class="mb-1"><label class="${CMP_LBL}" for="cmp-r-note">${t('cmp_receive_note')}</label><input id="cmp-r-note" type="text" autocomplete="off" placeholder="PO-12345" class="${CMP_FLD}"></div>
+                <div id="cmp-r-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="cmp-r-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="cmp-r-ok" class="${CMP_BTN_MAIN}">${t('cmp_receive_do')}</button></div>`);
+            const err = m.$('#cmp-r-err'), okBtn = m.$('#cmp-r-ok');
+            const go = async () => {
+                if (okBtn.disabled) return;
+                const raw = m.$('#cmp-r-qty').value.trim(), note = m.$('#cmp-r-note').value.trim();
+                const qty = /^\d+$/.test(raw) ? parseInt(raw, 10) : 0;
+                if (qty < 1) { err.textContent = t('cmp_err_receive_qty'); return; }
+                okBtn.disabled = true; err.textContent = '';
+                try {
+                    await updateDoc(doc(db, 'material_master', it.id), { qty: increment(qty), updatedAt: Date.now(), updatedBy: currentUserName });
+                    it.qty += qty; cmpRedraw();
+                    cmpLogMove(it, 'receive', qty, { note });
+                    cmpLog('receive', `принято «${it.name}» (${it.sku}) × ${qty}${note ? ', ' + note : ''}`);
+                    m.close(); cmpToast(fmt(t('cmp_received'), { name: it.name, qty }), 'ok');
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+            };
+            okBtn.onclick = go; m.$('#cmp-r-cancel').onclick = m.close;
+            m.ov.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); go(); } });
+            m.$('#cmp-r-qty').focus();
+        }
+
+        function cmpOpenArchive(it) {
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">🗑️ ${fmt(t('cmp_archive_title'), { name: escapeHtml(it.name) })}</h2>
+                <p class="mt-3 text-sm text-klt-muted">${t('cmp_archive_q')}</p>
+                ${it.qty > 0 ? `<p class="mt-3 rounded-lg border border-solid border-klt-orange/60 bg-klt-orange/10 px-3 py-2 text-sm font-semibold text-klt-orange-light">⚠ ${fmt(t('cmp_archive_stock'), { n: it.qty })}</p>` : ''}
+                <div id="cmp-a-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="cmp-a-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="cmp-a-ok" class="${CMP_BTN_MAIN}">${t('cmp_archive')}</button></div>`);
+            m.$('#cmp-a-cancel').onclick = m.close;
+            m.$('#cmp-a-ok').onclick = async e => {
+                e.target.disabled = true;
+                try {
+                    const now = Date.now();
+                    await updateDoc(doc(db, 'material_master', it.id), { archived: true, archivedAt: now, archivedBy: currentUserName, updatedAt: now, updatedBy: currentUserName });
+                    it.archived = true; cmpRedraw();
+                    cmpLog('archive', `в архив «${it.name}» (${it.sku}), остаток ${it.qty}`);
+                    m.close(); cmpToast(fmt(t('cmp_archived_ok'), { name: it.name }), 'ok');
+                } catch (x) { console.error(x); m.$('#cmp-a-err').textContent = t('cmp_err_save'); e.target.disabled = false; }
+            };
+        }
+
+        async function cmpRestore(it) {
+            const cat = cmpActiveCats().some(c => c.id === it.category) ? it.category : 'other';   // категория могла уйти в архив
+            try {
+                await updateDoc(doc(db, 'material_master', it.id), { archived: false, archivedAt: null, archivedBy: null, category: cat, updatedAt: Date.now(), updatedBy: currentUserName });
+                it.archived = false; it.category = cat; cmpRedraw();
+                cmpLog('restore', `восстановлен «${it.name}» (${it.sku}), остаток ${it.qty}`);
+                cmpToast(fmt(t('cmp_restored'), { name: it.name }), 'ok'); return true;
+            } catch (e) { console.error(e); cmpToast(t('cmp_err_save'), 'err'); return false; }
         }
 
         function cmpOpenIssue(it) {
@@ -1851,66 +2052,212 @@
             };
         }
 
-        function cmpOpenAdd() {
-            let fileImg = null;
+        // Форма «Добавить» и «Редактировать» (it — плитка для редактирования). SKU и остаток в режиме правки только для чтения.
+        function cmpOpenForm(it) {
+            const edit = !!it;
+            let fileImg = edit && /^data:/i.test(it.image) ? it.image : null;
+            const cats = cmpActiveCats(), curCat = edit && cats.some(c => c.id === it.category) ? it.category : 'other';
+            const ro = edit ? ' disabled' : '', roCls = edit ? ' cursor-not-allowed opacity-60' : '';
+            const specRow = (s = { k: '', v: '' }) => `<div data-spec class="flex gap-2">
+                <input data-sk type="text" maxlength="60" autocomplete="off" placeholder="${cmpAttr(t('cmp_spec_k'))}" value="${cmpAttr(s.k)}" class="${CMP_FLD} min-w-0 flex-[2]">
+                <input data-sv type="text" maxlength="160" autocomplete="off" placeholder="${cmpAttr(t('cmp_spec_v'))}" value="${cmpAttr(s.v)}" class="${CMP_FLD} min-w-0 flex-[3]">
+                <button type="button" data-spec-del title="${cmpAttr(t('cmp_spec_del'))}" aria-label="${cmpAttr(t('cmp_spec_del'))}" class="${CMP_ICO}">✕</button></div>`;
             const m = cmpModal(`
-                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">🔌 ${t('cmp_new_title')}</h2>
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">${edit ? '✏️ ' + t('cmp_edit_title') : '🔌 ' + t('cmp_new_title')}</h2>
                 <div class="grid gap-3.5 sm:grid-cols-2">
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="cmp-f-name">${t('cmp_f_name')}</label><input id="cmp-f-name" type="text" autocomplete="off" placeholder="${cmpAttr(t('cmp_ph_name'))}" class="${CMP_FLD}"></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="cmp-f-name">${t('cmp_f_name')}</label><input id="cmp-f-name" type="text" autocomplete="off" value="${edit ? cmpAttr(it.name) : ''}" placeholder="${cmpAttr(t('cmp_ph_name'))}" class="${CMP_FLD}"></div>
                     <div><label class="${CMP_LBL}" for="cmp-f-cat">${t('cmp_f_cat')}</label>
-                        <select id="cmp-f-cat" class="cursor-pointer ${CMP_FLD}">${CMP_CATS.map(c => `<option value="${c}">${t('cmp_cat_' + c)}</option>`).join('')}</select></div>
-                    <div><label class="${CMP_LBL}" for="cmp-f-sku">${t('cmp_f_sku')}</label><input id="cmp-f-sku" type="text" autocomplete="off" placeholder="CBL-DP-18" class="${CMP_FLD} font-mono"></div>
-                    <div><label class="${CMP_LBL}" for="cmp-f-qty">${t('cmp_f_qty')}</label><input id="cmp-f-qty" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
-                    <div><label class="${CMP_LBL}" for="cmp-f-min">${t('cmp_f_min')}</label><input id="cmp-f-min" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
+                        <select id="cmp-f-cat" class="cursor-pointer ${CMP_FLD}">${cats.map(c => `<option value="${cmpAttr(c.id)}" ${c.id === curCat ? 'selected' : ''}>${c.icon} ${escapeHtml(c.name)}</option>`).join('')}</select></div>
+                    <div><label class="${CMP_LBL}" for="cmp-f-sku">${t('cmp_f_sku')}${edit ? ' 🔒' : ''}</label><input id="cmp-f-sku" type="text" autocomplete="off" value="${edit ? cmpAttr(it.sku) : ''}"${ro} placeholder="CBL-DP-18" class="${CMP_FLD} font-mono${roCls}"></div>
+                    <div><label class="${CMP_LBL}" for="cmp-f-qty">${edit ? t('cmp_f_qty_cur') + ' 🔒' : t('cmp_f_qty')}</label><input id="cmp-f-qty" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.qty : 0}"${ro} class="${CMP_FLD}${roCls}"></div>
+                    <div><label class="${CMP_LBL}" for="cmp-f-min">${t('cmp_f_min')}</label><input id="cmp-f-min" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.minQty : 0}" class="${CMP_FLD}"></div>
+                    ${edit ? `<p class="m-0 text-xs text-klt-muted sm:col-span-2">🔒 ${t('cmp_edit_ro')}</p>` : ''}
                     <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('cmp_f_img')}</label>
                         <div class="flex items-center gap-3">
                             <div id="cmp-f-prev" class="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg"></div>
                             <div class="flex min-w-0 flex-1 flex-col gap-2">
                                 <label class="${CMP_BTN} inline-block self-start text-[13px]">${t('cmp_f_img_file')}<input id="cmp-f-file" type="file" accept="image/*" class="hidden"></label>
-                                <input id="cmp-f-url" type="url" autocomplete="off" placeholder="${cmpAttr(t('cmp_f_img_url'))}" class="${CMP_FLD}">
+                                <input id="cmp-f-url" type="url" autocomplete="off" value="${edit && /^https?:\/\//i.test(it.image) ? cmpAttr(it.image) : ''}" placeholder="${cmpAttr(t('cmp_f_img_url'))}" class="${CMP_FLD}">
                             </div>
                         </div></div>
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="cmp-f-desc">${t('cmp_f_desc')}</label><textarea id="cmp-f-desc" rows="3" class="${CMP_FLD} resize-y"></textarea></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="cmp-f-desc">${t('cmp_f_desc')}</label><textarea id="cmp-f-desc" rows="3" class="${CMP_FLD} resize-y">${edit ? escapeHtml(it.description) : ''}</textarea></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('cmp_f_specs')}</label>
+                        <div id="cmp-f-specs" class="flex flex-col gap-2">${(edit ? it.specs : []).map(s => specRow(s)).join('')}</div>
+                        <button type="button" id="cmp-f-spec-add" class="${CMP_BTN} mt-2 text-[13px]">${t('cmp_spec_add')}</button></div>
                 </div>
+                <div id="cmp-f-arch" class="mt-3 hidden rounded-lg border border-solid border-klt-orange/60 bg-klt-orange/10 px-3 py-2.5 text-[13px] text-klt-orange-light"></div>
                 <div id="cmp-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="cmp-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="cmp-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
             const $ = m.$, err = $('#cmp-f-err');
             const prev = src => { $('#cmp-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
-            prev('');
+            prev(edit ? cmpSafeImg(it.image) : '');
             $('#cmp-f-file').onchange = async e => {
                 const f = e.target.files[0]; if (!f) return;
                 try { fileImg = await cmpReadImage(f); $('#cmp-f-url').value = ''; prev(fileImg); err.textContent = ''; }
                 catch (x) { console.error(x); fileImg = null; prev(''); err.textContent = t('cmp_err_img'); }
             };
-            $('#cmp-f-url').oninput = e => { const u = e.target.value.trim(); if (u) fileImg = null; prev(cmpSafeImg(u)); };
+            $('#cmp-f-url').oninput = e => { const u = e.target.value.trim(); if (u) fileImg = null; prev(fileImg || cmpSafeImg(u)); };
+            $('#cmp-f-spec-add').onclick = () => { $('#cmp-f-specs').insertAdjacentHTML('beforeend', specRow()); $('#cmp-f-specs').lastElementChild.querySelector('[data-sk]').focus(); };
+            $('#cmp-f-specs').onclick = e => { const b = e.target.closest('[data-spec-del]'); if (b) b.closest('[data-spec]').remove(); };
             $('#cmp-f-cancel').onclick = m.close;
             $('#cmp-f-name').focus();
+            // пустые пары не сохраняются; наполовину заполненная пара — ошибка (не теряем введённое молча)
+            const readSpecs = () => [...$('#cmp-f-specs').querySelectorAll('[data-spec]')]
+                .map(r => ({ k: r.querySelector('[data-sk]').value.trim(), v: r.querySelector('[data-sv]').value.trim() })).filter(s => s.k || s.v);
             $('#cmp-f-ok').onclick = async () => {
-                const okBtn = $('#cmp-f-ok');
+                const okBtn = $('#cmp-f-ok'), arch = $('#cmp-f-arch');
                 const name = $('#cmp-f-name').value.trim(), sku = normCode($('#cmp-f-sku').value), desc = $('#cmp-f-desc').value.trim();
-                const qRaw = $('#cmp-f-qty').value.trim(), mRaw = $('#cmp-f-min').value.trim();
-                const url = $('#cmp-f-url').value.trim();
+                const qRaw = $('#cmp-f-qty').value.trim(), mRaw = $('#cmp-f-min').value.trim(), url = $('#cmp-f-url').value.trim();
+                const specs = readSpecs(), cat = $('#cmp-f-cat').value;
+                arch.classList.add('hidden');
                 if (!name) { err.textContent = t('cmp_err_name'); return; }
-                if (!sku) { err.textContent = t('cmp_err_sku'); return; }
-                if (!/^\d+$/.test(qRaw) || !/^\d+$/.test(mRaw)) { err.textContent = t('cmp_err_num'); return; }
+                if (!edit && !sku) { err.textContent = t('cmp_err_sku'); return; }
+                if (!/^\d+$/.test(mRaw) || (!edit && !/^\d+$/.test(qRaw))) { err.textContent = t('cmp_err_num'); return; }
                 if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
-                const id = `${currentWarehouse}__${sku.replace(/\//g, '_')}`;
+                if (specs.some(s => !s.k || !s.v)) { err.textContent = t('cmp_err_spec'); return; }
+                const image = fileImg || url || '', minQty = parseInt(mRaw, 10);
                 okBtn.disabled = true; err.textContent = '';
                 try {
-                    const ref = doc(db, 'material_master', id);
-                    if ((await getDoc(ref)).exists()) { err.textContent = fmt(t('cmp_err_dup'), { wh: currentWarehouse }); okBtn.disabled = false; return; }
+                    if (edit) {
+                        const ch = [];
+                        if (name !== it.name) ch.push(`название «${it.name}» → «${name}»`);
+                        if (cat !== it.category) ch.push(`категория ${cmpCatName(it.category)} → ${cmpCatName(cat)}`);
+                        if (minQty !== it.minQty) ch.push(`минимум ${it.minQty} → ${minQty}`);
+                        if (desc !== it.description) ch.push('описание');
+                        if (image !== it.image) ch.push('фото');
+                        if (JSON.stringify(specs) !== JSON.stringify(it.specs)) ch.push('характеристики');
+                        if (!ch.length) { m.close(); return; }
+                        const upd = { name, category: cat, description: desc, image, minQty, specs };
+                        await updateDoc(doc(db, 'material_master', it.id), { ...upd, updatedAt: Date.now(), updatedBy: currentUserName });
+                        Object.assign(it, upd);
+                        cmpLog('edit', `изменён «${name}» (${it.sku}): ${ch.join('; ')}`);
+                        m.close(); cmpRedraw(); cmpToast(t('cmp_saved'), 'ok'); return;
+                    }
+                    const id = `${currentWarehouse}__${sku.replace(/\//g, '_')}`, ref = doc(db, 'material_master', id);
+                    const snap = await getDoc(ref);
+                    if (snap.exists()) {
+                        const ex = cmpFromDoc(snap);
+                        if (ex.archived) {   // SKU в архиве: предлагаем восстановить вместо «дубликата»
+                            arch.innerHTML = `<p class="m-0 mb-2">${fmt(t('cmp_dup_archived'), { sku: escapeHtml(sku), name: escapeHtml(ex.name), n: ex.qty })}</p><button type="button" id="cmp-f-restore" class="${CMP_BTN_MAIN}">♻️ ${t('cmp_restore')}</button>`;
+                            arch.classList.remove('hidden');
+                            $('#cmp-f-restore').onclick = async () => {
+                                let cur = cmpItems.find(x => x.id === ex.id); if (!cur) { cmpItems.push(ex); cur = ex; }
+                                if (await cmpRestore(cur)) m.close();
+                            };
+                        } else err.textContent = fmt(t('cmp_err_dup'), { wh: currentWarehouse });
+                        okBtn.disabled = false; return;
+                    }
                     const now = Date.now();
                     const data = {
-                        sku, name, category: $('#cmp-f-cat').value, qty: parseInt(qRaw, 10), minQty: parseInt(mRaw, 10), unit: 'шт.',
-                        image: fileImg || url || '', description: desc, group: 'components', warehouse: currentWarehouse,
-                        createdAt: now, updatedAt: now, updatedBy: currentUserName
+                        sku, name, category: cat, qty: parseInt(qRaw, 10), minQty, unit: 'шт.', image, description: desc, specs,
+                        group: 'components', warehouse: currentWarehouse, createdAt: now, updatedAt: now, updatedBy: currentUserName
                     };
                     await setDoc(ref, data);
                     cmpItems.push(cmpFromDoc({ id, data: () => data }));
-                    logActivity('add', `Комплектующие: добавлен «${name}» (${sku}) × ${data.qty}, склад ${currentWarehouse}`);
+                    cmpLog('add', `добавлен «${name}» (${sku}) × ${data.qty}`);
                     m.close(); cmpRedraw(); cmpToast(t('cmp_added'), 'ok');
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
             };
+        }
+
+        // Архивация категории: если в ней есть плитки (по всем складам) — выбрать, куда их перенести
+        async function cmpArchiveCat(c, after) {
+            const snap = await getDocs(query(collection(db, 'material_master'), where('group', '==', 'components'), where('category', '==', c.id)));
+            const run = async to => {
+                for (let i = 0; i < snap.docs.length; i += 400) {
+                    const b = writeBatch(db);
+                    snap.docs.slice(i, i + 400).forEach(d => b.update(d.ref, { category: to, updatedAt: Date.now(), updatedBy: currentUserName }));
+                    await b.commit();
+                }
+                await updateDoc(doc(db, 'component_categories', c.id), { archived: true });
+                c.archived = true; cmpItems.forEach(x => { if (x.category === c.id) x.category = to; });
+                if (cmpCat === c.id) cmpCat = 'all';
+                cmpLog('cat_archive', `категория «${c.name}» в архиве${snap.size ? `, плиток перенесено: ${snap.size} → «${cmpCatName(to)}»` : ''}`);
+                cmpToast(t('cmp_cat_archived_toast'), 'ok'); after();
+            };
+            if (!snap.size) return run('other');
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">${fmt(t('cmp_cat_archive_title'), { name: escapeHtml(c.name) })}</h2>
+                <p class="mb-4 mt-2 text-sm text-klt-muted">${fmt(t('cmp_cat_archive_text'), { n: snap.size })}</p>
+                <label class="${CMP_LBL}" for="cmp-m-to">${t('cmp_cat_move_to')}</label>
+                <select id="cmp-m-to" class="cursor-pointer ${CMP_FLD}">${cmpActiveCats().filter(x => x.id !== c.id).map(x => `<option value="${cmpAttr(x.id)}" ${x.id === 'other' ? 'selected' : ''}>${x.icon} ${escapeHtml(x.name)}</option>`).join('')}</select>
+                <div id="cmp-m-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="cmp-m-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="cmp-m-ok" class="${CMP_BTN_MAIN}">${t('cmp_cat_archive_do')}</button></div>`);
+            m.$('#cmp-m-cancel').onclick = m.close;
+            m.$('#cmp-m-ok').onclick = async e => {
+                e.target.disabled = true;
+                try { await run(m.$('#cmp-m-to').value); m.close(); }
+                catch (x) { console.error(x); m.$('#cmp-m-err').textContent = t('cmp_err_save'); e.target.disabled = false; }
+            };
+        }
+
+        // Управление категориями: правка названия/иконки сохраняется сразу, порядок — кнопками ↑↓
+        function cmpOpenCats() {
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">⚙️ ${t('cmp_cats_title')}</h2>
+                <p class="mb-4 mt-1 text-xs text-klt-muted">${t('cmp_cats_note')}</p>
+                <div id="cmp-c-list" class="flex flex-col gap-2"></div>
+                <div class="mt-4 flex gap-2">
+                    <input id="cmp-c-nicon" type="text" value="🏷️" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
+                    <input id="cmp-c-nname" type="text" maxlength="40" autocomplete="off" placeholder="${cmpAttr(t('cmp_cat_new_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
+                    <button type="button" id="cmp-c-add" class="${CMP_BTN_MAIN} shrink-0">${t('cmp_cat_add')}</button>
+                </div>
+                <div class="mt-5 flex justify-end"><button type="button" id="cmp-c-x" class="${CMP_BTN}">${t('btn_close')}</button></div>`, true);
+            const list = m.$('#cmp-c-list');
+            const draw = () => {
+                list.innerHTML = cmpCats.map((c, i) => `<div data-cid="${cmpAttr(c.id)}" class="flex items-center gap-2 ${c.archived ? 'opacity-60' : ''}">
+                    <input data-f="icon" type="text" value="${cmpAttr(c.icon)}" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
+                    <input data-f="name" type="text" maxlength="40" value="${cmpAttr(c.name)}" aria-label="${cmpAttr(t('cmp_cat_name_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
+                    <button type="button" data-a="up" ${i === 0 ? 'disabled' : ''} aria-label="${cmpAttr(t('cmp_cat_up'))}" class="${CMP_ICO}">↑</button>
+                    <button type="button" data-a="down" ${i === cmpCats.length - 1 ? 'disabled' : ''} aria-label="${cmpAttr(t('cmp_cat_down'))}" class="${CMP_ICO}">↓</button>
+                    ${c.id === 'other' ? `<span title="${cmpAttr(t('cmp_cat_locked'))}" class="w-9 shrink-0 text-center">🔒</span>` :
+                      `<button type="button" data-a="${c.archived ? 'restore' : 'archive'}" title="${cmpAttr(t(c.archived ? 'cmp_restore' : 'cmp_archive'))}" aria-label="${cmpAttr(t(c.archived ? 'cmp_restore' : 'cmp_archive'))}" class="${CMP_ICO}">${c.archived ? '♻️' : '🗑️'}</button>`}
+                </div>`).join('');
+            };
+            draw();
+            list.addEventListener('change', async e => {
+                const row = e.target.closest('[data-cid]'), f = e.target.dataset.f; if (!row || !f) return;
+                const c = cmpCats.find(x => x.id === row.dataset.cid); let val = e.target.value.trim();
+                if (f === 'icon') val = cmpIconOf(val);
+                if (f === 'name' && (!val || cmpCats.some(x => x !== c && x.name.toLowerCase() === val.toLowerCase()))) { cmpToast(t(val ? 'cmp_cat_err_dup' : 'cmp_cat_err_name'), 'err'); e.target.value = c.name; return; }
+                if (!val || c[f] === val) { e.target.value = c[f]; return; }
+                try {
+                    await updateDoc(doc(db, 'component_categories', c.id), { [f]: val });
+                    cmpLog('cat_edit', `категория «${c.name}»: ${f === 'name' ? 'название' : 'иконка'} ${c[f]} → ${val}`);
+                    c[f] = val; e.target.value = val; cmpRedraw();
+                } catch (x) { console.error(x); e.target.value = c[f]; cmpToast(t('cmp_err_save'), 'err'); }
+            });
+            list.addEventListener('click', async e => {
+                const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
+                const i = cmpCats.findIndex(x => x.id === b.closest('[data-cid]').dataset.cid), c = cmpCats[i], a = b.dataset.a;
+                try {
+                    if (a === 'up' || a === 'down') {
+                        const j = a === 'up' ? i - 1 : i + 1; if (!cmpCats[j]) return;
+                        const arr = cmpCats.slice(); [arr[i], arr[j]] = [arr[j], arr[i]];
+                        const bt = writeBatch(db); arr.forEach((x, k) => bt.update(doc(db, 'component_categories', x.id), { order: k + 1 })); await bt.commit();
+                        arr.forEach((x, k) => { x.order = k + 1; }); cmpCats = arr;
+                        cmpLog('cat_order', `категория «${c.name}» перемещена ${a === 'up' ? 'выше' : 'ниже'}`);
+                    } else if (a === 'restore') {
+                        await updateDoc(doc(db, 'component_categories', c.id), { archived: false }); c.archived = false;
+                        cmpLog('cat_restore', `категория «${c.name}» восстановлена`); cmpToast(t('cmp_cat_restored'), 'ok');
+                    } else { await cmpArchiveCat(c, () => { draw(); cmpRedraw(); }); return; }
+                } catch (x) { console.error(x); cmpToast(t('cmp_err_save'), 'err'); }
+                draw(); cmpRedraw();
+            });
+            const add = async () => {
+                const name = m.$('#cmp-c-nname').value.trim(), icon = cmpIconOf(m.$('#cmp-c-nicon').value) || '🏷️';
+                if (!name || cmpCats.some(x => x.name.toLowerCase() === name.toLowerCase())) { cmpToast(t(name ? 'cmp_cat_err_dup' : 'cmp_cat_err_name'), 'err'); return; }
+                const id = 'c_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3), order = Math.max(0, ...cmpCats.map(x => x.order)) + 1;
+                try {
+                    await setDoc(doc(db, 'component_categories', id), { id, name, icon, order, archived: false });
+                    cmpCats.push({ id, name, icon, order, archived: false });
+                    cmpLog('cat_add', `добавлена категория ${icon} «${name}»`);
+                    m.$('#cmp-c-nname').value = ''; draw(); cmpRedraw(); cmpToast(t('cmp_cat_added'), 'ok');
+                } catch (x) { console.error(x); cmpToast(t('cmp_err_save'), 'err'); }
+            };
+            m.$('#cmp-c-add').onclick = add;
+            m.$('#cmp-c-nname').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+            m.$('#cmp-c-x').onclick = m.close;
         }
 
         async function renderComponents(pv) {
@@ -1931,30 +2278,36 @@
                     </div>
                 </div>
                 <input id="cmp-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('cmp_search_ph'))}" value="${cmpAttr(cmpQuery)}" class="mb-3 ${CMP_FLD}">
-                <div id="cmp-chips" class="mb-3 flex flex-wrap gap-2"></div>
-                <div id="cmp-count" class="mb-3 text-xs text-klt-muted"></div>
+                <div id="cmp-chips" class="mb-3 flex flex-wrap items-center gap-2"></div>
+                <div class="mb-3 flex flex-wrap items-center justify-between gap-2"><div id="cmp-count" class="text-xs text-klt-muted"></div><div id="cmp-arch"></div></div>
                 <div id="cmp-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
             pv.appendChild(wrap);
             const $ = id => wrap.querySelector('#' + id);
+            const visible = () => cmpItems.filter(x => cmpShowArch || !x.archived);
 
             function drawChrome() {
                 $('cmp-seg').innerHTML = [['grid', '🔲', 'cmp_view_grid'], ['table', '☰', 'cmp_view_table']].map(([k, ic, l]) =>
                     `<button type="button" data-cmp-view="${k}" aria-pressed="${cmpView === k}" class="${seg(cmpView === k)}">${ic} ${t(l)}</button>`).join('');
-                const cnt = { all: cmpItems.length };
-                CMP_CATS.forEach(c => { cnt[c] = cmpItems.filter(x => x.category === c).length; });
-                $('cmp-chips').innerHTML = ['all', ...CMP_CATS].map(c => {
-                    const on = cmpCat === c;
-                    return `<button type="button" data-cmp-cat="${c}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${t('cmp_cat_' + c)} <span class="opacity-70">${cnt[c]}</span></button>`;
-                }).join('');
+                const cats = cmpActiveCats(), vis = visible();
+                if (cmpCat !== 'all' && !cats.some(c => c.id === cmpCat)) cmpCat = 'all';
+                const chip = (id, label, n) => {
+                    const on = cmpCat === id;
+                    return `<button type="button" data-cmp-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
+                };
+                $('cmp-chips').innerHTML = chip('all', t('cmp_cat_all'), vis.length) +
+                    cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)}`, vis.filter(x => x.category === c.id).length)).join('') +
+                    `<button type="button" data-cmp-act="cats" class="${CMP_BTN} rounded-full px-3.5 py-1.5 text-[13px]">⚙️ ${t('cmp_cats_btn')}</button>`;
+                const na = cmpItems.filter(x => x.archived).length;
+                $('cmp-arch').innerHTML = na || cmpShowArch ? `<label class="inline-flex cursor-pointer items-center gap-2 text-xs text-klt-muted"><input type="checkbox" data-cmp-arch ${cmpShowArch ? 'checked' : ''} class="cursor-pointer accent-emerald-500">${fmt(t('cmp_show_archive'), { n: na })}</label>` : '';
             }
             function drawList() {
                 const q = cmpQuery.trim().toLowerCase();
-                const list = cmpItems
+                const list = visible()
                     .filter(x => (cmpCat === 'all' || x.category === cmpCat) && (!q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q)))
-                    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+                    .sort((a, b) => (a.archived - b.archived) || a.name.localeCompare(b.name, 'ru'));
                 $('cmp-count').textContent = fmt(t('cmp_count'), { n: list.length });
                 if (!list.length) {
-                    $('cmp-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${cmpItems.length ? t('cmp_empty') : t('cmp_empty_first')}</div>`;
+                    $('cmp-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${cmpItems.some(x => !x.archived) ? t('cmp_empty') : t('cmp_empty_first')}</div>`;
                     return;
                 }
                 $('cmp-list').innerHTML = cmpView === 'grid'
@@ -1982,19 +2335,26 @@
                 if (c) { cmpCat = c.dataset.cmpCat; drawChrome(); drawList(); return; }
                 const b = e.target.closest('[data-cmp-act]');
                 if (!b || b.disabled) return;
-                const it = cmpItems.find(x => x.id === b.dataset.id); if (!it) return;
                 const a = b.dataset.cmpAct;
+                if (a === 'cats') { cmpOpenCats(); return; }
+                const it = cmpItems.find(x => x.id === b.dataset.id); if (!it) return;
                 if (a === 'inc') cmpAdjust(it, 1);
                 else if (a === 'dec') cmpAdjust(it, -1);
                 else if (a === 'issue') cmpOpenIssue(it);
-                else if (a === 'photo') cmpOpenPhoto(it);
+                else if (a === 'receive') cmpOpenReceive(it);
+                else if (a === 'edit') cmpOpenForm(it);
+                else if (a === 'archive') cmpOpenArchive(it);
+                else if (a === 'restore') cmpRestore(it);
+                else if (a === 'details') cmpOpenDetails(it);
             });
+            wrap.addEventListener('change', e => { if (e.target.matches('[data-cmp-arch]')) { cmpShowArch = e.target.checked; drawChrome(); drawList(); } });
             $('cmp-search').addEventListener('input', e => { cmpQuery = e.target.value; drawList(); });
-            $('cmp-add').onclick = cmpOpenAdd;
+            $('cmp-add').onclick = () => cmpOpenForm();
             $('cmp-ie').onclick = () => openImportExport('components');
 
             drawChrome();
             try {
+                await cmpLoadCats();   // категории грузим до плиток: плитка с неизвестной категорией отображается как «Прочее»
                 const snap = await getDocs(query(collection(db, 'material_master'),
                     where('warehouse', '==', currentWarehouse), where('group', '==', 'components')));
                 cmpItems = snap.docs.map(cmpFromDoc);
@@ -2057,22 +2417,23 @@
                     description: ['description', 'описание', 'спецификация', 'spec']
                 },
                 preview: ['sku', 'name', 'category', 'qty', 'minQty'],
-                show: (f, v) => f === 'category' ? t('cmp_cat_' + v) : v,
+                show: (f, v) => f === 'category' ? cmpCatName(v) : v,
                 id: d => `${currentWarehouse}__${String(d.sku).replace(/\//g, '_')}`,
                 build(r) {
                     const sku = normCode(r.sku), name = String(r.name || '').trim();
                     if (!sku || !name) return null;
-                    const d = { sku, name, group: 'components', warehouse: currentWarehouse, unit: 'шт.', category: cmpCatKey(r.category) };
+                    const d = { sku, name, group: 'components', warehouse: currentWarehouse, unit: 'шт.', category: cmpResolveCat(r.category) };
                     ['qty', 'minQty'].forEach(k => { const n = numOrNull(r[k] == null ? '' : r[k]); if (n !== null) d[k] = Math.max(0, n); });
                     const img = String(r.imageUrl || '').trim(); if (/^https?:\/\//i.test(img)) d.image = img;
                     if (String(r.description || '').trim()) d.description = String(r.description).trim();
                     return d;
                 },
                 async fetchAll() {
+                    await cmpEnsureCats();
                     const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'components')));
-                    return snap.docs.map(d => {
+                    return snap.docs.filter(d => d.data().archived !== true).map(d => {   // архив в экспорт не попадает
                         const x = d.data();
-                        return { ...x, category: t('cmp_cat_' + cmpCatKey(x.category)), imageUrl: /^https?:\/\//i.test(x.image || '') ? x.image : '' };   // data:-фото в Excel не выгружаются
+                        return { ...x, category: cmpCatName(x.category), imageUrl: /^https?:\/\//i.test(x.image || '') ? x.image : '' };   // data:-фото в Excel не выгружаются
                     });
                 }
             },
@@ -2147,6 +2508,7 @@
                 const headers = Object.keys(raw[0]);
                 const foreign = ieLooksForeign(headers, cfg);
                 if (foreign) { ieMsg = { text: fmt(t('ie_wrong'), { other: t(IE_TARGETS[foreign].labelKey) }), kind: 'err' }; return; }
+                if (ieTarget === 'components') await cmpEnsureCats();   // категории нужны для разбора колонки Category
                 const map = ieBuildHeaderMap(headers, cfg);
                 const found = new Set(Object.values(map));
                 const missing = cfg.required.filter(f => !found.has(f));
