@@ -373,6 +373,9 @@
                         <button class="nav-item" data-key="components" onclick="window.openPage('components')">
                             <span class="nav-icon">🔌</span><span class="nav-label" data-i18n="nav_components">Комплектующие</span>
                         </button>
+                        <button class="nav-item" data-key="bureau-materials" onclick="window.openPage('bureau-materials')">
+                            <span class="nav-icon">🗂️</span><span class="nav-label" data-i18n="nav_bureau">Бюро-материалы</span>
+                        </button>
                         <button class="nav-item" data-key="regions" onclick="window.openPage('regions')">
                             <span class="nav-icon">🗺️</span><span class="nav-label" data-i18n="nav_regions">Регионы и склады</span>
                         </button>
@@ -980,6 +983,7 @@
             setActiveNav('home');
             renderHome();
             loadCageCount();
+            loadBureauStats();
         }
 
         function openPage(key) {
@@ -998,6 +1002,9 @@
             } else if (key === 'components') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderComponents(pv);
+            } else if (key === 'bureau-materials' || key === 'bureau-issue') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderBureau(pv, key === 'bureau-issue');
             } else if (key === 'excel-import-export') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderImportExport(pv);
@@ -1173,7 +1180,8 @@
             document.querySelectorAll('.warehouse-btn').forEach(b => b.classList.toggle('active', b.dataset.wh === code));
             renderHome();
             loadCageCount();
-            if (currentPageKey === 'components') openPage('components');   // остатки привязаны к складу
+            loadBureauStats();
+            if (['components', 'bureau-materials', 'bureau-issue'].includes(currentPageKey)) openPage(currentPageKey);   // остатки привязаны к складу
             // Пока переключение склада меняет только заголовок — данные по складам подключим,
             // когда определим структуру Material Master/Delivery для каждого DC отдельно.
         }
@@ -1366,6 +1374,7 @@
             try {
                 const a = await findAsset(code);
                 if (!a) { setQiMsg(`${code} — ${t('qi_not_found')}`, 'err'); return; }
+                if (a.status === 'written_off') { setQiMsg(`${a.assetCode} — ${t('qi_written_off')}`, 'err'); return; }
                 const prev = a.assignedTo || '';
                 await updateDoc(doc(db, 'assets', codeDocId(a.assetCode)), {
                     status: 'issued', assignedType: qiTarget, assignedTo: target,
@@ -1379,7 +1388,7 @@
                                 <span class="truncate text-klt-muted">${QI_TARGETS[qiTarget].icon} ${escapeHtml(target)}</span>`;
                 qiEl('qi-log').prepend(li);
                 setQiMsg(`${t('qi_done')}: ${a.assetCode} → ${target}` + (prev && prev !== target ? ` (${t('qi_reassigned')} ${prev})` : ''), 'ok');
-                logActivity('quick_issue', `Быстрая выдача: ${a.assetCode} (S/N ${a.sn || '—'}) → ${QI_TARGETS[qiTarget].icon} ${target}`);
+                assetLog('quick_issue', a, { to: target, toType: qiTarget });
             } catch (e) {
                 console.error(e); setQiMsg(t('qi_error'), 'err');
             } finally {
@@ -1491,7 +1500,8 @@
                                   model: data.name + ' / ' + data.model, sn, qty: 1, wh: data.region };
                     RECEIPTS.push(rec);
                     await addDoc(collection(db, 'receipts'), { ...rec, assetCode: code, po: data.po, supplier: data.supplier });
-                    logActivity('receive_full', `Приём ${code} (S/N ${sn}), PO/PR ${data.po || '—'}, ${data.region}`);
+                    assetLog('receive', { assetCode: code, sn, name: data.name, model: data.model, warehouse: data.region },
+                             { to: [data.user, data.dept].filter(Boolean).join(' · '), toType: data.user ? 'user' : (data.dept ? 'dept' : '') });
                     status(`✅ ${code} внесён в Asset Ledger`);
                     ['rcv-asset', 'rcv-sn'].forEach(id => { $(id).value = ''; });
                     FIELDS.forEach(k => { $('rcv-' + k).value = ''; });
@@ -1505,6 +1515,8 @@
         // =====================================================================
         function ledgerStatusBadge(a) {
             const pill = (cls, txt) => `<span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cls}">${escapeHtml(txt)}</span>`;
+            if (a.status === 'written_off') return pill('bg-red-500/15 text-red-300', t('led_st_written_off'));
+            if (a.status === 'service') return pill('bg-blue-500/15 text-blue-300', t('led_st_service'));
             if (a.status === 'issued' || a.assignedTo) return pill('bg-klt-emerald/15 text-klt-emerald-light', t('led_st_issued'));
             if (isIdle(a)) return pill('bg-klt-orange/15 text-klt-orange-light', t('led_st_cage'));
             return pill('bg-white/10 text-klt-muted', a.status || '—');
@@ -1521,7 +1533,10 @@
                         <h2 class="text-xl font-bold text-klt-emerald-light">📒 ${t('m_ledger_label')}</h2>
                         <p class="mt-1 text-[13px] text-klt-muted">${t('m_ledger_desc')}</p>
                     </div>
-                    <button id="led-ie" class="cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-3.5 py-2 text-[13px] font-semibold text-slate-50 transition hover:border-klt-emerald hover:text-klt-emerald-light">📊 ${t('ie_title')}</button>
+                    <div class="flex flex-wrap gap-2">
+                        <button id="led-hist" class="cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-3.5 py-2 text-[13px] font-semibold text-slate-50 transition hover:border-klt-emerald hover:text-klt-emerald-light">📜 ${t('ah_btn')}</button>
+                        <button id="led-ie" class="cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-3.5 py-2 text-[13px] font-semibold text-slate-50 transition hover:border-klt-emerald hover:text-klt-emerald-light">📊 ${t('ie_title')}</button>
+                    </div>
                 </div>
                 <div class="mb-3 flex flex-wrap gap-2">
                     <input id="led-search" type="text" autocomplete="off" placeholder="${t('led_search_ph')}" class="min-w-[220px] flex-1 ${field}">
@@ -1532,11 +1547,11 @@
                 </div>
                 <div id="led-count" class="mb-2 text-xs text-klt-muted"></div>
                 <div class="overflow-x-auto">
-                    <table class="w-full min-w-[760px] border-collapse text-[13px]">
+                    <table class="w-full min-w-[900px] border-collapse text-[13px]">
                         <thead><tr>
                             <th class="${th}">${t('led_col_code')}</th><th class="${th}">${t('led_col_sn')}</th>
                             <th class="${th}">${t('led_col_name')}</th><th class="${th}">${t('led_col_status')}</th>
-                            <th class="${th}">${t('led_col_holder')}</th><th class="${th}">${t('led_col_wh')}</th>
+                            <th class="${th}">${t('led_col_holder')}</th><th class="${th}">${t('led_col_wh')}</th><th class="${th}">${t('led_col_actions')}</th>
                         </tr></thead>
                         <tbody id="led-body"></tbody>
                     </table>
@@ -1561,12 +1576,20 @@
                         <td class="${td}">${ledgerStatusBadge(a)}</td>
                         <td class="${td}">${escapeHtml(a.assignedTo || a.user || '—')}</td>
                         <td class="${td}">${escapeHtml(a.warehouse || a.region || '—')}</td>
+                        <td class="${td}">${a.status === 'written_off' ? '' : `<div class="flex gap-1.5">${[['reassign', '👤'], ['service', '🔧'], ['writeoff', '📝']].map(([k, ic]) =>
+                            `<button type="button" data-led-act="${k}" data-code="${cmpAttr(a.assetCode)}" title="${cmpAttr(t('led_act_' + k))}" aria-label="${cmpAttr(t('led_act_' + k))}" class="${CMP_ICO}">${ic}</button>`).join('')}</div>`}</td>
                     </tr>`).join('')
-                    : `<tr><td colspan="6" class="px-3 py-10 text-center text-klt-muted">${t('led_empty')}</td></tr>`;
+                    : `<tr><td colspan="7" class="px-3 py-10 text-center text-klt-muted">${t('led_empty')}</td></tr>`;
             }
             $('led-search').addEventListener('input', draw);
             $('led-wh').addEventListener('change', draw);
             $('led-ie').onclick = () => openImportExport('ledger');
+            $('led-hist').onclick = openAssetHistory;
+            $('led-body').addEventListener('click', e => {
+                const b = e.target.closest('[data-led-act]'); if (!b) return;
+                const a = rows.find(x => x.assetCode === b.dataset.code);
+                if (a) ledgerOpenAction(a, b.dataset.ledAct, draw);
+            });
             try {
                 const snap = await getDocs(query(collection(db, 'assets'), limit(500)));
                 rows = snap.docs.map(withId);
@@ -1727,7 +1750,7 @@
         // КОМПЛЕКТУЮЩИЕ (кабели, БП, переходники, кронштейны)
         // Хранение: коллекция material_master (структура Material Master), документ {WH}__{SKU}
         // с признаком group:'components'. Asset Ledger (assets/*) не затрагивается.
-        // Остаток меняется атомарно через increment(), движения пишутся в component_movements
+        // Остаток меняется атомарно через increment(), движения пишутся в material_movements (group:'components')
         // (best-effort) и в общий журнал активности. Фото: файл ужимается на клиенте до ~480px JPEG
         // и хранится в документе (Storage-SDK не подключён) либо задаётся ссылкой http(s).
         // Категории: коллекция component_categories (общие для всех складов), id = ключ, который хранится в плитке.
@@ -1800,7 +1823,7 @@
         function cmpModal(inner, wide) {
             const ov = document.createElement('div');
             ov.className = 'fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/60 p-4';
-            ov.innerHTML = `<div role="dialog" aria-modal="true" class="my-auto w-full ${wide ? 'max-w-[640px]' : 'max-w-[480px]'} rounded-2xl border border-solid border-klt-line bg-klt-card p-6">${inner}</div>`;
+            ov.innerHTML = `<div role="dialog" aria-modal="true" class="my-auto w-full ${wide === 'xl' ? 'max-w-[1100px]' : wide ? 'max-w-[640px]' : 'max-w-[480px]'} rounded-2xl border border-solid border-klt-line bg-klt-card p-6">${inner}</div>`;
             const onKey = e => { if (e.key === 'Escape') close(); };
             function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
             ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
@@ -1809,13 +1832,11 @@
             return { ov, close, $: s => ov.querySelector(s) };
         }
 
-        // Движение остатка: журнал активности + отдельная коллекция (ошибка записи не блокирует операцию)
+        // Движение остатка → журнал material_movements (group:'components'); в общий activity_log не пишется.
+        // Ошибка записи журнала не блокирует операцию
         async function cmpLogMove(it, type, qty, extra) {
-            try {
-                await addDoc(collection(db, 'component_movements'), Object.assign({
-                    sku: it.sku, name: it.name, type, qty, warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: Date.now()
-                }, extra || {}));
-            } catch (e) { console.warn('component_movements:', e); }
+            const [mt, sign] = { adjust_plus: ['adjust', 1], adjust_minus: ['adjust', -1], receive: ['receipt', 1], issue: ['issue', -1] }[type] || ['adjust', 1];
+            return mmLog('components', it, mt, sign * qty, extra);
         }
 
         function cmpReadImage(file) {
@@ -1976,7 +1997,6 @@
                     await updateDoc(doc(db, 'material_master', it.id), { qty: increment(qty), updatedAt: Date.now(), updatedBy: currentUserName });
                     it.qty += qty; cmpRedraw();
                     cmpLogMove(it, 'receive', qty, { note });
-                    cmpLog('receive', `принято «${it.name}» (${it.sku}) × ${qty}${note ? ', ' + note : ''}`);
                     m.close(); cmpToast(fmt(t('cmp_received'), { name: it.name, qty }), 'ok');
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
             };
@@ -2046,7 +2066,6 @@
                     await updateDoc(doc(db, 'material_master', it.id), { qty: increment(-qty), updatedAt: Date.now(), updatedBy: currentUserName });
                     it.qty -= qty; cmpRedraw();
                     cmpLogMove(it, 'issue', qty, { toType, to, note });
-                    logActivity('issue', `Комплектующие: выдано «${it.name}» (${it.sku}) × ${qty} → ${toType === 'emp' ? 'сотрудник' : 'процесс'} ${to}, склад ${currentWarehouse}`);
                     m.close(); cmpToast(fmt(t('cmp_issued'), { name: it.name, qty }), 'ok');
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
             };
@@ -2155,6 +2174,7 @@
                     await setDoc(ref, data);
                     cmpItems.push(cmpFromDoc({ id, data: () => data }));
                     cmpLog('add', `добавлен «${name}» (${sku}) × ${data.qty}`);
+                    mmLog('components', data, 'receipt', data.qty, { note: t('mm_note_create') });
                     m.close(); cmpRedraw(); cmpToast(t('cmp_added'), 'ok');
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
             };
@@ -2273,6 +2293,7 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div id="cmp-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="cmp-hist" class="${CMP_BTN} text-[13px]">📜 ${t('bur_hist')}</button>
                         <button type="button" id="cmp-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
                         <button type="button" id="cmp-add" class="${CMP_BTN_MAIN}">${t('cmp_add')}</button>
                     </div>
@@ -2351,6 +2372,7 @@
             $('cmp-search').addEventListener('input', e => { cmpQuery = e.target.value; drawList(); });
             $('cmp-add').onclick = () => cmpOpenForm();
             $('cmp-ie').onclick = () => openImportExport('components');
+            $('cmp-hist').onclick = () => openMaterialJournal('components');
 
             drawChrome();
             try {
@@ -2364,6 +2386,594 @@
                 return;
             }
             if (wrap.isConnected) { drawChrome(); drawList(); }
+        }
+
+        // =====================================================================
+        // i18n: Бюро-материалы + журналы движения (uk/pl фолбэчатся на ru через t())
+        // =====================================================================
+        Object.assign(TR.ru, {
+            nav_bureau: 'Бюро-материалы',
+            bur_title: 'Учет бюро-материалов и канцелярии', bur_view_grid: 'Сетка карточек', bur_view_table: 'Таблица',
+            bur_add: '+ Добавить материал', bur_hist: 'История расхода и прихода', bur_search_ph: 'Поиск по названию или SKU',
+            bur_cat_all: 'Все', bur_cat_stationery: 'Канцелярия', bur_cat_paper: 'Бумага', bur_cat_ppe: 'СИЗ и Перчатки', bur_cat_packaging: 'Упаковка', bur_cat_household: 'Хозтовары',
+            bur_low: 'Мало на складе', bur_issue: 'Выдать', bur_min: 'Минимум: {n}', bur_count: 'Позиций: {n}',
+            bur_empty: 'По этому фильтру ничего не найдено', bur_empty_first: 'Здесь пока пусто. Добавьте первый материал или загрузите список через Импорт / Экспорт.',
+            bur_load_err: 'Не удалось загрузить бюро-материалы (проверьте связь / права Firestore)',
+            bur_col_photo: 'Фото', bur_col_name: 'Название', bur_col_sku: 'SKU', bur_col_cat: 'Категория', bur_col_qty: 'Остаток', bur_col_min: 'Минимум',
+            bur_new_title: 'Новый материал', bur_f_name: 'Название товара', bur_f_cat: 'Категория', bur_f_unit: 'Единица измерения',
+            bur_f_sku: 'SKU / Внутренний артикул', bur_f_qty: 'Начальный остаток', bur_f_min: 'Минимальный остаток (Alert limit)',
+            bur_f_img: 'Фото', bur_f_img_file: 'Загрузить фото', bur_f_img_url: 'или ссылка на картинку (https://…)', bur_ph_name: 'Например: Перчатки трикотажные L',
+            bur_added: 'Материал добавлен', bur_issue_title: 'Выдача: {name}', bur_issue_avail: 'Доступно: {n} {unit}',
+            ie_target_bur: 'Бюро-материалы', ie_bur_desc: 'Канцелярия, бумага, СИЗ, упаковка, хозтовары: SKU, категории, остатки и лимиты (в структуре Material Master)',
+            mm_title: 'История расхода и прихода', mm_search_ph: 'Поиск по SKU или названию', mm_p_today: 'За сегодня', mm_p_week: 'За неделю', mm_p_all: 'Все',
+            mm_col_dt: 'Дата и время', mm_col_type: 'Тип', mm_col_sku: 'SKU', mm_col_name: 'Наименование', mm_col_delta: 'Изменение', mm_col_to: 'Кому выдано / Процесс',
+            mm_col_note: 'Комментарий', mm_col_actor: 'Оператор', mm_t_receipt: 'Приход', mm_t_issue: 'Выдача', mm_t_adjust: 'Коррекция',
+            mm_empty: 'Записей за выбранный период нет', mm_count: 'Записей: {n}', mm_load_err: 'Не удалось загрузить журнал (проверьте связь / права Firestore)',
+            mm_trunc: 'Загружены последние {n} записей журнала — выберите более короткий период',
+            mm_note_create: 'Создание позиции', mm_note_import: 'Импорт: {file}', mm_note_import_adj: 'Импорт (корректировка остатка): {file}',
+            mm_import_skipped: 'пропущено из-за конфликта SKU с другой базой: {n}',
+            ah_btn: 'История движения техники', ah_title: 'Журнал движения техники', ah_search_ph: 'Поиск по Asset Code или S/N',
+            ah_col_dt: 'Дата и время', ah_col_type: 'Тип действия', ah_col_code: 'Asset Code', ah_col_sn: 'S/N', ah_col_name: 'Наименование', ah_col_to: 'Получатель / Отдел', ah_col_actor: 'Оператор',
+            ah_t_receive: 'Полноценный прием', ah_t_quick_issue: 'Быстрая выдача', ah_t_reassign: 'Смена ответственного / отдела', ah_t_service: 'Отправка в сервис', ah_t_writeoff: 'Списание',
+            ah_empty: 'Записей нет', ah_count: 'Записей: {n}', ah_load_err: 'Не удалось загрузить журнал (проверьте связь / права Firestore)',
+            led_col_actions: 'Действия', led_act_reassign: 'Сменить ответственного / отдел', led_act_service: 'Отправить в сервис', led_act_writeoff: 'Списать',
+            led_st_service: 'В сервисе', led_st_written_off: 'Списано',
+            led_re_title: 'Смена ответственного: {code}', led_service_title: 'Отправка в сервис: {code}', led_wo_title: 'Списание: {code}',
+            led_service_to: 'Сервис / комментарий (необязательно)', led_wo_to: 'Причина списания (необязательно)',
+            led_wo_warn: 'Запись останется в реестре со статусом «Списано», дальнейшие действия с ней будут недоступны.',
+            led_do: 'Подтвердить', led_err_save: 'Не удалось сохранить (проверьте связь / права Firestore)', led_done: 'Готово',
+            qi_written_off: 'списан — выдача невозможна'
+        });
+        Object.assign(TR.en, {
+            nav_bureau: 'Office supplies',
+            bur_title: 'Office supplies & stationery inventory', bur_view_grid: 'Card grid', bur_view_table: 'Table',
+            bur_add: '+ Add material', bur_hist: 'Usage & receipts history', bur_search_ph: 'Search by name or SKU',
+            bur_cat_all: 'All', bur_cat_stationery: 'Stationery', bur_cat_paper: 'Paper', bur_cat_ppe: 'PPE & gloves', bur_cat_packaging: 'Packaging', bur_cat_household: 'Household',
+            bur_low: 'Low stock', bur_issue: 'Issue', bur_min: 'Minimum: {n}', bur_count: 'Items: {n}',
+            bur_empty: 'Nothing matches this filter', bur_empty_first: 'Nothing here yet. Add the first material or upload a list via Import / Export.',
+            bur_load_err: 'Could not load office supplies (check connection / Firestore rules)',
+            bur_col_photo: 'Photo', bur_col_name: 'Name', bur_col_sku: 'SKU', bur_col_cat: 'Category', bur_col_qty: 'Stock', bur_col_min: 'Minimum',
+            bur_new_title: 'New material', bur_f_name: 'Item name', bur_f_cat: 'Category', bur_f_unit: 'Unit of measure',
+            bur_f_sku: 'SKU / internal part number', bur_f_qty: 'Initial stock', bur_f_min: 'Minimum stock (alert limit)',
+            bur_f_img: 'Photo', bur_f_img_file: 'Upload photo', bur_f_img_url: 'or image link (https://…)', bur_ph_name: 'E.g. Knitted gloves L',
+            bur_added: 'Material added', bur_issue_title: 'Issue: {name}', bur_issue_avail: 'Available: {n} {unit}',
+            ie_target_bur: 'Office supplies', ie_bur_desc: 'Stationery, paper, PPE, packaging, household: SKU, categories, stock and limits (Material Master structure)',
+            mm_title: 'Usage & receipts history', mm_search_ph: 'Search by SKU or name', mm_p_today: 'Today', mm_p_week: 'This week', mm_p_all: 'All',
+            mm_col_dt: 'Date & time', mm_col_type: 'Type', mm_col_sku: 'SKU', mm_col_name: 'Name', mm_col_delta: 'Change', mm_col_to: 'Issued to / Process',
+            mm_col_note: 'Comment', mm_col_actor: 'Operator', mm_t_receipt: 'Receipt', mm_t_issue: 'Issue', mm_t_adjust: 'Adjustment',
+            mm_empty: 'No records for the selected period', mm_count: 'Records: {n}', mm_load_err: 'Could not load the journal (check connection / Firestore rules)',
+            mm_trunc: 'The latest {n} journal records were loaded — choose a shorter period',
+            mm_note_create: 'Item created', mm_note_import: 'Import: {file}', mm_note_import_adj: 'Import (stock adjustment): {file}',
+            mm_import_skipped: 'skipped due to SKU conflict with another database: {n}',
+            ah_btn: 'Equipment movement history', ah_title: 'Equipment movement journal', ah_search_ph: 'Search by Asset Code or S/N',
+            ah_col_dt: 'Date & time', ah_col_type: 'Action', ah_col_code: 'Asset Code', ah_col_sn: 'S/N', ah_col_name: 'Name', ah_col_to: 'Recipient / Department', ah_col_actor: 'Operator',
+            ah_t_receive: 'Full receipt', ah_t_quick_issue: 'Quick issue', ah_t_reassign: 'Owner / department change', ah_t_service: 'Sent to service', ah_t_writeoff: 'Write-off',
+            ah_empty: 'No records', ah_count: 'Records: {n}', ah_load_err: 'Could not load the journal (check connection / Firestore rules)',
+            led_col_actions: 'Actions', led_act_reassign: 'Change owner / department', led_act_service: 'Send to service', led_act_writeoff: 'Write off',
+            led_st_service: 'In service', led_st_written_off: 'Written off',
+            led_re_title: 'Change owner: {code}', led_service_title: 'Send to service: {code}', led_wo_title: 'Write-off: {code}',
+            led_service_to: 'Service / comment (optional)', led_wo_to: 'Write-off reason (optional)',
+            led_wo_warn: 'The record stays in the ledger as “Written off”; no further actions will be available for it.',
+            led_do: 'Confirm', led_err_save: 'Could not save (check connection / Firestore rules)', led_done: 'Done',
+            qi_written_off: 'is written off — cannot be issued'
+        });
+
+        // =====================================================================
+        // ЖУРНАЛ ДВИЖЕНИЯ МАТЕРИАЛОВ → коллекция material_movements
+        // Общий для «Бюро-материалов» (group:'bureau') и «Комплектующих» (group:'components').
+        // Документ: { group, type:'receipt'|'issue'|'adjust', sku, name, unit, delta (±), warehouse,
+        //             toType?, to?, note?, actor, timestamp }. В общий activity_log движения НЕ пишутся.
+        // Запись best-effort: сбой журнала не блокирует операцию с остатком.
+        // =====================================================================
+        const MM_LIMIT = 1000;
+        const mmLocale = () => ({ ru: 'ru-RU', uk: 'uk-UA', pl: 'pl-PL', en: 'en-GB' }[currentLang] || 'ru-RU');
+        const mmFmtDate = ts => new Date(ts).toLocaleString(mmLocale(), { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+        async function mmLog(group, it, type, delta, extra) {
+            try {
+                await addDoc(collection(db, 'material_movements'), Object.assign({
+                    group, type, sku: it.sku, name: it.name, unit: it.unit || 'шт.', delta,
+                    warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: Date.now()
+                }, extra || {}));
+            } catch (e) { console.warn('material_movements:', e); }
+        }
+
+        // Импорт XLSX: сравниваем с текущими остатками, чтобы в журнал попали приход (новые) и коррекции (изменённые).
+        // Строки, чей SKU уже занят документом ДРУГОЙ базы (Material Master / комплектующие / бюро) на этом складе, пропускаются.
+        async function mmPrepareImport(group, items, fileName) {
+            const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse)));
+            const ex = new Map(snap.docs.map(d => [d.id, d.data()]));
+            const toWrite = [], moves = []; let skipped = 0;
+            items.forEach(x => {
+                const old = ex.get(x.id);
+                if (old && old.group !== group) { skipped++; return; }
+                toWrite.push(x);
+                const oldQty = old ? Math.max(0, Number(old.qty) || 0) : 0;
+                const newQty = x.data.qty != null ? x.data.qty : oldQty;
+                const base = { sku: x.data.sku, name: x.data.name, unit: x.data.unit || (old && old.unit) || 'шт.' };
+                if (!old) moves.push({ ...base, type: 'receipt', delta: newQty, note: fmt(t('mm_note_import'), { file: fileName }) });
+                else if (newQty !== oldQty) moves.push({ ...base, type: 'adjust', delta: newQty - oldQty, note: fmt(t('mm_note_import_adj'), { file: fileName }) });
+            });
+            return { toWrite, moves, skipped };
+        }
+        async function mmWriteMoves(group, moves) {
+            try {
+                const now = Date.now();
+                for (let i = 0; i < moves.length; i += 400) {
+                    const b = writeBatch(db);
+                    moves.slice(i, i + 400).forEach(m => b.set(doc(collection(db, 'material_movements')),
+                        { ...m, group, warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: now }));
+                    await b.commit();
+                }
+            } catch (e) { console.warn('material_movements (import):', e); }
+        }
+
+        // Окно журнала: фильтр по периоду делается запросом (одно поле timestamp — без составного индекса),
+        // фильтр по группе/складу/поиску — на клиенте.
+        function openMaterialJournal(group) {
+            let period = 'today', q = '', rows = [], loading = true, failed = false, truncated = false, seq = 0;
+            const m = cmpModal(`
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="flex items-center gap-2.5 text-lg font-bold text-klt-emerald-light">📜 ${t('mm_title')}
+                        <span class="rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                    <button type="button" id="mm-x" class="${CMP_BTN}">${t('btn_close')}</button>
+                </div>
+                <div class="mb-3 flex flex-wrap items-center gap-2">
+                    <input id="mm-q" type="text" autocomplete="off" placeholder="${cmpAttr(t('mm_search_ph'))}" class="min-w-[200px] flex-1 ${CMP_FLD}">
+                    <div id="mm-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                </div>
+                <div id="mm-count" class="mb-2 text-xs text-klt-muted"></div>
+                <div id="mm-body" class="max-h-[58vh] overflow-auto rounded-xl border border-solid border-klt-line"></div>`, 'xl');
+            const th = 'sticky top-0 whitespace-nowrap border-b border-solid border-klt-line bg-klt-card px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+            const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-top text-slate-50';
+            const typeCls = { receipt: 'bg-klt-emerald/15 text-klt-emerald-light', issue: 'bg-blue-500/15 text-blue-300', adjust: 'bg-klt-orange/15 text-klt-orange-light' };
+            const drawSeg = () => {
+                m.$('#mm-seg').innerHTML = [['today', 'mm_p_today'], ['week', 'mm_p_week'], ['all', 'mm_p_all']].map(([k, l]) =>
+                    `<button type="button" data-p="${k}" aria-pressed="${period === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${period === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${t(l)}</button>`).join('');
+            };
+            const draw = () => {
+                const body = m.$('#mm-body'), cnt = m.$('#mm-count');
+                if (loading) { cnt.textContent = ''; body.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
+                if (failed) { cnt.textContent = ''; body.innerHTML = `<div class="px-4 py-8 text-center text-sm text-red-300">${t('mm_load_err')}</div>`; return; }
+                const s = q.trim().toLowerCase();
+                const list = rows.filter(r => r.group === group && r.warehouse === currentWarehouse &&
+                    (!s || String(r.sku || '').toLowerCase().includes(s) || String(r.name || '').toLowerCase().includes(s)));
+                cnt.textContent = fmt(t('mm_count'), { n: list.length }) + (truncated ? ' · ' + fmt(t('mm_trunc'), { n: MM_LIMIT }) : '');
+                if (!list.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('mm_empty')}</div>`; return; }
+                body.innerHTML = `<table class="w-full min-w-[960px] border-collapse text-[13px]"><thead><tr>
+                    ${['dt', 'type', 'sku', 'name', 'delta', 'to', 'note', 'actor'].map(c => `<th class="${th}">${t('mm_col_' + c)}</th>`).join('')}</tr></thead>
+                    <tbody>${list.map(r => {
+                        const d = Number(r.delta) || 0, unit = r.unit || 'шт.';
+                        const dTxt = (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d) + ' ' + unit;
+                        const dCls = d > 0 ? 'text-klt-emerald-light' : d < 0 ? 'text-red-400' : 'text-klt-muted';
+                        const to = r.to ? `${r.toType === 'proc' ? '⚙️' : '👤'} ${escapeHtml(r.to)}` : '<span class="text-klt-muted">—</span>';
+                        return `<tr class="transition hover:bg-klt-hover">
+                            <td class="${td} whitespace-nowrap text-klt-muted">${escapeHtml(mmFmtDate(r.timestamp))}</td>
+                            <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${typeCls[r.type] || 'bg-white/10 text-klt-muted'}">${escapeHtml(t('mm_t_' + r.type))}</span></td>
+                            <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(r.sku || '—')}</td>
+                            <td class="${td}">${escapeHtml(r.name || '—')}</td>
+                            <td class="${td} whitespace-nowrap font-extrabold ${dCls}">${escapeHtml(dTxt)}</td>
+                            <td class="${td}">${to}</td>
+                            <td class="${td} text-klt-muted">${escapeHtml(r.note || '') || '—'}</td>
+                            <td class="${td} whitespace-nowrap">${escapeHtml(r.actor || '—')}</td></tr>`;
+                    }).join('')}</tbody></table>`;
+            };
+            async function load() {
+                const my = ++seq; loading = true; draw();
+                const now = new Date();
+                const since = period === 'today' ? new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() : period === 'week' ? Date.now() - 7 * 864e5 : 0;
+                try {
+                    const snap = await getDocs(query(collection(db, 'material_movements'), ...(since ? [where('timestamp', '>=', since)] : []), orderBy('timestamp', 'desc'), limit(MM_LIMIT)));
+                    if (my !== seq) return;
+                    rows = snap.docs.map(d => ({ id: d.id, ...d.data() })); truncated = snap.size >= MM_LIMIT; failed = false;
+                } catch (e) { if (my !== seq) return; console.error(e); rows = []; failed = true; }
+                loading = false; draw();
+            }
+            m.$('#mm-x').onclick = m.close;
+            m.$('#mm-q').oninput = e => { q = e.target.value; if (!loading) draw(); };
+            m.$('#mm-seg').onclick = e => { const b = e.target.closest('[data-p]'); if (b && b.dataset.p !== period) { period = b.dataset.p; drawSeg(); load(); } };
+            drawSeg(); load();
+        }
+
+        // =====================================================================
+        // БЮРО-МАТЕРИАЛЫ (канцелярия, бумага, СИЗ, упаковка, хозтовары)
+        // Хранение: material_master/{WH}__{SKU}, group:'bureau', warehouse:<склад>. Остаток меняется
+        // атомарно через increment(); движения → material_movements (не в activity_log).
+        // =====================================================================
+        const BUR_CATS = [['stationery', '✏️'], ['paper', '📄'], ['ppe', '🧤'], ['packaging', '📦'], ['household', '🧹']];
+        const BUR_UNITS = ['шт', 'пачка', 'упаковка', 'пара', 'рулон'];
+        const burCatName = id => t('bur_cat_' + id);
+        const burCatIcon = id => (BUR_CATS.find(c => c[0] === id) || [0, '📦'])[1];
+        const burCatSafe = id => BUR_CATS.some(c => c[0] === id) ? id : 'household';
+        function burResolveCat(v) {   // импорт: id или название (на любом языке); неизвестное → «Хозтовары»
+            const s = String(v == null ? '' : v).trim().toLowerCase();
+            const hit = s && BUR_CATS.find(([id]) => id === s || Object.values(TR).some(l => String(l['bur_cat_' + id] || '').toLowerCase() === s));
+            return hit ? hit[0] : 'household';
+        }
+        const burResolveUnit = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\.$/, '') || 'шт';
+        const burFromDoc = d => {
+            const x = d.data();
+            return {
+                id: d.id, sku: String(x.sku || d.id.split('__').slice(1).join('__')), name: String(x.name || ''), category: burCatSafe(x.category),
+                unit: String(x.unit || 'шт'), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: x.image || ''
+            };
+        };
+
+        let burItems = [], burView = 'grid', burCat = 'all', burQuery = '', burRedraw = () => {};
+        try { burView = localStorage.getItem('kletka_bur_view') === 'table' ? 'table' : 'grid'; } catch (e) { /* storage недоступен */ }
+
+        const burTone = it => { const zero = it.qty <= 0, low = it.qty <= it.minQty; return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-klt-emerald-light' }; };
+        function burPhoto(it, cls) {
+            const img = cmpSafeImg(it.image);
+            return `<span class="absolute inset-0 flex items-center justify-center ${cls} opacity-50">${burCatIcon(it.category)}</span>` +
+                (img ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-full w-full object-cover">` : '');
+        }
+        function burActions(it, compact) {
+            const id = cmpAttr(it.id);
+            return `<div class="flex flex-wrap gap-2 ${compact ? 'justify-end' : 'mt-4'}">
+                <button type="button" data-bur-act="dec" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} aria-label="−1" class="${CMP_BTN}">− 1</button>
+                <button type="button" data-bur-act="inc" data-id="${id}" aria-label="+1" class="${CMP_BTN}">+ 1</button>
+                <button type="button" data-bur-act="issue" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">${t('bur_issue')}</button>
+            </div>`;
+        }
+        function burCard(it) {
+            const tn = burTone(it);
+            return `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid bg-klt-bg ${tn.zero ? 'border-red-500/70' : tn.low ? 'border-klt-orange/70' : 'border-klt-line'}">
+                <div class="relative aspect-[4/3] bg-klt-card">
+                    ${burPhoto(it, 'text-5xl')}
+                    ${tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t('bur_low')}</span>` : ''}
+                </div>
+                <div class="flex flex-1 flex-col p-4">
+                    <div class="text-[15px] font-bold leading-snug text-slate-50">${escapeHtml(it.name)}</div>
+                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
+                        <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span>
+                    </div>
+                    <div class="mt-3 flex items-baseline gap-1.5">
+                        <span class="text-4xl font-extrabold leading-none ${tn.num}">${it.qty}</span>
+                        <span class="text-sm text-klt-muted">${escapeHtml(it.unit)}</span>
+                        <span class="ml-auto text-[11px] text-klt-muted">${fmt(t('bur_min'), { n: it.minQty })}</span>
+                    </div>
+                    ${burActions(it, false)}
+                </div>
+            </article>`;
+        }
+        function burTable(list) {
+            const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+            const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-middle text-slate-50';
+            return `<div class="overflow-x-auto"><table class="w-full min-w-[860px] border-collapse text-[13px]">
+                <thead><tr><th class="${th} w-16">${t('bur_col_photo')}</th><th class="${th}">${t('bur_col_name')}</th><th class="${th}">${t('bur_col_sku')}</th>
+                    <th class="${th}">${t('bur_col_cat')}</th><th class="${th}">${t('bur_col_qty')}</th><th class="${th}">${t('bur_col_min')}</th><th class="${th}"></th></tr></thead>
+                <tbody>${list.map(it => {
+                    const tn = burTone(it);
+                    return `<tr class="transition hover:bg-klt-hover">
+                        <td class="${td}"><div class="relative h-11 w-11 overflow-hidden rounded-lg bg-klt-bg">${burPhoto(it, 'text-xl')}</div></td>
+                        <td class="${td} font-semibold">${escapeHtml(it.name)}</td>
+                        <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</td>
+                        <td class="${td} text-klt-muted">${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</td>
+                        <td class="${td}"><span class="text-lg font-extrabold ${tn.num}">${it.qty}</span> <span class="text-klt-muted">${escapeHtml(it.unit)}</span>
+                            ${tn.low ? `<span class="ml-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${tn.zero ? 'bg-red-500/20 text-red-300' : 'bg-klt-orange/20 text-klt-orange-light'}">${t('bur_low')}</span>` : ''}</td>
+                        <td class="${td} text-klt-muted">${it.minQty}</td>
+                        <td class="${td}">${burActions(it, true)}</td></tr>`;
+                }).join('')}</tbody></table></div>`;
+        }
+
+        // −1 / +1: оптимистичное обновление + атомарный increment(); при ошибке откат
+        async function burAdjust(it, d) {
+            if (it.qty + d < 0) return;
+            it.qty += d; burRedraw(it.id, d > 0 ? 'inc' : 'dec');
+            try {
+                await updateDoc(doc(db, 'material_master', it.id), { qty: increment(d), updatedAt: Date.now(), updatedBy: currentUserName });
+                mmLog('bureau', it, 'adjust', d);
+            } catch (e) {
+                console.error(e); it.qty -= d; burRedraw(it.id, d > 0 ? 'inc' : 'dec');
+                cmpToast(t('cmp_adj_err'), 'err');
+            }
+        }
+
+        function burOpenIssue(it) {
+            let toType = 'emp';
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">${fmt(t('bur_issue_title'), { name: escapeHtml(it.name) })}</h2>
+                <p class="mb-4 mt-1 text-xs text-klt-muted">${fmt(t('bur_issue_avail'), { n: it.qty, unit: escapeHtml(it.unit) })}</p>
+                <div class="mb-3.5 inline-flex overflow-hidden rounded-lg border border-solid border-klt-line" id="bur-i-seg"></div>
+                <div class="mb-3.5"><label class="${CMP_LBL}" id="bur-i-tl"></label><input id="bur-i-to" type="text" autocomplete="off" class="${CMP_FLD}"></div>
+                <div class="mb-3.5"><label class="${CMP_LBL}">${t('cmp_issue_qty')}</label><input id="bur-i-qty" type="number" min="1" max="${it.qty}" step="1" inputmode="numeric" value="1" class="${CMP_FLD}"></div>
+                <div class="mb-1"><label class="${CMP_LBL}">${t('cmp_issue_note')}</label><input id="bur-i-note" type="text" autocomplete="off" class="${CMP_FLD}"></div>
+                <div id="bur-i-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-i-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-i-ok" class="${CMP_BTN_MAIN}">${t('cmp_issue_do')}</button></div>`);
+            const drawSeg = () => {
+                m.$('#bur-i-seg').innerHTML = [['emp', 'cmp_issue_to_emp'], ['proc', 'cmp_issue_to_proc']].map(([k, l]) =>
+                    `<button type="button" data-k="${k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${toType === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${t(l)}</button>`).join('');
+                m.$('#bur-i-tl').textContent = t(toType === 'emp' ? 'cmp_issue_target_emp' : 'cmp_issue_target_proc');
+            };
+            drawSeg();
+            m.$('#bur-i-seg').onclick = e => { const b = e.target.closest('[data-k]'); if (b) { toType = b.dataset.k; drawSeg(); m.$('#bur-i-to').focus(); } };
+            m.$('#bur-i-cancel').onclick = m.close;
+            m.$('#bur-i-to').focus();
+            const go = async () => {
+                const err = m.$('#bur-i-err'), okBtn = m.$('#bur-i-ok');
+                if (okBtn.disabled) return;
+                const to = m.$('#bur-i-to').value.trim(), raw = m.$('#bur-i-qty').value.trim(), note = m.$('#bur-i-note').value.trim();
+                const qty = /^\d+$/.test(raw) ? parseInt(raw, 10) : 0;
+                if (!to) { err.textContent = t('cmp_err_target'); return; }
+                if (qty < 1 || qty > it.qty) { err.textContent = fmt(t('cmp_err_issue_qty'), { n: it.qty }); return; }
+                okBtn.disabled = true; err.textContent = '';
+                try {
+                    await updateDoc(doc(db, 'material_master', it.id), { qty: increment(-qty), updatedAt: Date.now(), updatedBy: currentUserName });
+                    it.qty -= qty; burRedraw();
+                    mmLog('bureau', it, 'issue', -qty, { toType, to, note });
+                    m.close(); cmpToast(fmt(t('cmp_issued'), { name: it.name, qty }), 'ok');
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+            };
+            m.$('#bur-i-ok').onclick = go;
+            m.ov.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); go(); } });
+        }
+
+        // Форма «+ Добавить материал»: название, категория, ед. изм., SKU, начальный остаток, минимум, фото (файл или URL)
+        function burOpenForm() {
+            let fileImg = null;
+            const m = cmpModal(`
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">🗂️ ${t('bur_new_title')}</h2>
+                <div class="grid gap-3.5 sm:grid-cols-2">
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-name">${t('bur_f_name')}</label><input id="bur-f-name" type="text" autocomplete="off" placeholder="${cmpAttr(t('bur_ph_name'))}" class="${CMP_FLD}"></div>
+                    <div><label class="${CMP_LBL}" for="bur-f-cat">${t('bur_f_cat')}</label>
+                        <select id="bur-f-cat" class="cursor-pointer ${CMP_FLD}">${BUR_CATS.map(([id, ic]) => `<option value="${id}" ${id === (burCat !== 'all' ? burCat : 'stationery') ? 'selected' : ''}>${ic} ${escapeHtml(burCatName(id))}</option>`).join('')}</select></div>
+                    <div><label class="${CMP_LBL}" for="bur-f-unit">${t('bur_f_unit')}</label>
+                        <select id="bur-f-unit" class="cursor-pointer ${CMP_FLD}">${BUR_UNITS.map(u => `<option value="${u}">${u}</option>`).join('')}</select></div>
+                    <div><label class="${CMP_LBL}" for="bur-f-sku">${t('bur_f_sku')}</label><input id="bur-f-sku" type="text" autocomplete="off" placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono"></div>
+                    <div><label class="${CMP_LBL}" for="bur-f-qty">${t('bur_f_qty')}</label><input id="bur-f-qty" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-min">${t('bur_f_min')}</label><input id="bur-f-min" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('bur_f_img')}</label>
+                        <div class="flex items-center gap-3">
+                            <div id="bur-f-prev" class="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg"></div>
+                            <div class="flex min-w-0 flex-1 flex-col gap-2">
+                                <label class="${CMP_BTN} inline-block self-start text-[13px]">${t('bur_f_img_file')}<input id="bur-f-file" type="file" accept="image/*" class="hidden"></label>
+                                <input id="bur-f-url" type="url" autocomplete="off" placeholder="${cmpAttr(t('bur_f_img_url'))}" class="${CMP_FLD}">
+                            </div>
+                        </div></div>
+                </div>
+                <div id="bur-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
+            const $ = m.$, err = $('#bur-f-err');
+            const prev = src => { $('#bur-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
+            prev('');
+            $('#bur-f-file').onchange = async e => {
+                const f = e.target.files[0]; if (!f) return;
+                try { fileImg = await cmpReadImage(f); $('#bur-f-url').value = ''; prev(fileImg); err.textContent = ''; }
+                catch (x) { console.error(x); fileImg = null; prev(''); err.textContent = t('cmp_err_img'); }
+            };
+            $('#bur-f-url').oninput = e => { const u = e.target.value.trim(); if (u) fileImg = null; prev(fileImg || cmpSafeImg(u)); };
+            $('#bur-f-cancel').onclick = m.close;
+            $('#bur-f-name').focus();
+            $('#bur-f-ok').onclick = async () => {
+                const okBtn = $('#bur-f-ok');
+                const name = $('#bur-f-name').value.trim(), sku = normCode($('#bur-f-sku').value), url = $('#bur-f-url').value.trim();
+                const qRaw = $('#bur-f-qty').value.trim(), mRaw = $('#bur-f-min').value.trim();
+                const category = $('#bur-f-cat').value, unit = $('#bur-f-unit').value;
+                if (!name) { err.textContent = t('cmp_err_name'); return; }
+                if (!sku) { err.textContent = t('cmp_err_sku'); return; }
+                if (!/^\d+$/.test(qRaw) || !/^\d+$/.test(mRaw)) { err.textContent = t('cmp_err_num'); return; }
+                if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
+                const qty = parseInt(qRaw, 10), minQty = parseInt(mRaw, 10), image = fileImg || url || '';
+                okBtn.disabled = true; err.textContent = '';
+                try {
+                    const id = `${currentWarehouse}__${sku.replace(/\//g, '_')}`, ref = doc(db, 'material_master', id);
+                    if ((await getDoc(ref)).exists()) { err.textContent = fmt(t('cmp_err_dup'), { wh: currentWarehouse }); okBtn.disabled = false; return; }
+                    const now = Date.now();
+                    const data = { sku, name, category, unit, qty, minQty, image, group: 'bureau', warehouse: currentWarehouse, createdAt: now, updatedAt: now, updatedBy: currentUserName };
+                    await setDoc(ref, data);
+                    burItems.push(burFromDoc({ id, data: () => data }));
+                    mmLog('bureau', data, 'receipt', qty, { note: t('mm_note_create') });
+                    m.close(); burRedraw(); cmpToast(t('bur_added'), 'ok');
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+            };
+        }
+
+        async function renderBureau(pv, focusSearch) {
+            const wrap = document.createElement('div');
+            wrap.className = 'rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            const seg = on => `cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${on ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}`;
+            wrap.innerHTML = `
+                <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="flex items-center gap-2.5 text-xl font-bold text-klt-emerald-light">🗂️ ${t('bur_title')}
+                            <span class="rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                        <p class="mt-1 text-[13px] text-klt-muted">${t('m_bureau_desc')}</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div id="bur-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="bur-hist" class="${CMP_BTN} text-[13px]">📜 ${t('bur_hist')}</button>
+                        <button type="button" id="bur-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
+                        <button type="button" id="bur-add" class="${CMP_BTN_MAIN}">${t('bur_add')}</button>
+                    </div>
+                </div>
+                <input id="bur-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('bur_search_ph'))}" value="${cmpAttr(burQuery)}" class="mb-3 ${CMP_FLD}">
+                <div id="bur-chips" class="mb-3 flex flex-wrap items-center gap-2"></div>
+                <div id="bur-count" class="mb-3 text-xs text-klt-muted"></div>
+                <div id="bur-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
+            pv.appendChild(wrap);
+            const $ = id => wrap.querySelector('#' + id);
+
+            function drawChrome() {
+                $('bur-seg').innerHTML = [['grid', '🔲', 'bur_view_grid'], ['table', '☰', 'bur_view_table']].map(([k, ic, l]) =>
+                    `<button type="button" data-bur-view="${k}" aria-pressed="${burView === k}" class="${seg(burView === k)}">${ic} ${t(l)}</button>`).join('');
+                const chip = (id, label, n) => {
+                    const on = burCat === id;
+                    return `<button type="button" data-bur-cat="${id}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
+                };
+                $('bur-chips').innerHTML = chip('all', t('bur_cat_all'), burItems.length) +
+                    BUR_CATS.map(([id, ic]) => chip(id, `${ic} ${escapeHtml(burCatName(id))}`, burItems.filter(x => x.category === id).length)).join('');
+            }
+            function drawList() {
+                const q = burQuery.trim().toLowerCase();
+                const list = burItems.filter(x => (burCat === 'all' || x.category === burCat) && (!q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q)))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+                $('bur-count').textContent = fmt(t('bur_count'), { n: list.length });
+                if (!list.length) {
+                    $('bur-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${burItems.length ? t('bur_empty') : t('bur_empty_first')}</div>`;
+                    return;
+                }
+                $('bur-list').innerHTML = burView === 'grid'
+                    ? `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${list.map(burCard).join('')}</div>`
+                    : burTable(list);
+            }
+            // после перерисовки возвращаем фокус на нажатую кнопку (клавиатурный сценарий −1/+1)
+            burRedraw = (focusId, focusAct) => {
+                if (!wrap.isConnected) return;
+                drawChrome(); drawList();
+                if (focusId) {
+                    const b = wrap.querySelector(`[data-bur-act="${focusAct}"][data-id="${CSS.escape(focusId)}"]`);
+                    if (b && !b.disabled) b.focus();
+                }
+            };
+
+            wrap.addEventListener('click', e => {
+                const v = e.target.closest('[data-bur-view]');
+                if (v) {
+                    burView = v.dataset.burView;
+                    try { localStorage.setItem('kletka_bur_view', burView); } catch (x) { /* ignore */ }
+                    drawChrome(); drawList(); return;
+                }
+                const c = e.target.closest('[data-bur-cat]');
+                if (c) { burCat = c.dataset.burCat; drawChrome(); drawList(); return; }
+                const b = e.target.closest('[data-bur-act]');
+                if (!b || b.disabled) return;
+                const it = burItems.find(x => x.id === b.dataset.id); if (!it) return;
+                const a = b.dataset.burAct;
+                if (a === 'inc') burAdjust(it, 1);
+                else if (a === 'dec') burAdjust(it, -1);
+                else if (a === 'issue') burOpenIssue(it);
+            });
+            $('bur-search').addEventListener('input', e => { burQuery = e.target.value; drawList(); });
+            $('bur-add').onclick = () => burOpenForm();
+            $('bur-hist').onclick = () => openMaterialJournal('bureau');
+            $('bur-ie').onclick = () => openImportExport('bureau');
+
+            drawChrome();
+            if (focusSearch) $('bur-search').focus();   // «+ Выдать бюро-материалы» с главной: сразу к поиску нужной позиции
+            try {
+                const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
+                burItems = snap.docs.map(burFromDoc);
+            } catch (e) {
+                console.error(e);
+                if (wrap.isConnected) $('bur-list').innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('bur_load_err')}</div>`;
+                return;
+            }
+            if (wrap.isConnected) { drawChrome(); drawList(); }
+        }
+
+        // Счётчики плиток главной: «Бюро-материалы (SKU)» и «Мало на складе» по текущему складу
+        async function loadBureauStats() {
+            try {
+                const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
+                const list = snap.docs.map(d => d.data());
+                updateStat('office_total', list.length);
+                updateStat('office_low_stock', list.filter(x => (Number(x.qty) || 0) <= (Number(x.minQty) || 0)).length);
+            } catch (e) { console.error('Bureau stats error:', e); }
+        }
+
+        // =====================================================================
+        // ЖУРНАЛ ДВИЖЕНИЯ ТЕХНИКИ → коллекция asset_history
+        // Документ: { type:'receive'|'quick_issue'|'reassign'|'service'|'writeoff', assetCode, sn, name,
+        //             to?, toType?, warehouse, actor, timestamp }. В activity_log эти события больше не пишутся.
+        // =====================================================================
+        async function assetLog(type, a, extra) {
+            try {
+                await addDoc(collection(db, 'asset_history'), Object.assign({
+                    type, assetCode: a.assetCode, sn: a.sn || '', name: [a.name, a.model].filter(Boolean).join(' / '),
+                    warehouse: a.warehouse || a.region || currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: Date.now()
+                }, extra || {}));
+            } catch (e) { console.warn('asset_history:', e); }
+        }
+
+        function openAssetHistory() {
+            let q = '', rows = [], loading = true, failed = false;
+            const m = cmpModal(`
+                <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="text-lg font-bold text-klt-emerald-light">📜 ${t('ah_title')}</h2>
+                    <button type="button" id="ah-x" class="${CMP_BTN}">${t('btn_close')}</button>
+                </div>
+                <input id="ah-q" type="text" autocomplete="off" placeholder="${cmpAttr(t('ah_search_ph'))}" class="mb-3 ${CMP_FLD}">
+                <div id="ah-count" class="mb-2 text-xs text-klt-muted"></div>
+                <div id="ah-body" class="max-h-[58vh] overflow-auto rounded-xl border border-solid border-klt-line"></div>`, 'xl');
+            const th = 'sticky top-0 whitespace-nowrap border-b border-solid border-klt-line bg-klt-card px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+            const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-top text-slate-50';
+            const typeCls = { receive: 'bg-klt-emerald/15 text-klt-emerald-light', quick_issue: 'bg-blue-500/15 text-blue-300', reassign: 'bg-violet-500/15 text-violet-300', service: 'bg-klt-orange/15 text-klt-orange-light', writeoff: 'bg-red-500/15 text-red-300' };
+            const draw = () => {
+                const body = m.$('#ah-body'), cnt = m.$('#ah-count');
+                if (loading) { cnt.textContent = ''; body.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
+                if (failed) { cnt.textContent = ''; body.innerHTML = `<div class="px-4 py-8 text-center text-sm text-red-300">${t('ah_load_err')}</div>`; return; }
+                const s = q.trim().toLowerCase();
+                const list = rows.filter(r => !s || String(r.assetCode || '').toLowerCase().includes(s) || String(r.sn || '').toLowerCase().includes(s));
+                cnt.textContent = fmt(t('ah_count'), { n: list.length });
+                if (!list.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('ah_empty')}</div>`; return; }
+                body.innerHTML = `<table class="w-full min-w-[900px] border-collapse text-[13px]"><thead><tr>
+                    ${['dt', 'type', 'code', 'sn', 'name', 'to', 'actor'].map(c => `<th class="${th}">${t('ah_col_' + c)}</th>`).join('')}</tr></thead>
+                    <tbody>${list.map(r => {
+                        const ic = r.toType && QI_TARGETS[r.toType] ? QI_TARGETS[r.toType].icon + ' ' : '';
+                        return `<tr class="transition hover:bg-klt-hover">
+                            <td class="${td} whitespace-nowrap text-klt-muted">${escapeHtml(mmFmtDate(r.timestamp))}</td>
+                            <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${typeCls[r.type] || 'bg-white/10 text-klt-muted'}">${escapeHtml(t('ah_t_' + r.type))}</span></td>
+                            <td class="${td} font-mono font-bold text-klt-emerald-light">${escapeHtml(r.assetCode || '—')}</td>
+                            <td class="${td} font-mono">${escapeHtml(r.sn || '—')}</td>
+                            <td class="${td}">${escapeHtml(r.name || '—')}</td>
+                            <td class="${td}">${r.to ? ic + escapeHtml(r.to) : '<span class="text-klt-muted">—</span>'}</td>
+                            <td class="${td} whitespace-nowrap">${escapeHtml(r.actor || '—')}</td></tr>`;
+                    }).join('')}</tbody></table>`;
+            };
+            m.$('#ah-x').onclick = m.close;
+            m.$('#ah-q').oninput = e => { q = e.target.value; if (!loading) draw(); };
+            m.$('#ah-q').focus(); draw();
+            getDocs(query(collection(db, 'asset_history'), orderBy('timestamp', 'desc'), limit(500)))
+                .then(snap => { rows = snap.docs.map(d => ({ id: d.id, ...d.data() })); })
+                .catch(e => { console.error(e); failed = true; })
+                .finally(() => { loading = false; draw(); });
+        }
+
+        // Действия над записью реестра: смена ответственного/отдела, отправка в сервис, списание
+        function ledgerOpenAction(a, kind, done) {
+            let toType = 'user';
+            const titleKey = { reassign: 'led_re_title', service: 'led_service_title', writeoff: 'led_wo_title' }[kind];
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">${fmt(t(titleKey), { code: escapeHtml(a.assetCode) })}</h2>
+                <p class="mb-4 mt-1 text-xs text-klt-muted">${escapeHtml([a.name, a.model].filter(Boolean).join(' / ') || (a.sn ? 'S/N ' + a.sn : ''))}</p>
+                ${kind === 'reassign' ? '<div id="la-seg" class="mb-3.5 grid grid-cols-3 gap-2"></div>' : ''}
+                ${kind === 'writeoff' ? `<p class="mb-3.5 rounded-lg border border-solid border-klt-orange/60 bg-klt-orange/10 px-3 py-2 text-[13px] font-semibold text-klt-orange-light">⚠ ${t('led_wo_warn')}</p>` : ''}
+                <div class="mb-1"><label class="${CMP_LBL}" id="la-tl"></label><input id="la-to" type="text" autocomplete="off" class="${CMP_FLD}"></div>
+                <div id="la-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="la-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="la-ok" class="${CMP_BTN_MAIN}">${t('led_do')}</button></div>`);
+            const drawSeg = () => {
+                if (kind !== 'reassign') { m.$('#la-tl').textContent = t(kind === 'service' ? 'led_service_to' : 'led_wo_to'); return; }
+                m.$('#la-seg').innerHTML = Object.entries(QI_TARGETS).map(([k, c]) => `
+                    <button type="button" data-k="${k}" class="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-solid px-2 py-2.5 text-[13px] font-semibold transition ${k === toType ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-klt-bg text-slate-50 hover:border-klt-emerald'}"><span>${c.icon}</span><span>${t(c.label)}</span></button>`).join('');
+                m.$('#la-tl').textContent = t(QI_TARGETS[toType].label);
+                m.$('#la-to').placeholder = t(QI_TARGETS[toType].ph);
+            };
+            drawSeg();
+            if (kind === 'reassign') m.$('#la-seg').onclick = e => { const b = e.target.closest('[data-k]'); if (b) { toType = b.dataset.k; drawSeg(); m.$('#la-to').focus(); } };
+            m.$('#la-cancel').onclick = m.close;
+            m.$('#la-to').focus();
+            const go = async () => {
+                const okBtn = m.$('#la-ok'), err = m.$('#la-err');
+                if (okBtn.disabled) return;
+                const to = m.$('#la-to').value.trim();
+                if (kind === 'reassign' && !to) { err.textContent = t('cmp_err_target'); return; }
+                okBtn.disabled = true; err.textContent = '';
+                const now = Date.now();
+                const upd = kind === 'reassign'
+                    ? { status: 'issued', assignedType: toType, assignedTo: to, issuedAt: now, issuedBy: currentUserName, ...(toType === 'dept' ? { dept: to } : {}) }
+                    : kind === 'service'
+                        ? { status: 'service', assignedTo: '', assignedType: '', serviceNote: to, serviceAt: now, serviceBy: currentUserName }
+                        : { status: 'written_off', assignedTo: '', assignedType: '', writeOffReason: to, writtenOffAt: now, writtenOffBy: currentUserName };
+                try {
+                    await updateDoc(doc(db, 'assets', codeDocId(a.assetCode)), upd);
+                    Object.assign(a, upd);
+                    assetLog(kind, a, { to, toType: kind === 'reassign' ? toType : '' });
+                    m.close(); cmpToast(t('led_done'), 'ok'); done();
+                } catch (e) { console.error(e); err.textContent = t('led_err_save'); okBtn.disabled = false; }
+            };
+            m.$('#la-ok').onclick = go;
+            m.ov.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); go(); } });
         }
 
         // =====================================================================
@@ -2400,10 +3010,10 @@
                     return d;
                 },
                 // комплектующие (group:'components') выгружаются отдельной базой — в общий файл Material Master не попадают
-                async fetchAll() { return (await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse)))).docs.map(d => d.data()).filter(d => d.group !== 'components'); }
+                async fetchAll() { return (await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse)))).docs.map(d => d.data()).filter(d => d.group !== 'components' && d.group !== 'bureau'); }
             },
             components: {
-                icon: '🔌', labelKey: 'ie_target_cmp', descKey: 'ie_cmp_desc', collection: 'material_master', file: 'components',
+                icon: '🔌', labelKey: 'ie_target_cmp', descKey: 'ie_cmp_desc', collection: 'material_master', file: 'components', group: 'components',
                 required: ['sku', 'name'], optional: ['category', 'qty', 'minQty', 'imageUrl', 'description'],
                 identity: ['sku'],
                 headers: { sku: 'SKU', name: 'Name', category: 'Category', qty: 'Qty', minQty: 'Min Qty', imageUrl: 'Image URL', description: 'Description' },
@@ -2435,6 +3045,39 @@
                         const x = d.data();
                         return { ...x, category: cmpCatName(x.category), imageUrl: /^https?:\/\//i.test(x.image || '') ? x.image : '' };   // data:-фото в Excel не выгружаются
                     });
+                }
+            },
+            bureau: {
+                icon: '🗂️', labelKey: 'ie_target_bur', descKey: 'ie_bur_desc', collection: 'material_master', file: 'bureau-materials', group: 'bureau',
+                required: ['sku', 'name'], optional: ['category', 'unit', 'qty', 'minQty', 'imageUrl'],
+                identity: ['sku'],
+                headers: { sku: 'SKU', name: 'Name', category: 'Category', unit: 'Unit', qty: 'Qty', minQty: 'Min Qty', imageUrl: 'Image URL' },
+                aliases: {
+                    sku: ['sku', 'артикул', 'materialnumber', 'material', 'номенклатура', 'код'],
+                    name: ['name', 'наименование', 'название', 'товар'],
+                    category: ['category', 'категория', 'группа'],
+                    unit: ['unit', 'uom', 'едизм', 'единица', 'единицаизмерения'],
+                    qty: ['qty', 'quantity', 'количество', 'колво', 'остаток', 'stock'],
+                    minQty: ['minqty', 'min', 'минимум', 'минколво', 'alertlimit'],
+                    imageUrl: ['imageurl', 'image', 'photo', 'фото', 'изображение', 'картинка']
+                },
+                preview: ['sku', 'name', 'category', 'unit', 'qty'],
+                show: (f, v) => f === 'category' ? burCatName(burCatSafe(v)) : v,
+                id: d => `${currentWarehouse}__${String(d.sku).replace(/\//g, '_')}`,
+                build(r) {
+                    const sku = normCode(r.sku), name = String(r.name || '').trim();
+                    if (!sku || !name) return null;
+                    const d = { sku, name, group: 'bureau', warehouse: currentWarehouse };
+                    // категория/единица меняются только если колонка заполнена — повторный импорт не сбросит существующие
+                    if (String(r.category || '').trim()) d.category = burResolveCat(r.category);
+                    if (String(r.unit || '').trim()) d.unit = burResolveUnit(r.unit);
+                    ['qty', 'minQty'].forEach(k => { const n = numOrNull(r[k] == null ? '' : r[k]); if (n !== null) d[k] = Math.max(0, Math.round(n)); });
+                    const img = String(r.imageUrl || '').trim(); if (/^https?:\/\//i.test(img)) d.image = img;
+                    return d;
+                },
+                async fetchAll() {
+                    const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
+                    return snap.docs.map(d => { const x = d.data(); return { ...x, category: burCatName(burCatSafe(x.category)), imageUrl: /^https?:\/\//i.test(x.image || '') ? x.image : '' }; });
                 }
             },
             ledger: {
@@ -2540,15 +3183,20 @@
             if (ieBusy || !ieState || !ieState.ready || ieState.target !== ieTarget) return;
             ieBusy = true; ieMsg = { text: t('ie_busy'), kind: 'info' }; renderIE();
             try {
-                const items = ieState.items;
+                let items = ieState.items, moves = [], skipped = 0;
+                if (cfg.group) {   // бюро / комплектующие: сверка с остатками → журнал движений; чужие SKU не перезаписываем
+                    const p = await mmPrepareImport(cfg.group, items, ieState.fileName);
+                    items = p.toWrite; moves = p.moves; skipped = p.skipped;
+                }
                 for (let i = 0; i < items.length; i += 400) {
                     const batch = writeBatch(db);
                     items.slice(i, i + 400).forEach(x => batch.set(doc(db, cfg.collection, x.id),
                         { ...x.data, updatedAt: Date.now(), updatedBy: currentUserName }, { merge: true }));
                     await batch.commit();
                 }
+                if (moves.length) await mmWriteMoves(cfg.group, moves);
                 logActivity('import', `Импорт в ${t(cfg.labelKey)}: ${items.length} записей (${ieState.fileName})`);
-                ieMsg = { text: fmt(t('ie_done'), { n: items.length }), kind: 'ok' };
+                ieMsg = { text: fmt(t('ie_done'), { n: items.length }) + (skipped ? ' · ' + fmt(t('mm_import_skipped'), { n: skipped }) : ''), kind: items.length ? 'ok' : 'err' };
                 ieState = null;
             } catch (e) { console.error(e); ieMsg = { text: t('ie_err'), kind: 'err' }; }
             ieBusy = false; renderIE();
@@ -2586,7 +3234,7 @@
             const dbName = t(cfg.labelKey);
             const tab = k => {
                 const c = IE_TARGETS[k], on = k === ieTarget;
-                return `<button type="button" data-ie-target="${k}" class="flex flex-1 cursor-pointer items-start gap-3 rounded-xl border border-solid p-4 text-left transition ${on ? 'border-klt-emerald bg-klt-emerald/15' : 'border-klt-line bg-klt-bg hover:border-klt-emerald'}">
+                return `<button type="button" data-ie-target="${k}" class="flex min-w-[200px] flex-1 cursor-pointer items-start gap-3 rounded-xl border border-solid p-4 text-left transition ${on ? 'border-klt-emerald bg-klt-emerald/15' : 'border-klt-line bg-klt-bg hover:border-klt-emerald'}">
                     <span class="text-2xl leading-none">${c.icon}</span>
                     <span><span class="block text-[15px] font-bold ${on ? 'text-klt-emerald-light' : 'text-slate-50'}">${t(c.labelKey)}</span>
                     <span class="mt-0.5 block text-xs text-klt-muted">${t(c.descKey)}</span></span></button>`;
@@ -2597,7 +3245,7 @@
             const th = 'border-b border-solid border-klt-line px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
 
             root.innerHTML = `
-                <div class="flex flex-col gap-3 sm:flex-row">${tab('material')}${tab('components')}${tab('ledger')}</div>
+                <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">${tab('material')}${tab('components')}${tab('bureau')}${tab('ledger')}</div>
 
                 <div class="mt-4 rounded-xl border border-solid border-klt-line bg-klt-bg p-4">
                     <div class="mb-2 text-[11px] font-bold uppercase tracking-wider text-klt-muted">${t('ie_cols_req')}</div>
