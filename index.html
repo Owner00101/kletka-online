@@ -197,9 +197,7 @@
         }
         .lang-select:focus { border-color: var(--emerald); }
 
-        .page-container { padding: 28px; max-width: none; margin: 0; width: 100%; box-sizing: border-box; }
-        /* Адаптивная сетка карточек (Комплектующие / Бюро-материалы): колонки добавляются по ширине экрана */
-        .item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
+.page-container { padding: 28px; max-width: 1200px; margin: 0 auto; width: 100%; }
 
         /* ===== Главная страница ===== */
         .home-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -2334,7 +2332,7 @@
                     return;
                 }
                 $('cmp-list').innerHTML = cmpView === 'grid'
-                    ? `<div class="item-grid">${list.map(cmpCard).join('')}</div>`
+                    ? `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${list.map(cmpCard).join('')}</div>`
                     : cmpTable(list);
             }
             // после перерисовки возвращаем фокус на нажатую кнопку (клавиатурный сценарий −1/+1)
@@ -3016,7 +3014,7 @@
                     return;
                 }
                 $('bur-list').innerHTML = burView === 'grid'
-                    ? `<div class="item-grid">${list.map(burCard).join('')}</div>`
+                    ? `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${list.map(burCard).join('')}</div>`
                     : burTable(list);
             }
             // после перерисовки возвращаем фокус на нажатую кнопку (клавиатурный сценарий −1/+1)
