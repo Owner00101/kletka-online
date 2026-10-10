@@ -197,7 +197,9 @@
         }
         .lang-select:focus { border-color: var(--emerald); }
 
-        .page-container { padding: 28px; max-width: 1200px; margin: 0 auto; width: 100%; }
+        .page-container { padding: 28px; max-width: none; margin: 0; width: 100%; box-sizing: border-box; }
+        /* Адаптивная сетка карточек (Комплектующие / Бюро-материалы): колонки добавляются по ширине экрана */
+        .item-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 16px; }
 
         /* ===== Главная страница ===== */
         .home-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -2332,7 +2334,7 @@
                     return;
                 }
                 $('cmp-list').innerHTML = cmpView === 'grid'
-                    ? `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${list.map(cmpCard).join('')}</div>`
+                    ? `<div class="item-grid">${list.map(cmpCard).join('')}</div>`
                     : cmpTable(list);
             }
             // после перерисовки возвращаем фокус на нажатую кнопку (клавиатурный сценарий −1/+1)
@@ -2580,24 +2582,70 @@
         // Хранение: material_master/{WH}__{SKU}, group:'bureau', warehouse:<склад>. Остаток меняется
         // атомарно через increment(); движения → material_movements (не в activity_log).
         // =====================================================================
-        const BUR_CATS = [['stationery', '✏️'], ['paper', '📄'], ['ppe', '🧤'], ['packaging', '📦'], ['household', '🧹']];
+        Object.assign(TR.ru, {
+            bur_edit_title: 'Редактирование материала', bur_f_desc: 'Описание',
+            bur_edit_ro: 'SKU и остаток здесь не меняются: SKU входит в ID документа, остаток меняется кнопками −1 / +1 и «Выдать»',
+            bur_cats_title: 'Категории бюро-материалов', bur_cats_note: 'Общие для всех складов. Изменения сохраняются сразу.',
+            bur_cat_locked: 'Категорию «Хозтовары» архивировать нельзя: в неё переносятся позиции из архивных категорий',
+            bur_cat_new_inline: '＋ Новая категория', bur_unit_cur: 'Другая'
+        });
+        Object.assign(TR.en, {
+            bur_edit_title: 'Edit material', bur_f_desc: 'Description',
+            bur_edit_ro: 'SKU and stock are not editable here: the SKU is part of the document ID, stock changes via −1 / +1 and Issue',
+            bur_cats_title: 'Office supply categories', bur_cats_note: 'Shared by all warehouses. Changes are saved immediately.',
+            bur_cat_locked: 'The “Household” category cannot be archived: items from archived categories are moved into it',
+            bur_cat_new_inline: '＋ New category', bur_unit_cur: 'Other'
+        });
+
+        // Категории: коллекция bureau_categories (общие для всех складов), id = ключ, который хранится в позиции.
+        // Базовые 5 категорий засеваются при первой загрузке; склад может добавлять свои (id вида c_xxxx).
+        // «Хозтовары» — запасная категория: в неё попадают позиции с неизвестной/архивной категорией (не архивируется).
+        const BUR_SEED_CATS = [['stationery', '✏️'], ['paper', '📄'], ['ppe', '🧤'], ['packaging', '📦'], ['household', '🧹']];
+        const BUR_FALLBACK = 'household';
         const BUR_UNITS = ['шт', 'пачка', 'упаковка', 'пара', 'рулон'];
-        const burCatName = id => t('bur_cat_' + id);
-        const burCatIcon = id => (BUR_CATS.find(c => c[0] === id) || [0, '📦'])[1];
-        const burCatSafe = id => BUR_CATS.some(c => c[0] === id) ? id : 'household';
-        function burResolveCat(v) {   // импорт: id или название (на любом языке); неизвестное → «Хозтовары»
+        let burCats = [], burCatsLoaded = false;
+        const burActiveCats = () => burCats.filter(c => !c.archived);
+        const burCatById = id => burCats.find(c => c.id === id) || burCats.find(c => c.id === BUR_FALLBACK);
+        const burCatName = id => { const c = burCatById(id); return c ? c.name : t('bur_cat_' + BUR_FALLBACK); };
+        const burCatIcon = id => { const c = burCatById(id); return c ? c.icon : '📦'; };
+        const burCatSafe = id => burCats.some(c => c.id === id) ? id : BUR_FALLBACK;
+        const burSeedLocal = () => BUR_SEED_CATS.map(([id, icon], i) => ({ id, name: t('bur_cat_' + id), icon, order: i + 1, archived: false }));
+        async function burLoadCats() {
+            try {
+                const col = collection(db, 'bureau_categories');
+                let snap = await getDocs(col);
+                if (snap.empty) {   // seed: те же ключи, что были зашиты, названия — из текущего языка
+                    const b = writeBatch(db);
+                    burSeedLocal().forEach(c => b.set(doc(col, c.id), { id: c.id, name: c.name, icon: c.icon, order: c.order, archived: false }));
+                    await b.commit(); snap = await getDocs(col);
+                }
+                burCats = snap.docs.map(d => { const x = d.data(); return { id: d.id, name: String(x.name || d.id), icon: x.icon || '🏷️', order: Number(x.order) || 0, archived: x.archived === true }; })
+                    .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'ru'));
+                if (!burCats.some(c => c.id === BUR_FALLBACK)) burCats.push(...burSeedLocal().filter(c => c.id === BUR_FALLBACK));
+            } catch (e) {   // нет прав на коллекцию / нет сети: модуль продолжает работать с базовыми категориями
+                console.error('bureau_categories:', e);
+                burCats = burSeedLocal();
+            }
+            burCatsLoaded = true;
+        }
+        const burEnsureCats = async () => { if (!burCatsLoaded) await burLoadCats(); };
+        // импорт: категория ищется по ключу или названию среди активных (названия базовых — на любом языке); неизвестная → «Хозтовары»
+        function burResolveCat(v) {
             const s = String(v == null ? '' : v).trim().toLowerCase();
-            const hit = s && BUR_CATS.find(([id]) => id === s || Object.values(TR).some(l => String(l['bur_cat_' + id] || '').toLowerCase() === s));
-            return hit ? hit[0] : 'household';
+            const hit = s && burActiveCats().find(c => c.id.toLowerCase() === s || c.name.toLowerCase() === s ||
+                Object.values(TR).some(l => String(l['bur_cat_' + c.id] || '').toLowerCase() === s));
+            return hit ? hit.id : BUR_FALLBACK;
         }
         const burResolveUnit = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\.$/, '') || 'шт';
         const burFromDoc = d => {
             const x = d.data();
             return {
                 id: d.id, sku: String(x.sku || d.id.split('__').slice(1).join('__')), name: String(x.name || ''), category: burCatSafe(x.category),
-                unit: String(x.unit || 'шт'), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: x.image || ''
+                unit: String(x.unit || 'шт'), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: x.image || '',
+                description: String(x.description || '')
             };
         };
+        const burLog = (action, msg) => logActivity(action, `Бюро-материалы: ${msg}, склад ${currentWarehouse}`);
 
         let burItems = [], burView = 'grid', burCat = 'all', burQuery = '', burRedraw = () => {};
         try { burView = localStorage.getItem('kletka_bur_view') === 'table' ? 'table' : 'grid'; } catch (e) { /* storage недоступен */ }
@@ -2608,9 +2656,12 @@
             return `<span class="absolute inset-0 flex items-center justify-center ${cls} opacity-50">${burCatIcon(it.category)}</span>` +
                 (img ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-full w-full object-cover">` : '');
         }
+        const burEditBtn = it => `<button type="button" data-bur-act="edit" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('cmp_edit'))}" aria-label="${cmpAttr(t('cmp_edit'))}" class="${CMP_ICO}">✏️</button>`;
+        const burDescHtml = (it, cls) => it.description ? `<p class="m-0 ${cls}" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${escapeHtml(it.description)}</p>` : '';
         function burActions(it, compact) {
             const id = cmpAttr(it.id);
-            return `<div class="flex flex-wrap gap-2 ${compact ? 'justify-end' : 'mt-4'}">
+            return `<div class="flex flex-wrap items-center gap-2 ${compact ? 'justify-end' : 'mt-4'}">
+                ${compact ? burEditBtn(it) : ''}
                 <button type="button" data-bur-act="dec" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} aria-label="−1" class="${CMP_BTN}">− 1</button>
                 <button type="button" data-bur-act="inc" data-id="${id}" aria-label="+1" class="${CMP_BTN}">+ 1</button>
                 <button type="button" data-bur-act="issue" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">${t('bur_issue')}</button>
@@ -2624,10 +2675,11 @@
                     ${tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t('bur_low')}</span>` : ''}
                 </div>
                 <div class="flex flex-1 flex-col p-4">
-                    <div class="text-[15px] font-bold leading-snug text-slate-50">${escapeHtml(it.name)}</div>
+                    <div class="flex items-start gap-2"><div class="min-w-0 flex-1 text-[15px] font-bold leading-snug text-slate-50">${escapeHtml(it.name)}</div><span class="flex shrink-0">${burEditBtn(it)}</span></div>
                     <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
                         <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span>
                     </div>
+                    ${burDescHtml(it, 'mt-2 text-xs leading-snug text-klt-muted')}
                     <div class="mt-3 flex items-baseline gap-1.5">
                         <span class="text-4xl font-extrabold leading-none ${tn.num}">${it.qty}</span>
                         <span class="text-sm text-klt-muted">${escapeHtml(it.unit)}</span>
@@ -2647,7 +2699,7 @@
                     const tn = burTone(it);
                     return `<tr class="transition hover:bg-klt-hover">
                         <td class="${td}"><div class="relative h-11 w-11 overflow-hidden rounded-lg bg-klt-bg">${burPhoto(it, 'text-xl')}</div></td>
-                        <td class="${td} font-semibold">${escapeHtml(it.name)}</td>
+                        <td class="${td} font-semibold">${escapeHtml(it.name)}${burDescHtml(it, 'mt-0.5 text-xs font-normal text-klt-muted')}</td>
                         <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</td>
                         <td class="${td} text-klt-muted">${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</td>
                         <td class="${td}"><span class="text-lg font-extrabold ${tn.num}">${it.qty}</span> <span class="text-klt-muted">${escapeHtml(it.unit)}</span>
@@ -2709,34 +2761,72 @@
             m.ov.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); go(); } });
         }
 
-        // Форма «+ Добавить материал»: название, категория, ед. изм., SKU, начальный остаток, минимум, фото (файл или URL)
-        function burOpenForm() {
-            let fileImg = null;
+        // Общее добавление категории (используется менеджером категорий и быстрым «＋ Новая категория» в форме).
+        // Возвращает созданную категорию или null (ошибка уже показана тостом).
+        async function burAddCat(nameRaw, iconRaw) {
+            const name = String(nameRaw || '').trim(), icon = cmpIconOf(iconRaw) || '🏷️';
+            if (!name || burCats.some(x => x.name.toLowerCase() === name.toLowerCase())) { cmpToast(t(name ? 'cmp_cat_err_dup' : 'cmp_cat_err_name'), 'err'); return null; }
+            const id = 'c_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3), order = Math.max(0, ...burCats.map(x => x.order)) + 1;
+            try {
+                await setDoc(doc(db, 'bureau_categories', id), { id, name, icon, order, archived: false });
+                const c = { id, name, icon, order, archived: false };
+                burCats.push(c);
+                burLog('cat_add', `добавлена категория ${icon} «${name}»`);
+                cmpToast(t('cmp_cat_added'), 'ok'); burRedraw();
+                return c;
+            } catch (x) { console.error(x); cmpToast(t('cmp_err_save'), 'err'); return null; }
+        }
+
+        // Форма материала: без аргумента — «+ Добавить», с позицией — редактирование
+        // (SKU входит в ID документа, остаток меняется только −1/+1 и «Выдать», поэтому в режиме правки оба поля заблокированы).
+        function burOpenForm(it) {
+            const edit = !!it;
+            let fileImg = edit && /^data:/i.test(it.image) ? it.image : null;
+            const ro = edit ? ' disabled' : '', roCls = edit ? ' cursor-not-allowed opacity-60' : '';
+            const catOpts = sel => burActiveCats().map(c => `<option value="${cmpAttr(c.id)}" ${c.id === sel ? 'selected' : ''}>${c.icon} ${escapeHtml(c.name)}</option>`).join('');
+            const startCat = edit ? burCatSafe(it.category) : (burCat !== 'all' && burActiveCats().some(c => c.id === burCat) ? burCat : (burActiveCats()[0] || {}).id);
+            const units = edit && !BUR_UNITS.includes(it.unit) ? [it.unit, ...BUR_UNITS] : BUR_UNITS;
             const m = cmpModal(`
-                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">🗂️ ${t('bur_new_title')}</h2>
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">${edit ? '✏️ ' + t('bur_edit_title') : '🗂️ ' + t('bur_new_title')}</h2>
                 <div class="grid gap-3.5 sm:grid-cols-2">
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-name">${t('bur_f_name')}</label><input id="bur-f-name" type="text" autocomplete="off" placeholder="${cmpAttr(t('bur_ph_name'))}" class="${CMP_FLD}"></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-name">${t('bur_f_name')}</label><input id="bur-f-name" type="text" autocomplete="off" value="${edit ? cmpAttr(it.name) : ''}" placeholder="${cmpAttr(t('bur_ph_name'))}" class="${CMP_FLD}"></div>
                     <div><label class="${CMP_LBL}" for="bur-f-cat">${t('bur_f_cat')}</label>
-                        <select id="bur-f-cat" class="cursor-pointer ${CMP_FLD}">${BUR_CATS.map(([id, ic]) => `<option value="${id}" ${id === (burCat !== 'all' ? burCat : 'stationery') ? 'selected' : ''}>${ic} ${escapeHtml(burCatName(id))}</option>`).join('')}</select></div>
+                        <select id="bur-f-cat" class="cursor-pointer ${CMP_FLD}">${catOpts(startCat)}</select>
+                        <button type="button" id="bur-f-newcat" class="mt-1.5 cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-klt-emerald-light hover:underline">${t('bur_cat_new_inline')}</button></div>
                     <div><label class="${CMP_LBL}" for="bur-f-unit">${t('bur_f_unit')}</label>
-                        <select id="bur-f-unit" class="cursor-pointer ${CMP_FLD}">${BUR_UNITS.map(u => `<option value="${u}">${u}</option>`).join('')}</select></div>
-                    <div><label class="${CMP_LBL}" for="bur-f-sku">${t('bur_f_sku')}</label><input id="bur-f-sku" type="text" autocomplete="off" placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono"></div>
-                    <div><label class="${CMP_LBL}" for="bur-f-qty">${t('bur_f_qty')}</label><input id="bur-f-qty" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-min">${t('bur_f_min')}</label><input id="bur-f-min" type="number" min="0" step="1" inputmode="numeric" value="0" class="${CMP_FLD}"></div>
+                        <select id="bur-f-unit" class="cursor-pointer ${CMP_FLD}">${units.map(u => `<option value="${cmpAttr(u)}" ${edit && u === it.unit ? 'selected' : ''}>${escapeHtml(u)}</option>`).join('')}</select></div>
+                    <div id="bur-f-newrow" class="hidden gap-2 sm:col-span-2" style="display:none">
+                        <input id="bur-f-nicon" type="text" value="🏷️" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
+                        <input id="bur-f-nname" type="text" maxlength="40" autocomplete="off" placeholder="${cmpAttr(t('cmp_cat_new_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
+                        <button type="button" id="bur-f-nadd" class="${CMP_BTN_MAIN} shrink-0">${t('cmp_cat_add')}</button></div>
+                    <div><label class="${CMP_LBL}" for="bur-f-sku">${t('bur_f_sku')}${edit ? ' 🔒' : ''}</label><input id="bur-f-sku" type="text" autocomplete="off" value="${edit ? cmpAttr(it.sku) : ''}"${ro} placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono${roCls}"></div>
+                    <div><label class="${CMP_LBL}" for="bur-f-qty">${edit ? t('cmp_f_qty_cur') + ' 🔒' : t('bur_f_qty')}</label><input id="bur-f-qty" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.qty : 0}"${ro} class="${CMP_FLD}${roCls}"></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-min">${t('bur_f_min')}</label><input id="bur-f-min" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.minQty : 0}" class="${CMP_FLD}"></div>
+                    ${edit ? `<p class="m-0 text-xs text-klt-muted sm:col-span-2">🔒 ${t('bur_edit_ro')}</p>` : ''}
                     <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('bur_f_img')}</label>
                         <div class="flex items-center gap-3">
                             <div id="bur-f-prev" class="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg"></div>
                             <div class="flex min-w-0 flex-1 flex-col gap-2">
                                 <label class="${CMP_BTN} inline-block self-start text-[13px]">${t('bur_f_img_file')}<input id="bur-f-file" type="file" accept="image/*" class="hidden"></label>
-                                <input id="bur-f-url" type="url" autocomplete="off" placeholder="${cmpAttr(t('bur_f_img_url'))}" class="${CMP_FLD}">
+                                <input id="bur-f-url" type="url" autocomplete="off" value="${edit && /^https?:\/\//i.test(it.image) ? cmpAttr(it.image) : ''}" placeholder="${cmpAttr(t('bur_f_img_url'))}" class="${CMP_FLD}">
                             </div>
                         </div></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-desc">${t('bur_f_desc')}</label><textarea id="bur-f-desc" rows="3" class="${CMP_FLD} resize-y">${edit ? escapeHtml(it.description) : ''}</textarea></div>
                 </div>
                 <div id="bur-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
             const $ = m.$, err = $('#bur-f-err');
             const prev = src => { $('#bur-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
-            prev('');
+            prev(edit ? cmpSafeImg(it.image) : '');
+            // быстрое создание категории прямо из формы: после добавления она сразу выбирается в списке
+            const newRow = $('#bur-f-newrow');
+            $('#bur-f-newcat').onclick = () => { newRow.style.display = newRow.style.display === 'none' ? 'flex' : 'none'; if (newRow.style.display === 'flex') $('#bur-f-nname').focus(); };
+            const quickAdd = async () => {
+                const c = await burAddCat($('#bur-f-nname').value, $('#bur-f-nicon').value); if (!c) return;
+                $('#bur-f-cat').innerHTML = catOpts(c.id); $('#bur-f-nname').value = ''; newRow.style.display = 'none';
+            };
+            $('#bur-f-nadd').onclick = quickAdd;
+            $('#bur-f-nname').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); quickAdd(); } });
             $('#bur-f-file').onchange = async e => {
                 const f = e.target.files[0]; if (!f) return;
                 try { fileImg = await cmpReadImage(f); $('#bur-f-url').value = ''; prev(fileImg); err.textContent = ''; }
@@ -2747,26 +2837,135 @@
             $('#bur-f-name').focus();
             $('#bur-f-ok').onclick = async () => {
                 const okBtn = $('#bur-f-ok');
-                const name = $('#bur-f-name').value.trim(), sku = normCode($('#bur-f-sku').value), url = $('#bur-f-url').value.trim();
+                const name = $('#bur-f-name').value.trim(), sku = normCode($('#bur-f-sku').value), url = $('#bur-f-url').value.trim(), desc = $('#bur-f-desc').value.trim();
                 const qRaw = $('#bur-f-qty').value.trim(), mRaw = $('#bur-f-min').value.trim();
                 const category = $('#bur-f-cat').value, unit = $('#bur-f-unit').value;
                 if (!name) { err.textContent = t('cmp_err_name'); return; }
-                if (!sku) { err.textContent = t('cmp_err_sku'); return; }
-                if (!/^\d+$/.test(qRaw) || !/^\d+$/.test(mRaw)) { err.textContent = t('cmp_err_num'); return; }
+                if (!edit && !sku) { err.textContent = t('cmp_err_sku'); return; }
+                if (!/^\d+$/.test(mRaw) || (!edit && !/^\d+$/.test(qRaw))) { err.textContent = t('cmp_err_num'); return; }
                 if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
-                const qty = parseInt(qRaw, 10), minQty = parseInt(mRaw, 10), image = fileImg || url || '';
+                const minQty = parseInt(mRaw, 10), image = fileImg || url || '';
                 okBtn.disabled = true; err.textContent = '';
                 try {
+                    if (edit) {
+                        const ch = [];
+                        if (name !== it.name) ch.push(`название «${it.name}» → «${name}»`);
+                        if (category !== it.category) ch.push(`категория ${burCatName(it.category)} → ${burCatName(category)}`);
+                        if (unit !== it.unit) ch.push(`ед. изм. ${it.unit} → ${unit}`);
+                        if (minQty !== it.minQty) ch.push(`минимум ${it.minQty} → ${minQty}`);
+                        if (desc !== it.description) ch.push('описание');
+                        if (image !== it.image) ch.push('фото');
+                        if (!ch.length) { m.close(); return; }
+                        const upd = { name, category, unit, minQty, image, description: desc };
+                        await updateDoc(doc(db, 'material_master', it.id), { ...upd, updatedAt: Date.now(), updatedBy: currentUserName });
+                        Object.assign(it, upd);
+                        burLog('edit', `изменён «${name}» (${it.sku}): ${ch.join('; ')}`);
+                        m.close(); burRedraw(); cmpToast(t('cmp_saved'), 'ok'); return;
+                    }
+                    const qty = parseInt(qRaw, 10);
                     const id = `${currentWarehouse}__${sku.replace(/\//g, '_')}`, ref = doc(db, 'material_master', id);
                     if ((await getDoc(ref)).exists()) { err.textContent = fmt(t('cmp_err_dup'), { wh: currentWarehouse }); okBtn.disabled = false; return; }
                     const now = Date.now();
-                    const data = { sku, name, category, unit, qty, minQty, image, group: 'bureau', warehouse: currentWarehouse, createdAt: now, updatedAt: now, updatedBy: currentUserName };
+                    const data = { sku, name, category, unit, qty, minQty, image, description: desc, group: 'bureau', warehouse: currentWarehouse, createdAt: now, updatedAt: now, updatedBy: currentUserName };
                     await setDoc(ref, data);
                     burItems.push(burFromDoc({ id, data: () => data }));
                     mmLog('bureau', data, 'receipt', qty, { note: t('mm_note_create') });
                     m.close(); burRedraw(); cmpToast(t('bur_added'), 'ok');
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
             };
+        }
+
+        // Архивация категории: позиции (по всем складам) переносим в выбранную; без позиций — сразу в «Хозтовары»
+        async function burArchiveCat(c, after) {
+            const snap = await getDocs(query(collection(db, 'material_master'), where('group', '==', 'bureau'), where('category', '==', c.id)));
+            const run = async to => {
+                for (let i = 0; i < snap.docs.length; i += 400) {
+                    const b = writeBatch(db);
+                    snap.docs.slice(i, i + 400).forEach(d => b.update(d.ref, { category: to, updatedAt: Date.now(), updatedBy: currentUserName }));
+                    await b.commit();
+                }
+                await updateDoc(doc(db, 'bureau_categories', c.id), { archived: true });
+                c.archived = true; burItems.forEach(x => { if (x.category === c.id) x.category = to; });
+                if (burCat === c.id) burCat = 'all';
+                burLog('cat_archive', `категория «${c.name}» в архиве${snap.size ? `, позиций перенесено: ${snap.size} → «${burCatName(to)}»` : ''}`);
+                cmpToast(t('cmp_cat_archived_toast'), 'ok'); after();
+            };
+            if (!snap.size) return run(BUR_FALLBACK);
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">${fmt(t('cmp_cat_archive_title'), { name: escapeHtml(c.name) })}</h2>
+                <p class="mb-4 mt-2 text-sm text-klt-muted">${fmt(t('cmp_cat_archive_text'), { n: snap.size })}</p>
+                <label class="${CMP_LBL}" for="bur-m-to">${t('cmp_cat_move_to')}</label>
+                <select id="bur-m-to" class="cursor-pointer ${CMP_FLD}">${burActiveCats().filter(x => x.id !== c.id).map(x => `<option value="${cmpAttr(x.id)}" ${x.id === BUR_FALLBACK ? 'selected' : ''}>${x.icon} ${escapeHtml(x.name)}</option>`).join('')}</select>
+                <div id="bur-m-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-m-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-m-ok" class="${CMP_BTN_MAIN}">${t('cmp_cat_archive_do')}</button></div>`);
+            m.$('#bur-m-cancel').onclick = m.close;
+            m.$('#bur-m-ok').onclick = async e => {
+                e.target.disabled = true;
+                try { await run(m.$('#bur-m-to').value); m.close(); }
+                catch (x) { console.error(x); m.$('#bur-m-err').textContent = t('cmp_err_save'); e.target.disabled = false; }
+            };
+        }
+
+        // Управление категориями: название/иконка сохраняются сразу, порядок — кнопками ↑↓, архив/восстановление
+        function burOpenCats() {
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-klt-emerald-light">⚙️ ${t('bur_cats_title')}</h2>
+                <p class="mb-4 mt-1 text-xs text-klt-muted">${t('bur_cats_note')}</p>
+                <div id="bur-c-list" class="flex flex-col gap-2"></div>
+                <div class="mt-4 flex gap-2">
+                    <input id="bur-c-nicon" type="text" value="🏷️" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
+                    <input id="bur-c-nname" type="text" maxlength="40" autocomplete="off" placeholder="${cmpAttr(t('cmp_cat_new_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
+                    <button type="button" id="bur-c-add" class="${CMP_BTN_MAIN} shrink-0">${t('cmp_cat_add')}</button>
+                </div>
+                <div class="mt-5 flex justify-end"><button type="button" id="bur-c-x" class="${CMP_BTN}">${t('btn_close')}</button></div>`, true);
+            const list = m.$('#bur-c-list');
+            const draw = () => {
+                list.innerHTML = burCats.map((c, i) => `<div data-cid="${cmpAttr(c.id)}" class="flex items-center gap-2 ${c.archived ? 'opacity-60' : ''}">
+                    <input data-f="icon" type="text" value="${cmpAttr(c.icon)}" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
+                    <input data-f="name" type="text" maxlength="40" value="${cmpAttr(c.name)}" aria-label="${cmpAttr(t('cmp_cat_name_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
+                    <button type="button" data-a="up" ${i === 0 ? 'disabled' : ''} aria-label="${cmpAttr(t('cmp_cat_up'))}" class="${CMP_ICO}">↑</button>
+                    <button type="button" data-a="down" ${i === burCats.length - 1 ? 'disabled' : ''} aria-label="${cmpAttr(t('cmp_cat_down'))}" class="${CMP_ICO}">↓</button>
+                    ${c.id === BUR_FALLBACK ? `<span title="${cmpAttr(t('bur_cat_locked'))}" class="w-9 shrink-0 text-center">🔒</span>` :
+                      `<button type="button" data-a="${c.archived ? 'restore' : 'archive'}" title="${cmpAttr(t(c.archived ? 'cmp_restore' : 'cmp_archive'))}" aria-label="${cmpAttr(t(c.archived ? 'cmp_restore' : 'cmp_archive'))}" class="${CMP_ICO}">${c.archived ? '♻️' : '🗑️'}</button>`}
+                </div>`).join('');
+            };
+            draw();
+            list.addEventListener('change', async e => {
+                const row = e.target.closest('[data-cid]'), f = e.target.dataset.f; if (!row || !f) return;
+                const c = burCats.find(x => x.id === row.dataset.cid); let val = e.target.value.trim();
+                if (f === 'icon') val = cmpIconOf(val);
+                if (f === 'name' && (!val || burCats.some(x => x !== c && x.name.toLowerCase() === val.toLowerCase()))) { cmpToast(t(val ? 'cmp_cat_err_dup' : 'cmp_cat_err_name'), 'err'); e.target.value = c.name; return; }
+                if (!val || c[f] === val) { e.target.value = c[f]; return; }
+                try {
+                    await updateDoc(doc(db, 'bureau_categories', c.id), { [f]: val });
+                    burLog('cat_edit', `категория «${c.name}»: ${f === 'name' ? 'название' : 'иконка'} ${c[f]} → ${val}`);
+                    c[f] = val; e.target.value = val; burRedraw();
+                } catch (x) { console.error(x); e.target.value = c[f]; cmpToast(t('cmp_err_save'), 'err'); }
+            });
+            list.addEventListener('click', async e => {
+                const b = e.target.closest('[data-a]'); if (!b || b.disabled) return;
+                const i = burCats.findIndex(x => x.id === b.closest('[data-cid]').dataset.cid), c = burCats[i], a = b.dataset.a;
+                try {
+                    if (a === 'up' || a === 'down') {
+                        const j = a === 'up' ? i - 1 : i + 1; if (!burCats[j]) return;
+                        const arr = burCats.slice(); [arr[i], arr[j]] = [arr[j], arr[i]];
+                        const bt = writeBatch(db); arr.forEach((x, k) => bt.update(doc(db, 'bureau_categories', x.id), { order: k + 1 })); await bt.commit();
+                        arr.forEach((x, k) => { x.order = k + 1; }); burCats = arr;
+                        burLog('cat_order', `категория «${c.name}» перемещена ${a === 'up' ? 'выше' : 'ниже'}`);
+                    } else if (a === 'restore') {
+                        await updateDoc(doc(db, 'bureau_categories', c.id), { archived: false }); c.archived = false;
+                        burLog('cat_restore', `категория «${c.name}» восстановлена`); cmpToast(t('cmp_cat_restored'), 'ok');
+                    } else { await burArchiveCat(c, () => { draw(); burRedraw(); }); return; }
+                } catch (x) { console.error(x); cmpToast(t('cmp_err_save'), 'err'); }
+                draw(); burRedraw();
+            });
+            const add = async () => {
+                const c = await burAddCat(m.$('#bur-c-nname').value, m.$('#bur-c-nicon').value);
+                if (c) { m.$('#bur-c-nname').value = ''; draw(); }
+            };
+            m.$('#bur-c-add').onclick = add;
+            m.$('#bur-c-nname').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+            m.$('#bur-c-x').onclick = m.close;
         }
 
         async function renderBureau(pv, focusSearch) {
@@ -2799,10 +2998,13 @@
                     `<button type="button" data-bur-view="${k}" aria-pressed="${burView === k}" class="${seg(burView === k)}">${ic} ${t(l)}</button>`).join('');
                 const chip = (id, label, n) => {
                     const on = burCat === id;
-                    return `<button type="button" data-bur-cat="${id}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
+                    return `<button type="button" data-bur-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
                 };
+                const cats = burActiveCats();
+                if (burCat !== 'all' && !cats.some(c => c.id === burCat)) burCat = 'all';
                 $('bur-chips').innerHTML = chip('all', t('bur_cat_all'), burItems.length) +
-                    BUR_CATS.map(([id, ic]) => chip(id, `${ic} ${escapeHtml(burCatName(id))}`, burItems.filter(x => x.category === id).length)).join('');
+                    cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)}`, burItems.filter(x => x.category === c.id).length)).join('') +
+                    `<button type="button" data-bur-act="cats" class="${CMP_BTN} rounded-full px-3.5 py-1.5 text-[13px]">⚙️ ${t('cmp_cats_btn')}</button>`;
             }
             function drawList() {
                 const q = burQuery.trim().toLowerCase();
@@ -2814,7 +3016,7 @@
                     return;
                 }
                 $('bur-list').innerHTML = burView === 'grid'
-                    ? `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${list.map(burCard).join('')}</div>`
+                    ? `<div class="item-grid">${list.map(burCard).join('')}</div>`
                     : burTable(list);
             }
             // после перерисовки возвращаем фокус на нажатую кнопку (клавиатурный сценарий −1/+1)
@@ -2838,9 +3040,11 @@
                 if (c) { burCat = c.dataset.burCat; drawChrome(); drawList(); return; }
                 const b = e.target.closest('[data-bur-act]');
                 if (!b || b.disabled) return;
-                const it = burItems.find(x => x.id === b.dataset.id); if (!it) return;
                 const a = b.dataset.burAct;
-                if (a === 'inc') burAdjust(it, 1);
+                if (a === 'cats') { burOpenCats(); return; }
+                const it = burItems.find(x => x.id === b.dataset.id); if (!it) return;
+                if (a === 'edit') burOpenForm(it);
+                else if (a === 'inc') burAdjust(it, 1);
                 else if (a === 'dec') burAdjust(it, -1);
                 else if (a === 'issue') burOpenIssue(it);
             });
@@ -2852,6 +3056,7 @@
             drawChrome();
             if (focusSearch) $('bur-search').focus();   // «+ Выдать бюро-материалы» с главной: сразу к поиску нужной позиции
             try {
+                await burLoadCats();   // категории грузим до позиций: позиция с неизвестной категорией отображается как «Хозтовары»
                 const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
                 burItems = snap.docs.map(burFromDoc);
             } catch (e) {
@@ -3076,6 +3281,7 @@
                     return d;
                 },
                 async fetchAll() {
+                    await burEnsureCats();
                     const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
                     return snap.docs.map(d => { const x = d.data(); return { ...x, category: burCatName(burCatSafe(x.category)), imageUrl: /^https?:\/\//i.test(x.image || '') ? x.image : '' }; });
                 }
@@ -3153,6 +3359,7 @@
                 const foreign = ieLooksForeign(headers, cfg);
                 if (foreign) { ieMsg = { text: fmt(t('ie_wrong'), { other: t(IE_TARGETS[foreign].labelKey) }), kind: 'err' }; return; }
                 if (ieTarget === 'components') await cmpEnsureCats();   // категории нужны для разбора колонки Category
+                if (ieTarget === 'bureau') await burEnsureCats();
                 const map = ieBuildHeaderMap(headers, cfg);
                 const found = new Set(Object.values(map));
                 const missing = cfg.required.filter(f => !found.has(f));
