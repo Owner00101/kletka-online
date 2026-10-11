@@ -197,7 +197,7 @@
         }
         .lang-select:focus { border-color: var(--emerald); }
 
-.page-container { padding: 28px; max-width: 1200px; margin: 0 auto; width: 100%; }
+.page-container { padding: 28px; margin: 0 auto; width: 100%; }
 
         /* ===== Главная страница ===== */
         .home-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -827,7 +827,7 @@
                   qa_search_placeholder: 'Быстрый поиск по S/N или Asset Code', qa_search_btn: 'Поиск',
                   m_bureau_label: 'Бюро-материалы', m_bureau_desc: 'Каталог и расход канцелярии',
                   sync_online: 'Синхронизировано', sync_offline: 'Нет связи',
-                  m_material_label: 'Material Master', m_material_desc: 'Справочник материалов и остатков',
+                  m_material_label: 'Material Master', m_material_desc: 'Эталонный справочник товаров (без остатков)',
                   m_excel_label: 'Импорт/Экспорт Excel', m_excel_desc: 'Загрузка и выгрузка данных из таблиц',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Календарь поставок',
                   m_receive_issue_label: 'Прием / Выдача', m_receive_issue_desc: 'Журнал операционного приёма и выдачи штучной техники и бюро-товаров (канцелярии)',
@@ -858,7 +858,7 @@
                   qa_search_placeholder: 'Швидкий пошук за S/N або Asset Code', qa_search_btn: 'Пошук',
                   m_bureau_label: 'Офісні матеріали', m_bureau_desc: 'Каталог і витрата канцелярії',
                   sync_online: 'Синхронізовано', sync_offline: 'Немає зв\'язку',
-                  m_material_label: 'Material Master', m_material_desc: 'Довідник матеріалів і залишків',
+                  m_material_label: 'Material Master', m_material_desc: 'Еталонний довідник товарів (без залишків)',
                   m_excel_label: 'Імпорт/Експорт Excel', m_excel_desc: 'Завантаження і вивантаження даних',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Календар поставок',
                   m_receive_issue_label: 'Прийом / Видача', m_receive_issue_desc: 'Журнал операційного прийому і видачі штучної техніки та офісних товарів (канцелярії)',
@@ -889,7 +889,7 @@
                   qa_search_placeholder: 'Szybkie wyszukiwanie po S/N lub Asset Code', qa_search_btn: 'Szukaj',
                   m_bureau_label: 'Materiały biurowe', m_bureau_desc: 'Katalog i zużycie artykułów biurowych',
                   sync_online: 'Zsynchronizowano', sync_offline: 'Brak połączenia',
-                  m_material_label: 'Material Master', m_material_desc: 'Baza materiałów i stanów magazynowych',
+                  m_material_label: 'Material Master', m_material_desc: 'Wzorcowy katalog towarów (bez stanów)',
                   m_excel_label: 'Import/Eksport Excel', m_excel_desc: 'Wczytywanie i eksport danych',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Kalendarz dostaw',
                   m_receive_issue_label: 'Przyjęcie / Wydanie', m_receive_issue_desc: 'Dziennik operacyjnego przyjęcia i wydania techniki oraz artykułów biurowych',
@@ -920,7 +920,7 @@
                   qa_search_placeholder: 'Quick search by S/N or Asset Code', qa_search_btn: 'Search',
                   m_bureau_label: 'Office supplies', m_bureau_desc: 'Catalog and consumption of stationery',
                   sync_online: 'Synced', sync_offline: 'Offline',
-                  m_material_label: 'Material Master', m_material_desc: 'Materials catalog and stock levels',
+                  m_material_label: 'Material Master', m_material_desc: 'Master catalog of items (no stock levels)',
                   m_excel_label: 'Excel Import/Export', m_excel_desc: 'Upload and export data',
                   m_delivery_label: 'Delivery', m_delivery_desc: 'Delivery calendar',
                   m_receive_issue_label: 'Receive / Issue', m_receive_issue_desc: 'Operational log of receiving and issuing unit-tracked equipment and office supplies',
@@ -1002,6 +1002,9 @@
             } else if (key === 'components') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderComponents(pv);
+            } else if (key === 'material-master') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderMaterialMaster(pv);
             } else if (key === 'bureau-materials' || key === 'bureau-issue') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderBureau(pv, key === 'bureau-issue');
@@ -2681,12 +2684,15 @@
         const burResolveUnit = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\.$/, '') || 'шт';
         // Описание показываем целиком: неразрывные пробелы / невидимые символы заменяем обычными, чтобы текст чисто переносился
         const burCleanText = v => String(v == null ? '' : v).replace(/&nbsp;/gi, ' ').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, '');
+        // Складская запись хранит только sku/warehouse/qty/minQty. Паспорт (название, категория, ед. изм., фото, описание)
+        // берётся из справочника Material Master; для старых записей без карточки в справочнике — запасной вариант из самой записи.
         const burFromDoc = d => {
-            const x = d.data();
+            const x = d.data(), sku = String(x.sku || d.id.split('__').slice(1).join('__'));
+            const p = mmcByCode.get(normCode(sku)) || x;
             return {
-                id: d.id, sku: String(x.sku || d.id.split('__').slice(1).join('__')), name: String(x.name || ''), category: burCatSafe(x.category),
-                unit: String(x.unit || 'шт'), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: x.image || '',
-                description: burCleanText(x.description)
+                id: d.id, sku, name: String(p.name || ''), category: burCatSafe(p.category),
+                unit: String(p.unit || 'шт'), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: p.image || '',
+                description: burCleanText(p.description), hasStock: true
             };
         };
         const burLog = (action, msg) => logActivity(action, `Бюро-материалы: ${msg}, склад ${currentWarehouse}`);
@@ -2780,11 +2786,11 @@
         function burMatch(q) {
             const s = String(q || '').trim().toLowerCase(); if (!s) return [];
             const score = it => { const c = it.sku.toLowerCase(), n = it.name.toLowerCase(); return c === s ? 0 : c.startsWith(s) ? 1 : n.startsWith(s) ? 2 : (c.includes(s) || n.includes(s)) ? 3 : 9; };
-            return burItems.map(it => [score(it), it]).filter(x => x[0] < 9)
+            return burCatalogView().map(it => [score(it), it]).filter(x => x[0] < 9)
                 .sort((a, b) => a[0] - b[0] || a[1].name.localeCompare(b[1].name, 'ru')).slice(0, 8).map(x => x[1]);
         }
 
-        function burOpenReceive() {
+        function burOpenReceive(presetCode) {
             let sel = null, lines = [], matches = [], hi = -1, busy = false;
             const m = cmpModal(`
                 <h2 class="text-lg font-bold text-klt-emerald-light">${t('bur_receive')}</h2>
@@ -2870,7 +2876,7 @@
                     e.preventDefault();
                     const v = normCode(code.value); if (!v || sel) return;
                     // сканер вводит код и жмёт Enter: точное совпадение кода имеет приоритет
-                    const exact = burItems.find(x => normCode(x.sku) === v);
+                    const exact = burCatalogView().find(x => normCode(x.sku) === v);
                     const hit = exact || (hi >= 0 ? matches[hi] : null);
                     if (hit) pick(hit); else err.textContent = t('bur_rc_none');
                 }
@@ -2878,13 +2884,14 @@
             $('#bur-r-dd').addEventListener('mousedown', e => {
                 const o = e.target.closest('[data-i]');
                 if (o) { e.preventDefault(); pick(matches[+o.dataset.i]); return; }
-                if (e.target.closest('#bur-r-create')) { e.preventDefault(); const c = normCode(code.value); m.close(); burOpenForm(null, c); }
+                if (e.target.closest('#bur-r-create')) { e.preventDefault(); const c = normCode(code.value); m.close(); mmcOpenForm(null, c, made => burOpenReceive(made.sku)); }
             });
             $('#bur-r-lines').addEventListener('click', e => {
                 const d = e.target.closest('[data-del]'); if (d) { lines.splice(+d.dataset.del, 1); drawLines(); }
             });
             $('#bur-r-cancel').onclick = m.close;
             code.focus();
+            if (presetCode) { const h = burCatalogView().find(x => normCode(x.sku) === normCode(presetCode)); if (h) pick(h); }
 
             $('#bur-r-ok').onclick = async () => {
                 if (busy) return;
@@ -2895,14 +2902,21 @@
                 const txId = mmTxId('RECEIPT'), now = Date.now();
                 try {
                     const b = writeBatch(db);   // остатки всех позиций и запись журнала — одной атомарной операцией
-                    lines.forEach(l => b.update(doc(db, 'material_master', l.it.id), { qty: increment(l.q), updatedAt: now, updatedBy: currentUserName }));
+                    lines.forEach(l => {
+                        const ref = doc(db, 'material_master', l.it.id);
+                        if (l.it.hasStock) b.update(ref, { qty: increment(l.q), updatedAt: now, updatedBy: currentUserName });
+                        else b.set(ref, { sku: l.it.sku, group: 'bureau', warehouse: currentWarehouse, qty: increment(l.q), minQty: 0, createdAt: now, updatedAt: now, updatedBy: currentUserName });   // первый приём на этот склад: создаём складскую запись
+                    });
                     b.set(doc(collection(db, 'material_movements')), {
                         group: 'bureau', type: 'receipt', txId,
                         items: lines.map(l => ({ sku: l.it.sku, name: l.it.name, unit: l.it.unit, delta: l.q })),
                         warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: now
                     });
                     await b.commit();
-                    lines.forEach(l => { l.it.qty += l.q; });
+                    lines.forEach(l => {
+                        const cur = burItems.find(x => x.id === l.it.id);
+                        if (cur) cur.qty += l.q; else burItems.push(Object.assign({}, l.it, { qty: l.q, hasStock: true }));
+                    });
                     m.close(); burRedraw(); cmpToast(fmt(t('bur_rc_done'), { n: lines.length, id: txId }), 'ok');
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); busy = false; $('#bur-r-ok').disabled = false; }
             };
@@ -3036,107 +3050,44 @@
             } catch (x) { console.error(x); cmpToast(t('cmp_err_save'), 'err'); return null; }
         }
 
-        // Форма материала: без аргумента — «+ Добавить», с позицией — редактирование
-        // (SKU входит в ID документа, остаток меняется только −1/+1 и «Выдать», поэтому в режиме правки оба поля заблокированы).
-        function burOpenForm(it, presetSku) {
-            const edit = !!it;
-            let fileImg = edit && /^data:/i.test(it.image) ? it.image : null;
-            const ro = edit ? ' disabled' : '', roCls = edit ? ' cursor-not-allowed opacity-60' : '';
-            const catOpts = sel => burActiveCats().map(c => `<option value="${cmpAttr(c.id)}" ${c.id === sel ? 'selected' : ''}>${c.icon} ${escapeHtml(c.name)}</option>`).join('');
-            const startCat = edit ? burCatSafe(it.category) : (burCat !== 'all' && burActiveCats().some(c => c.id === burCat) ? burCat : (burActiveCats()[0] || {}).id);
-            const units = edit && !BUR_UNITS.includes(it.unit) ? [it.unit, ...BUR_UNITS] : BUR_UNITS;
+        // Бюро-материалы хранят только операционные данные: здесь правится пороговый лимит.
+        // Паспорт товара (название, категория, ед. изм., фото, описание) редактируется только в Material Master.
+        function burOpenLimit(it) {
             const m = cmpModal(`
-                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">${edit ? '✏️ ' + t('bur_edit_title') : '🗂️ ' + t('bur_new_title')}</h2>
-                <div class="grid gap-3.5 sm:grid-cols-2">
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-name">${t('bur_f_name')}</label><input id="bur-f-name" type="text" autocomplete="off" value="${edit ? cmpAttr(it.name) : ''}" placeholder="${cmpAttr(t('bur_ph_name'))}" class="${CMP_FLD}"></div>
-                    <div><label class="${CMP_LBL}" for="bur-f-cat">${t('bur_f_cat')}</label>
-                        <select id="bur-f-cat" class="cursor-pointer ${CMP_FLD}">${catOpts(startCat)}</select>
-                        <button type="button" id="bur-f-newcat" class="mt-1.5 cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-klt-emerald-light hover:underline">${t('bur_cat_new_inline')}</button></div>
-                    <div><label class="${CMP_LBL}" for="bur-f-unit">${t('bur_f_unit')}</label>
-                        <select id="bur-f-unit" class="cursor-pointer ${CMP_FLD}">${units.map(u => `<option value="${cmpAttr(u)}" ${edit && u === it.unit ? 'selected' : ''}>${escapeHtml(u)}</option>`).join('')}</select></div>
-                    <div id="bur-f-newrow" class="hidden gap-2 sm:col-span-2" style="display:none">
-                        <input id="bur-f-nicon" type="text" value="🏷️" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
-                        <input id="bur-f-nname" type="text" maxlength="40" autocomplete="off" placeholder="${cmpAttr(t('cmp_cat_new_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
-                        <button type="button" id="bur-f-nadd" class="${CMP_BTN_MAIN} shrink-0">${t('cmp_cat_add')}</button></div>
-                    <div><label class="${CMP_LBL}" for="bur-f-sku">${t('bur_f_sku')}${edit ? ' 🔒' : ''}</label><input id="bur-f-sku" type="text" autocomplete="off" value="${cmpAttr(edit ? it.sku : (presetSku || ''))}"${ro} placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono${roCls}"></div>
-                    <div><label class="${CMP_LBL}" for="bur-f-qty">${edit ? t('cmp_f_qty_cur') + ' 🔒' : t('bur_f_qty')}</label><input id="bur-f-qty" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.qty : 0}"${ro} class="${CMP_FLD}${roCls}"></div>
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-min">${t('bur_f_min')}</label><input id="bur-f-min" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.minQty : 0}" class="${CMP_FLD}"></div>
-                    ${edit ? `<p class="m-0 text-xs text-klt-muted sm:col-span-2">🔒 ${t('bur_edit_ro')}</p>` : ''}
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('bur_f_img')}</label>
-                        <div class="flex items-center gap-3">
-                            <div id="bur-f-prev" class="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg"></div>
-                            <div class="flex min-w-0 flex-1 flex-col gap-2">
-                                <label class="${CMP_BTN} inline-block self-start text-[13px]">${t('bur_f_img_file')}<input id="bur-f-file" type="file" accept="image/*" class="hidden"></label>
-                                <input id="bur-f-url" type="url" autocomplete="off" value="${edit && /^https?:\/\//i.test(it.image) ? cmpAttr(it.image) : ''}" placeholder="${cmpAttr(t('bur_f_img_url'))}" class="${CMP_FLD}">
-                            </div>
-                        </div></div>
-                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-desc">${t('bur_f_desc')}</label><textarea id="bur-f-desc" rows="3" class="${CMP_FLD} resize-y">${edit ? escapeHtml(it.description) : ''}</textarea></div>
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">✏️ ${t('bur_lim_title')} <span class="ml-1 rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                <div class="flex gap-3 rounded-xl border border-solid border-klt-line bg-klt-bg p-3.5">
+                    <div class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-klt-card">${burPhoto(it, 'text-2xl')}</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
+                        <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span><span>${escapeHtml(it.unit)}</span></div>
+                    </div>
                 </div>
-                <div id="bur-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
-                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
-            const $ = m.$, err = $('#bur-f-err');
-            const prev = src => { $('#bur-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
-            prev(edit ? cmpSafeImg(it.image) : '');
-            // быстрое создание категории прямо из формы: после добавления она сразу выбирается в списке
-            const newRow = $('#bur-f-newrow');
-            $('#bur-f-newcat').onclick = () => { newRow.style.display = newRow.style.display === 'none' ? 'flex' : 'none'; if (newRow.style.display === 'flex') $('#bur-f-nname').focus(); };
-            const quickAdd = async () => {
-                const c = await burAddCat($('#bur-f-nname').value, $('#bur-f-nicon').value); if (!c) return;
-                $('#bur-f-cat').innerHTML = catOpts(c.id); $('#bur-f-nname').value = ''; newRow.style.display = 'none';
-            };
-            $('#bur-f-nadd').onclick = quickAdd;
-            $('#bur-f-nname').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); quickAdd(); } });
-            $('#bur-f-file').onchange = async e => {
-                const f = e.target.files[0]; if (!f) return;
-                try { fileImg = await cmpReadImage(f); $('#bur-f-url').value = ''; prev(fileImg); err.textContent = ''; }
-                catch (x) { console.error(x); fileImg = null; prev(''); err.textContent = t('cmp_err_img'); }
-            };
-            $('#bur-f-url').oninput = e => { const u = e.target.value.trim(); if (u) fileImg = null; prev(fileImg || cmpSafeImg(u)); };
-            $('#bur-f-cancel').onclick = m.close;
-            $('#bur-f-name').focus();
-            $('#bur-f-ok').onclick = async () => {
-                const okBtn = $('#bur-f-ok');
-                const name = $('#bur-f-name').value.trim(), sku = normCode($('#bur-f-sku').value), url = $('#bur-f-url').value.trim(), desc = burCleanText($('#bur-f-desc').value).trim();
-                const qRaw = $('#bur-f-qty').value.trim(), mRaw = $('#bur-f-min').value.trim();
-                const category = $('#bur-f-cat').value, unit = $('#bur-f-unit').value;
-                if (!name) { err.textContent = t('cmp_err_name'); return; }
-                if (!edit && !sku) { err.textContent = t('cmp_err_sku'); return; }
-                if (!/^\d+$/.test(mRaw) || (!edit && !/^\d+$/.test(qRaw))) { err.textContent = t('cmp_err_num'); return; }
-                if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
-                const minQty = parseInt(mRaw, 10), image = fileImg || url || '';
-                okBtn.disabled = true; err.textContent = '';
+                <p class="mb-4 mt-2.5 text-xs text-klt-muted">🔒 ${t('bur_lim_note')} <button type="button" id="bur-l-mm" class="cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-klt-emerald-light hover:underline">${t('bur_lim_open')}</button></p>
+                <label class="${CMP_LBL}" for="bur-l-min">${t('bur_f_min')}, ${escapeHtml(it.unit)}</label>
+                <input id="bur-l-min" type="number" min="0" step="1" inputmode="numeric" value="${it.minQty}" class="${CMP_FLD}">
+                <div id="bur-l-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-l-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-l-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
+            const $ = m.$;
+            $('#bur-l-cancel').onclick = m.close;
+            $('#bur-l-mm').onclick = () => { m.close(); openPage('material-master'); };
+            $('#bur-l-min').focus();
+            $('#bur-l-ok').onclick = async () => {
+                const raw = $('#bur-l-min').value.trim();
+                if (!/^\d+$/.test(raw)) { $('#bur-l-err').textContent = t('cmp_err_num'); return; }
+                const minQty = parseInt(raw, 10);
+                if (minQty === it.minQty) { m.close(); return; }
+                $('#bur-l-ok').disabled = true;
                 try {
-                    if (edit) {
-                        const ch = [];
-                        if (name !== it.name) ch.push(`название «${it.name}» → «${name}»`);
-                        if (category !== it.category) ch.push(`категория ${burCatName(it.category)} → ${burCatName(category)}`);
-                        if (unit !== it.unit) ch.push(`ед. изм. ${it.unit} → ${unit}`);
-                        if (minQty !== it.minQty) ch.push(`минимум ${it.minQty} → ${minQty}`);
-                        if (desc !== it.description) ch.push('описание');
-                        if (image !== it.image) ch.push('фото');
-                        if (!ch.length) { m.close(); return; }
-                        const upd = { name, category, unit, minQty, image, description: desc };
-                        await updateDoc(doc(db, 'material_master', it.id), { ...upd, updatedAt: Date.now(), updatedBy: currentUserName });
-                        Object.assign(it, upd);
-                        burLog('edit', `изменён «${name}» (${it.sku}): ${ch.join('; ')}`);
-                        m.close(); burRedraw(); cmpToast(t('cmp_saved'), 'ok'); return;
-                    }
-                    const qty = parseInt(qRaw, 10);
-                    const id = `${currentWarehouse}__${sku.replace(/\//g, '_')}`, ref = doc(db, 'material_master', id);
-                    if ((await getDoc(ref)).exists()) { err.textContent = fmt(t('cmp_err_dup'), { wh: currentWarehouse }); okBtn.disabled = false; return; }
-                    const now = Date.now();
-                    const data = { sku, name, category, unit, qty, minQty, image, description: desc, group: 'bureau', warehouse: currentWarehouse, createdAt: now, updatedAt: now, updatedBy: currentUserName };
-                    await setDoc(ref, data);
-                    burItems.push(burFromDoc({ id, data: () => data }));
-                    mmLog('bureau', data, 'receipt', qty, { note: t('mm_note_create'), txId: mmTxId('RECEIPT') });
-                    m.close(); burRedraw(); cmpToast(t('bur_added'), 'ok');
-                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+                    await updateDoc(doc(db, 'material_master', it.id), { minQty, updatedAt: Date.now(), updatedBy: currentUserName });
+                    burLog('edit', `лимит «${it.name}» (${it.sku}): ${it.minQty} → ${minQty}`);
+                    it.minQty = minQty; m.close(); burRedraw(); cmpToast(t('cmp_saved'), 'ok');
+                } catch (e) { console.error(e); $('#bur-l-err').textContent = t('cmp_err_save'); $('#bur-l-ok').disabled = false; }
             };
         }
 
         // Архивация категории: позиции (по всем складам) переносим в выбранную; без позиций — сразу в «Хозтовары»
         async function burArchiveCat(c, after) {
-            const snap = await getDocs(query(collection(db, 'material_master'), where('group', '==', 'bureau'), where('category', '==', c.id)));
+            const snap = await getDocs(query(collection(db, 'material_catalog'), where('category', '==', c.id)));
             const run = async to => {
                 for (let i = 0; i < snap.docs.length; i += 400) {
                     const b = writeBatch(db);
@@ -3144,8 +3095,8 @@
                     await b.commit();
                 }
                 await updateDoc(doc(db, 'bureau_categories', c.id), { archived: true });
-                c.archived = true; burItems.forEach(x => { if (x.category === c.id) x.category = to; });
-                if (burCat === c.id) burCat = 'all';
+                c.archived = true; burItems.forEach(x => { if (x.category === c.id) x.category = to; }); mmcItems.forEach(x => { if (x.category === c.id) x.category = to; });
+                if (burCat === c.id) burCat = 'all'; if (mmcCat === c.id) mmcCat = 'all';
                 burLog('cat_archive', `категория «${c.name}» в архиве${snap.size ? `, позиций перенесено: ${snap.size} → «${burCatName(to)}»` : ''}`);
                 cmpToast(t('cmp_cat_archived_toast'), 'ok'); after();
             };
@@ -3227,9 +3178,263 @@
             m.$('#bur-c-x').onclick = m.close;
         }
 
+        // =====================================================================
+        // MATERIAL MASTER — центральный справочник товаров (коллекция material_catalog, id документа = Material Code)
+        // Только паспортные данные: code, name, category, unit, image, description. Остатков, складов и лимитов здесь НЕТ —
+        // они живут в «Бюро-материалах» (material_master/{WH}__{CODE}: qty, minQty, warehouse).
+        // =====================================================================
+        Object.assign(TR.ru, {
+            mmc_title: 'Material Master', mmc_sub: 'Центральный справочник товаров: только паспортные данные, без остатков и складов. Остатки ведутся в «Бюро-материалах».',
+            mmc_create: '+ Создать Material Code', mmc_search_ph: 'Поиск по Material Code или названию', mmc_count: 'Позиций: {n}',
+            mmc_empty: 'Ничего не найдено', mmc_empty_first: 'Справочник пуст. Создайте первый Material Code.', mmc_load_err: 'Не удалось загрузить справочник (проверьте соединение / правила Firestore)',
+            mmc_new_title: 'Новый Material Code', mmc_edit_title: 'Редактирование товара', mmc_f_code: 'Material Code (уникальный артикул)',
+            mmc_f_name: 'Наименование (полное название)', mmc_f_unit: 'Единица измерения', mmc_f_desc: 'Полное описание',
+            mmc_code_ro: 'Material Code не меняется: на него ссылаются складские записи. Единица измерения фиксируется в справочнике.',
+            mmc_err_code: 'Укажите Material Code', mmc_err_dup: 'Такой Material Code уже есть в справочнике', mmc_created: 'Material Code создан',
+            mmc_col_unit: 'Ед. изм.', mmc_col_desc: 'Описание',
+            bur_lim_title: 'Пороговый лимит', bur_lim_note: 'Паспорт товара редактируется только в Material Master.', bur_lim_open: 'Открыть Material Master →'
+        });
+        Object.assign(TR.en, {
+            mmc_title: 'Material Master', mmc_sub: 'Central item catalog: passport data only, no stock or warehouses. Stock is kept in “Office supplies”.',
+            mmc_create: '+ Create Material Code', mmc_search_ph: 'Search by Material Code or name', mmc_count: 'Items: {n}',
+            mmc_empty: 'Nothing found', mmc_empty_first: 'The catalog is empty. Create the first Material Code.', mmc_load_err: 'Could not load the catalog (check connection / Firestore rules)',
+            mmc_new_title: 'New Material Code', mmc_edit_title: 'Edit item', mmc_f_code: 'Material Code (unique article)',
+            mmc_f_name: 'Name (full title)', mmc_f_unit: 'Unit of measure', mmc_f_desc: 'Full description',
+            mmc_code_ro: 'Material Code cannot be changed: stock records refer to it. The unit of measure is fixed in the catalog.',
+            mmc_err_code: 'Enter a Material Code', mmc_err_dup: 'This Material Code already exists in the catalog', mmc_created: 'Material Code created',
+            mmc_col_unit: 'Unit', mmc_col_desc: 'Description',
+            bur_lim_title: 'Threshold limit', bur_lim_note: 'The item passport is edited in Material Master only.', bur_lim_open: 'Open Material Master →'
+        });
+
+        let mmcItems = [], mmcView = 'grid', mmcCat = 'all', mmcQuery = '';
+        const mmcByCode = new Map();
+        try { mmcView = localStorage.getItem('kletka_mmc_view') === 'table' ? 'table' : 'grid'; } catch (e) { /* storage недоступен */ }
+        const mmcDocId = code => normCode(code).replace(/\//g, '_');
+        const mmcFromDoc = d => {
+            const x = d.data();
+            return { id: d.id, sku: normCode(x.sku || x.code || d.id), name: String(x.name || ''), category: burCatSafe(x.category), unit: String(x.unit || 'шт'), image: x.image || '', description: burCleanText(x.description) };
+        };
+        function mmcSet(list) { mmcItems = list; mmcByCode.clear(); list.forEach(x => mmcByCode.set(normCode(x.sku), x)); }
+        async function mmcLoad() {
+            const snap = await getDocs(collection(db, 'material_catalog'));
+            mmcSet(snap.docs.map(mmcFromDoc));
+        }
+        // Миграция: старые складские записи бюро хранили паспорт у себя. Копируем его в справочник (только отсутствующие коды, без перезаписи).
+        async function mmcSeedLegacy(docs) {
+            const now = Date.now(), add = [], seen = new Set();
+            docs.forEach(d => {
+                const x = d.data(), sku = normCode(x.sku || d.id.split('__').slice(1).join('__'));
+                if (!sku || !x.name || mmcByCode.has(sku) || seen.has(sku)) return;
+                seen.add(sku);
+                add.push({ sku, name: String(x.name), category: x.category || BUR_FALLBACK, unit: x.unit || 'шт', image: x.image || '', description: burCleanText(x.description), createdAt: x.createdAt || now, updatedAt: now, updatedBy: currentUserName || '' });
+            });
+            if (!add.length) return;
+            try {
+                for (let i = 0; i < add.length; i += 400) {
+                    const b = writeBatch(db);
+                    add.slice(i, i + 400).forEach(a => b.set(doc(db, 'material_catalog', mmcDocId(a.sku)), a));
+                    await b.commit();
+                }
+            } catch (e) { console.warn('material_catalog seed:', e); }
+            mmcSet(mmcItems.concat(add.map(a => mmcFromDoc({ id: mmcDocId(a.sku), data: () => a }))));
+        }
+        // Каталог в разрезе текущего склада: код из справочника + остаток склада (0, если на этот склад ещё не принимали)
+        function burCatalogView() {
+            const stock = new Map(burItems.map(x => [normCode(x.sku), x]));
+            return mmcItems.map(m => stock.get(normCode(m.sku)) ||
+                Object.assign({}, m, { id: `${currentWarehouse}__${mmcDocId(m.sku)}`, qty: 0, minQty: 0, hasStock: false }));
+        }
+
+        // Форма Material Code: без аргумента — создание, с позицией — редактирование (код блокируется)
+        function mmcOpenForm(it, presetCode, onSaved) {
+            const edit = !!it;
+            let fileImg = edit && /^data:/i.test(it.image) ? it.image : null;
+            const ro = edit ? ' disabled' : '', roCls = edit ? ' cursor-not-allowed opacity-60' : '';
+            const catOpts = sel => burActiveCats().map(c => `<option value="${cmpAttr(c.id)}" ${c.id === sel ? 'selected' : ''}>${c.icon} ${escapeHtml(c.name)}</option>`).join('');
+            const startCat = edit ? burCatSafe(it.category) : (mmcCat !== 'all' && burActiveCats().some(c => c.id === mmcCat) ? mmcCat : (burActiveCats()[0] || {}).id);
+            const units = edit && !BUR_UNITS.includes(it.unit) ? [it.unit, ...BUR_UNITS] : BUR_UNITS;
+            const m = cmpModal(`
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">${edit ? '✏️ ' + t('mmc_edit_title') : '📦 ' + t('mmc_new_title')}</h2>
+                <div class="grid gap-3.5 sm:grid-cols-2">
+                    <div><label class="${CMP_LBL}" for="mmc-f-code">${t('mmc_f_code')}${edit ? ' 🔒' : ''}</label><input id="mmc-f-code" type="text" autocomplete="off" value="${cmpAttr(edit ? it.sku : (presetCode || ''))}"${ro} placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono${roCls}"></div>
+                    <div><label class="${CMP_LBL}" for="mmc-f-unit">${t('mmc_f_unit')}</label>
+                        <select id="mmc-f-unit" class="cursor-pointer ${CMP_FLD}">${units.map(u => `<option value="${cmpAttr(u)}" ${edit && u === it.unit ? 'selected' : ''}>${escapeHtml(u)}</option>`).join('')}</select></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="mmc-f-name">${t('mmc_f_name')}</label><input id="mmc-f-name" type="text" autocomplete="off" value="${edit ? cmpAttr(it.name) : ''}" class="${CMP_FLD}"></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="mmc-f-cat">${t('bur_f_cat')}</label>
+                        <select id="mmc-f-cat" class="cursor-pointer ${CMP_FLD}">${catOpts(startCat)}</select>
+                        <button type="button" id="mmc-f-newcat" class="mt-1.5 cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-klt-emerald-light hover:underline">${t('bur_cat_new_inline')}</button></div>
+                    <div id="mmc-f-newrow" class="hidden gap-2 sm:col-span-2" style="display:none">
+                        <input id="mmc-f-nicon" type="text" value="🏷️" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
+                        <input id="mmc-f-nname" type="text" maxlength="40" autocomplete="off" placeholder="${cmpAttr(t('cmp_cat_new_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
+                        <button type="button" id="mmc-f-nadd" class="${CMP_BTN_MAIN} shrink-0">${t('cmp_cat_add')}</button></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('bur_f_img')}</label>
+                        <div class="flex items-center gap-3">
+                            <div id="mmc-f-prev" class="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg"></div>
+                            <div class="flex min-w-0 flex-1 flex-col gap-2">
+                                <label class="${CMP_BTN} inline-block self-start text-[13px]">${t('bur_f_img_file')}<input id="mmc-f-file" type="file" accept="image/*" class="hidden"></label>
+                                <input id="mmc-f-url" type="url" autocomplete="off" value="${edit && /^https?:\/\//i.test(it.image) ? cmpAttr(it.image) : ''}" placeholder="${cmpAttr(t('bur_f_img_url'))}" class="${CMP_FLD}">
+                            </div>
+                        </div></div>
+                    <div class="sm:col-span-2"><label class="${CMP_LBL}" for="mmc-f-desc">${t('mmc_f_desc')}</label><textarea id="mmc-f-desc" rows="5" class="${CMP_FLD} resize-y" style="white-space:pre-wrap;overflow-wrap:anywhere">${edit ? escapeHtml(it.description) : ''}</textarea></div>
+                    ${edit ? `<p class="m-0 text-xs text-klt-muted sm:col-span-2">🔒 ${t('mmc_code_ro')}</p>` : ''}
+                </div>
+                <div id="mmc-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="mmc-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="mmc-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
+            const $ = m.$, err = $('#mmc-f-err');
+            const prev = src => { $('#mmc-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
+            prev(edit ? cmpSafeImg(it.image) : '');
+            const newRow = $('#mmc-f-newrow');
+            $('#mmc-f-newcat').onclick = () => { newRow.style.display = newRow.style.display === 'none' ? 'flex' : 'none'; if (newRow.style.display === 'flex') $('#mmc-f-nname').focus(); };
+            const quickAdd = async () => {
+                const c = await burAddCat($('#mmc-f-nname').value, $('#mmc-f-nicon').value); if (!c) return;
+                $('#mmc-f-cat').innerHTML = catOpts(c.id); $('#mmc-f-nname').value = ''; newRow.style.display = 'none';
+            };
+            $('#mmc-f-nadd').onclick = quickAdd;
+            $('#mmc-f-nname').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); quickAdd(); } });
+            $('#mmc-f-file').onchange = async e => {
+                const f = e.target.files[0]; if (!f) return;
+                try { fileImg = await cmpReadImage(f); $('#mmc-f-url').value = ''; prev(fileImg); err.textContent = ''; }
+                catch (x) { console.error(x); fileImg = null; prev(''); err.textContent = t('cmp_err_img'); }
+            };
+            $('#mmc-f-url').oninput = e => { const u = e.target.value.trim(); if (u) fileImg = null; prev(fileImg || cmpSafeImg(u)); };
+            $('#mmc-f-cancel').onclick = m.close;
+            $(edit ? '#mmc-f-name' : '#mmc-f-code').focus();
+            $('#mmc-f-ok').onclick = async () => {
+                const okBtn = $('#mmc-f-ok');
+                const sku = normCode($('#mmc-f-code').value), name = $('#mmc-f-name').value.trim(), url = $('#mmc-f-url').value.trim();
+                const desc = burCleanText($('#mmc-f-desc').value).replace(/\r\n?/g, '\n').trim();
+                const category = $('#mmc-f-cat').value, unit = $('#mmc-f-unit').value;
+                if (!edit && !sku) { err.textContent = t('mmc_err_code'); return; }
+                if (!name) { err.textContent = t('cmp_err_name'); return; }
+                if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
+                const image = fileImg || url || '';
+                okBtn.disabled = true; err.textContent = '';
+                try {
+                    if (edit) {
+                        const ch = [];
+                        if (name !== it.name) ch.push(`название «${it.name}» → «${name}»`);
+                        if (category !== it.category) ch.push(`категория ${burCatName(it.category)} → ${burCatName(category)}`);
+                        if (unit !== it.unit) ch.push(`ед. изм. ${it.unit} → ${unit}`);
+                        if (desc !== it.description) ch.push('описание');
+                        if (image !== it.image) ch.push('фото');
+                        if (!ch.length) { m.close(); return; }
+                        const upd = { name, category, unit, image, description: desc };
+                        await updateDoc(doc(db, 'material_catalog', it.id), { ...upd, updatedAt: Date.now(), updatedBy: currentUserName });
+                        Object.assign(it, upd);
+                        burItems.forEach(x => { if (normCode(x.sku) === normCode(it.sku)) Object.assign(x, upd); });   // склад сразу видит новый паспорт
+                        logActivity('mm_edit', `Material Master: изменён «${name}» (${it.sku}): ${ch.join('; ')}`);
+                        m.close(); burRedraw(); cmpToast(t('cmp_saved'), 'ok'); if (onSaved) onSaved(it); return;
+                    }
+                    const id = mmcDocId(sku), ref = doc(db, 'material_catalog', id);
+                    if ((await getDoc(ref)).exists()) { err.textContent = t('mmc_err_dup'); okBtn.disabled = false; return; }
+                    const now = Date.now(), data = { sku, name, category, unit, image, description: desc, createdAt: now, updatedAt: now, updatedBy: currentUserName };
+                    await setDoc(ref, data);
+                    const made = mmcFromDoc({ id, data: () => data });
+                    mmcSet(mmcItems.concat(made));
+                    logActivity('mm_create', `Material Master: создан Material Code ${sku} «${name}»`);
+                    m.close(); burRedraw(); cmpToast(t('mmc_created'), 'ok'); if (onSaved) onSaved(made);
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+            };
+        }
+
+        async function renderMaterialMaster(pv) {
+            const wrap = document.createElement('div');
+            wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';   // без max-width: на всю ширину монитора
+            const seg = on => `cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${on ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}`;
+            wrap.innerHTML = `
+                <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="flex items-center gap-2.5 text-xl font-bold text-klt-emerald-light">📦 ${t('mmc_title')}</h2>
+                        <p class="mt-1 text-[13px] text-klt-muted">${t('mmc_sub')}</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div id="mmc-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="mmc-new" class="${CMP_BTN_MAIN}">${t('mmc_create')}</button>
+                    </div>
+                </div>
+                <input id="mmc-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('mmc_search_ph'))}" value="${cmpAttr(mmcQuery)}" class="mb-3 ${CMP_FLD}">
+                <div id="mmc-chips" class="mb-3 flex flex-wrap items-center gap-2"></div>
+                <div id="mmc-count" class="mb-3 text-xs text-klt-muted"></div>
+                <div id="mmc-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
+            pv.appendChild(wrap);
+            const $ = id => wrap.querySelector('#' + id);
+            const editBtn = it => `<button type="button" data-mmc-act="edit" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('cmp_edit'))}" aria-label="${cmpAttr(t('cmp_edit'))}" class="${CMP_ICO}">✏️</button>`;
+
+            const card = it => `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid border-klt-line bg-klt-bg">
+                <div class="relative aspect-[4/3] bg-klt-card">${burPhoto(it, 'text-5xl')}</div>
+                <div class="flex flex-1 flex-col p-4">
+                    <div class="flex items-start gap-2"><div class="min-w-0 flex-1 text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><span class="flex shrink-0">${editBtn(it)}</span></div>
+                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
+                        <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span><span class="rounded-full border border-solid border-klt-line px-2 py-0.5 font-semibold">${escapeHtml(it.unit)}</span>
+                    </div>
+                    ${burDescHtml(it, 'mt-2 text-xs leading-snug text-klt-muted')}
+                </div></article>`;
+            const table = list => {
+                const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+                const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-top text-slate-50';
+                return `<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-collapse text-[13px]">
+                    <thead><tr><th class="${th} w-16">${t('bur_col_photo')}</th><th class="${th}">${t('bur_col_sku')}</th><th class="${th}">${t('bur_col_name')}</th><th class="${th}">${t('bur_col_cat')}</th><th class="${th}">${t('mmc_col_unit')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th}"></th></tr></thead>
+                    <tbody>${list.map(it => `<tr class="transition hover:bg-klt-hover">
+                        <td class="${td}"><div class="relative h-11 w-11 overflow-hidden rounded-lg bg-klt-bg">${burPhoto(it, 'text-xl')}</div></td>
+                        <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</td>
+                        <td class="${td} font-semibold" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</td>
+                        <td class="${td} text-klt-muted">${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</td>
+                        <td class="${td} text-klt-muted">${escapeHtml(it.unit)}</td>
+                        <td class="${td}">${burDescHtml(it, 'text-xs text-klt-muted')}</td>
+                        <td class="${td} text-right">${editBtn(it)}</td></tr>`).join('')}</tbody></table></div>`;
+            };
+            function drawChrome() {
+                $('mmc-seg').innerHTML = [['grid', '🔲', 'bur_view_grid'], ['table', '☰', 'bur_view_table']].map(([k, ic, l]) =>
+                    `<button type="button" data-mmc-view="${k}" aria-pressed="${mmcView === k}" class="${seg(mmcView === k)}">${ic} ${t(l)}</button>`).join('');
+                const chip = (id, label) => {
+                    const on = mmcCat === id;
+                    return `<button type="button" data-mmc-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:text-slate-50'}">${label}</button>`;
+                };
+                const cats = burActiveCats();
+                if (mmcCat !== 'all' && !cats.some(c => c.id === mmcCat)) mmcCat = 'all';
+                $('mmc-chips').innerHTML = chip('all', `${t('bur_cat_all')} · ${mmcItems.length}`) +
+                    cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)} · ${mmcItems.filter(x => x.category === c.id).length}`)).join('') +
+                    `<button type="button" data-mmc-act="cats" class="${CMP_BTN} rounded-full px-3.5 py-1.5 text-[13px]">⚙️ ${t('cmp_cats_btn')}</button>`;
+            }
+            function drawList() {
+                const q = mmcQuery.trim().toLowerCase();
+                const list = mmcItems.filter(x => (mmcCat === 'all' || x.category === mmcCat) && (!q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q)))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+                $('mmc-count').textContent = fmt(t('mmc_count'), { n: list.length });
+                if (!list.length) {
+                    $('mmc-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${mmcItems.length ? t('mmc_empty') : t('mmc_empty_first')}</div>`;
+                    return;
+                }
+                $('mmc-list').innerHTML = mmcView === 'grid'
+                    ? `<div class="grid gap-4" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${list.map(card).join('')}</div>`
+                    : table(list);
+            }
+            burRedraw = () => { if (wrap.isConnected) { drawChrome(); drawList(); } };   // общий хук: менеджер категорий и формы перерисовывают текущую страницу
+
+            wrap.addEventListener('click', e => {
+                const v = e.target.closest('[data-mmc-view]');
+                if (v) { mmcView = v.dataset.mmcView; try { localStorage.setItem('kletka_mmc_view', mmcView); } catch (x) { /* ignore */ } drawChrome(); drawList(); return; }
+                const c = e.target.closest('[data-mmc-cat]');
+                if (c) { mmcCat = c.dataset.mmcCat; drawChrome(); drawList(); return; }
+                const b = e.target.closest('[data-mmc-act]'); if (!b) return;
+                if (b.dataset.mmcAct === 'cats') { burOpenCats(); return; }
+                const it = mmcItems.find(x => x.id === b.dataset.id); if (it) mmcOpenForm(it);
+            });
+            $('mmc-search').addEventListener('input', e => { mmcQuery = e.target.value; drawList(); });
+            $('mmc-new').onclick = () => mmcOpenForm();
+            drawChrome();
+            try { await burLoadCats(); await mmcLoad(); }
+            catch (e) {
+                console.error(e);
+                if (wrap.isConnected) $('mmc-list').innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('mmc_load_err')}</div>`;
+                return;
+            }
+            if (wrap.isConnected) { drawChrome(); drawList(); }
+        }
+
         async function renderBureau(pv, focusSearch) {
             const wrap = document.createElement('div');
-            wrap.className = 'rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
             const seg = on => `cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${on ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}`;
             wrap.innerHTML = `
                 <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -3243,7 +3448,7 @@
                         <button type="button" id="bur-hist" class="${CMP_BTN} text-[13px]">📜 ${t('bur_hist')}</button>
                         <button type="button" id="bur-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
                         <button type="button" id="bur-rc" class="${CMP_BTN_MAIN}">${t('bur_receive')}</button>
-                        <button type="button" id="bur-add" class="${CMP_BTN} text-[13px]">${t('bur_add')}</button>
+                        <button type="button" id="bur-mm" class="${CMP_BTN} text-[13px]">📦 Material Master</button>
                     </div>
                 </div>
                 <input id="bur-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('bur_search_ph'))}" value="${cmpAttr(burQuery)}" class="mb-3 ${CMP_FLD}">
@@ -3277,7 +3482,7 @@
                     return;
                 }
                 $('bur-list').innerHTML = burView === 'grid'
-                    ? `<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">${list.map(burCard).join('')}</div>`
+                    ? `<div class="grid gap-4" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">${list.map(burCard).join('')}</div>`
                     : burTable(list);
             }
             // после перерисовки возвращаем фокус на нажатую кнопку (клавиатурный сценарий −1/+1)
@@ -3305,11 +3510,11 @@
                 if (a === 'cats') { burOpenCats(); return; }
                 if (a === 'cart') { burOpenCart(); return; }
                 const it = burItems.find(x => x.id === b.dataset.id); if (!it) return;
-                if (a === 'edit') burOpenForm(it);
+                if (a === 'edit') burOpenLimit(it);
                 else if (a === 'order') burAddToOrder(it);
             });
             $('bur-search').addEventListener('input', e => { burQuery = e.target.value; drawList(); });
-            $('bur-add').onclick = () => burOpenForm();
+            $('bur-mm').onclick = () => openPage('material-master');
             $('bur-rc').onclick = () => burOpenReceive();
             $('bur-hist').onclick = () => openMaterialJournal('bureau');
             $('bur-ie').onclick = () => openImportExport('bureau');
@@ -3318,7 +3523,9 @@
             if (focusSearch) $('bur-search').focus();   // «+ Выдать бюро-материалы» с главной: сразу к поиску нужной позиции
             try {
                 await burLoadCats();   // категории грузим до позиций: позиция с неизвестной категорией отображается как «Хозтовары»
+                await mmcLoad();       // паспорта товаров — из Material Master
                 const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
+                await mmcSeedLegacy(snap.docs);   // одноразово переносит в справочник паспорта старых складских записей
                 burItems = snap.docs.map(burFromDoc);
             } catch (e) {
                 console.error(e);
