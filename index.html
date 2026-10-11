@@ -1002,6 +1002,9 @@
             } else if (key === 'components') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderComponents(pv);
+            } else if (key === 'material-master') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderMaterialMaster(pv);
             } else if (key === 'bureau-materials' || key === 'bureau-issue') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderBureau(pv, key === 'bureau-issue');
@@ -1181,7 +1184,7 @@
             renderHome();
             loadCageCount();
             loadBureauStats();
-            if (['components', 'bureau-materials', 'bureau-issue'].includes(currentPageKey)) openPage(currentPageKey);   // остатки привязаны к складу
+            if (['components', 'bureau-materials', 'bureau-issue', 'material-master'].includes(currentPageKey)) openPage(currentPageKey);   // остатки привязаны к складу
             // Пока переключение склада меняет только заголовок — данные по складам подключим,
             // когда определим структуру Material Master/Delivery для каждого DC отдельно.
         }
@@ -3121,7 +3124,7 @@
 
         // Форма материала: без аргумента — «+ Добавить», с позицией — редактирование
         // (SKU входит в ID документа, остаток меняется только −1/+1 и «Выдать», поэтому в режиме правки оба поля заблокированы).
-        function burOpenForm(it) {
+        function burOpenForm(it, onSaved) {
             const edit = !!it;
             let fileImg = edit && /^data:/i.test(it.image) ? it.image : null;
             const ro = edit ? ' disabled' : '', roCls = edit ? ' cursor-not-allowed opacity-60' : '';
@@ -3144,7 +3147,7 @@
                     <div><label class="${CMP_LBL}" for="bur-f-sku">${t('bur_f_sku')}${edit ? ' 🔒' : ''}</label><input id="bur-f-sku" type="text" autocomplete="off" value="${edit ? cmpAttr(it.sku) : ''}"${ro} placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono${roCls}"></div>
                     <div><label class="${CMP_LBL}" for="bur-f-qty">${edit ? t('cmp_f_qty_cur') + ' 🔒' : t('bur_f_qty')}</label><input id="bur-f-qty" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.qty : 0}"${ro} class="${CMP_FLD}${roCls}"></div>
                     <div class="sm:col-span-2"><label class="${CMP_LBL}" for="bur-f-min">${t('bur_f_min')}</label><input id="bur-f-min" type="number" min="0" step="1" inputmode="numeric" value="${edit ? it.minQty : 0}" class="${CMP_FLD}"></div>
-                    ${edit ? `<p class="m-0 text-xs text-klt-muted sm:col-span-2">🔒 ${t('bur_edit_ro')}</p>` : ''}
+                    ${edit ? `<p class="m-0 text-xs text-klt-muted sm:col-span-2">🔒 ${t('bur_edit_ro')}. ${t('mmc_edit_note')}.</p>` : ''}
                     <div class="sm:col-span-2"><label class="${CMP_LBL}">${t('bur_f_img')}</label>
                         <div class="flex items-center gap-3">
                             <div id="bur-f-prev" class="relative h-[72px] w-[72px] shrink-0 overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg"></div>
@@ -3199,20 +3202,31 @@
                         if (image !== it.image) ch.push('фото');
                         if (!ch.length) { m.close(); return; }
                         const upd = { name, category, unit, minQty, image, description: desc };
-                        await updateDoc(doc(db, 'material_master', it.id), { ...upd, updatedAt: Date.now(), updatedBy: currentUserName });
+                        // эталон Material Master: те же поля во всех документах этого Material Code (на всех складах)
+                        const patch = { ...upd, updatedAt: Date.now(), updatedBy: currentUserName };
+                        const same = (await getDocs(query(collection(db, 'material_master'), where('sku', '==', it.sku)))).docs.filter(d => d.data().group === 'bureau');
+                        const bt = writeBatch(db);
+                        if (!same.some(d => d.id === it.id)) bt.update(doc(db, 'material_master', it.id), patch);
+                        same.forEach(d => bt.update(d.ref, patch));
+                        await bt.commit();
                         Object.assign(it, upd);
+                        burItems.forEach(x => { if (x.sku === it.sku) Object.assign(x, upd); });
                         burLog('edit', `изменён «${name}» (${it.sku}): ${ch.join('; ')}`);
-                        m.close(); burRedraw(); cmpToast(t('cmp_saved'), 'ok'); return;
+                        m.close(); burRedraw(); if (onSaved) onSaved(); cmpToast(t('cmp_saved'), 'ok'); return;
                     }
                     const qty = parseInt(qRaw, 10);
                     const id = `${currentWarehouse}__${sku.replace(/\//g, '_')}`, ref = doc(db, 'material_master', id);
                     if ((await getDoc(ref)).exists()) { err.textContent = fmt(t('cmp_err_dup'), { wh: currentWarehouse }); okBtn.disabled = false; return; }
+                    // Material Code уникален во всём Material Master: если карточка есть на другом складе — новую не создаём, товар принимается через «📥 Принять»
+                    if ((await getDocs(query(collection(db, 'material_master'), where('sku', '==', sku)))).docs.some(d => d.data().group === 'bureau')) {
+                        err.textContent = t('mmc_err_exists'); okBtn.disabled = false; return;
+                    }
                     const now = Date.now();
                     const data = { sku, name, category, unit, qty, minQty, image, description: desc, group: 'bureau', warehouse: currentWarehouse, createdAt: now, updatedAt: now, updatedBy: currentUserName };
                     await setDoc(ref, data);
                     burItems.push(burFromDoc({ id, data: () => data }));
                     if (qty > 0) mmLog('bureau', data, 'receipt', qty, { note: t('mm_note_create'), txnId: mmTxnId('RECEIPT') });
-                    m.close(); burRedraw(); cmpToast(t('bur_added'), 'ok');
+                    m.close(); burRedraw(); if (onSaved) onSaved(); cmpToast(t('bur_added'), 'ok');
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
             };
         }
@@ -3418,6 +3432,130 @@
             if (wrap.isConnected) { drawChrome(); drawList(); }
             if (focusSearch && burCart.length) burOpenCart();   // «Выдать бюро-материалы» с главной: собранный заказ сразу под рукой
         }
+
+        // =====================================================================
+        // MATERIAL MASTER — справочник эталонных карточек бюро-материалов
+        // Одна строка = один Material Code (общий для всех складов): код, название, категория, ед. изм., Alert Limit,
+        // фото, полное описание + остатки по складам (только просмотр). Правка карточки обновляет эталонные поля
+        // во всех складских документах этого кода; остатки меняются только приёмом и выдачей в «Бюро-материалах».
+        // =====================================================================
+        Object.assign(TR.ru, {
+            mmc_title: 'Material Master — эталонные карточки', mmc_desc: 'Одна карточка на Material Code, общая для всех складов. Отсюда данные подтягиваются в приём и выдачу бюро-материалов.',
+            mmc_search_ph: 'Поиск по Material Code, названию или описанию', mmc_count: 'Карточек: {n}', mmc_empty: 'По этому фильтру карточек нет',
+            mmc_empty_first: 'Справочник пуст. Создайте первую карточку или загрузите список через Импорт / Экспорт.',
+            mmc_col_unit: 'Ед. изм.', mmc_col_limit: 'Alert Limit', mmc_col_stock: 'Остатки по складам', mmc_col_desc: 'Описание',
+            mmc_go_bureau: '🗂️ Бюро-материалы', mmc_err_exists: 'Карточка с таким Material Code уже есть в Material Master. Чтобы завести товар на этот склад, используйте «📥 Принять бюро-материалы».',
+            mmc_load_err: 'Не удалось загрузить Material Master (проверьте связь / права Firestore)', mmc_edit_note: 'Изменения применятся к карточке на всех складах'
+        });
+        Object.assign(TR.uk, {
+            mmc_title: 'Material Master — еталонні картки', mmc_desc: 'Одна картка на Material Code, спільна для всіх складів. Звідси дані підтягуються в приймання та видачу бюро-матеріалів.',
+            mmc_search_ph: 'Пошук за Material Code, назвою чи описом', mmc_count: 'Карток: {n}', mmc_empty: 'За цим фільтром карток немає',
+            mmc_empty_first: 'Довідник порожній. Створіть першу картку або завантажте список через Імпорт / Експорт.',
+            mmc_col_unit: 'Од. виміру', mmc_col_limit: 'Alert Limit', mmc_col_stock: 'Залишки по складах', mmc_col_desc: 'Опис',
+            mmc_go_bureau: '🗂️ Бюро-матеріали', mmc_err_exists: 'Картка з таким Material Code уже є в Material Master. Щоб завести товар на цей склад, використайте «📥 Прийняти бюро-матеріали».',
+            mmc_load_err: 'Не вдалося завантажити Material Master (перевірте звʼязок / права Firestore)', mmc_edit_note: 'Зміни застосуються до картки на всіх складах'
+        });
+        Object.assign(TR.en, {
+            mmc_title: 'Material Master — reference cards', mmc_desc: 'One card per Material Code, shared by all warehouses. Receipts and issues of office supplies take their data from here.',
+            mmc_search_ph: 'Search by Material Code, name or description', mmc_count: 'Cards: {n}', mmc_empty: 'No cards match this filter',
+            mmc_empty_first: 'The catalog is empty. Create the first card or upload a list via Import / Export.',
+            mmc_col_unit: 'Unit', mmc_col_limit: 'Alert Limit', mmc_col_stock: 'Stock by warehouse', mmc_col_desc: 'Description',
+            mmc_go_bureau: '🗂️ Office supplies', mmc_err_exists: 'A card with this Material Code already exists in Material Master. To stock it in this warehouse, use “📥 Receive office supplies”.',
+            mmc_load_err: 'Could not load Material Master (check connection / Firestore rules)', mmc_edit_note: 'Changes apply to the card in every warehouse'
+        });
+
+        let mmcCat = 'all', mmcQuery = '';
+        async function renderMaterialMaster(pv) {
+            const wrap = document.createElement('div');
+            wrap.className = 'rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            wrap.innerHTML = `
+                <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 max-w-[720px]">
+                        <h2 class="text-xl font-bold text-klt-emerald-light">📦 ${t('mmc_title')}</h2>
+                        <p class="mt-1 text-[13px] text-klt-muted">${t('mmc_desc')}</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button type="button" id="mmc-bur" class="${CMP_BTN} text-[13px]">${t('mmc_go_bureau')}</button>
+                        <button type="button" id="mmc-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
+                        <button type="button" id="mmc-add" class="${CMP_BTN_MAIN}">${t('bur_add')}</button>
+                    </div>
+                </div>
+                <input id="mmc-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('mmc_search_ph'))}" value="${cmpAttr(mmcQuery)}" class="mb-3 ${CMP_FLD}">
+                <div id="mmc-chips" class="mb-3 flex flex-wrap items-center gap-2"></div>
+                <div id="mmc-count" class="mb-3 text-xs text-klt-muted"></div>
+                <div id="mmc-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
+            pv.appendChild(wrap);
+            const $ = id => wrap.querySelector('#' + id);
+            let cards = [];   // [{ ...эталон, rep: документ для правки, stock: [{ wh, qty }] }]
+
+            async function load() {
+                await burEnsureCats();
+                const snap = await getDocs(query(collection(db, 'material_master'), where('group', '==', 'bureau')));
+                const by = new Map();
+                snap.docs.forEach(d => {
+                    const x = burFromDoc(d), wh = String(d.data().warehouse || '—');
+                    let c = by.get(x.sku);
+                    if (!c) { c = { ...x, rep: x, stock: [] }; by.set(x.sku, c); }
+                    if (wh === currentWarehouse) { Object.assign(c, x, { rep: x, stock: c.stock }); }   // эталон — документ текущего склада, если есть
+                    c.stock.push({ wh, qty: x.qty, low: burIsLow(x.qty, x.minQty) });
+                });
+                cards = [...by.values()];
+                cards.forEach(c => c.stock.sort((a, b) => a.wh.localeCompare(b.wh)));
+            }
+            function drawChips() {
+                const chip = (id, label, n) => `<button type="button" data-mmc-cat="${cmpAttr(id)}" aria-pressed="${mmcCat === id}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${mmcCat === id ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
+                const cats = burActiveCats();
+                if (mmcCat !== 'all' && !cats.some(c => c.id === mmcCat)) mmcCat = 'all';
+                $('mmc-chips').innerHTML = chip('all', t('bur_cat_all'), cards.length) +
+                    cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)}`, cards.filter(x => x.category === c.id).length)).join('');
+            }
+            function drawList() {
+                const q = mmcQuery.trim().toLowerCase();
+                const list = cards.filter(x => (mmcCat === 'all' || x.category === mmcCat) &&
+                    (!q || x.sku.toLowerCase().includes(q) || x.name.toLowerCase().includes(q) || x.description.toLowerCase().includes(q)))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+                $('mmc-count').textContent = fmt(t('mmc_count'), { n: list.length });
+                if (!list.length) {
+                    $('mmc-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${cards.length ? t('mmc_empty') : t('mmc_empty_first')}</div>`;
+                    return;
+                }
+                const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+                const td = 'border-b border-solid border-klt-line px-3 py-3 align-top text-slate-50';
+                $('mmc-list').innerHTML = `<div class="overflow-x-auto"><table class="w-full min-w-[980px] border-collapse text-[13px]">
+                    <thead><tr><th class="${th} w-16">${t('bur_col_photo')}</th><th class="${th}">${t('bur_col_sku')}</th><th class="${th}">${t('bur_col_name')} / ${t('mmc_col_desc')}</th>
+                        <th class="${th}">${t('bur_col_cat')}</th><th class="${th}">${t('mmc_col_unit')}</th><th class="${th}">${t('mmc_col_limit')}</th><th class="${th}">${t('mmc_col_stock')}</th><th class="${th}"></th></tr></thead>
+                    <tbody>${list.map(c => `<tr data-sku="${cmpAttr(c.sku)}" class="transition hover:bg-klt-hover">
+                        <td class="${td}"><div class="relative h-14 w-14 overflow-hidden rounded-lg bg-klt-bg">${burPhoto(c, 'text-2xl')}</div></td>
+                        <td class="${td} whitespace-nowrap font-mono font-semibold text-klt-emerald-light">${escapeHtml(c.sku)}</td>
+                        <td class="${td} min-w-[280px]"><div class="font-semibold">${escapeHtml(c.name)}</div>${burDescHtml(c, 'mt-1 text-xs font-normal leading-snug text-klt-muted')}</td>
+                        <td class="${td} whitespace-nowrap text-klt-muted">${burCatIcon(c.category)} ${escapeHtml(burCatName(c.category))}</td>
+                        <td class="${td} whitespace-nowrap">${escapeHtml(c.unit)}</td>
+                        <td class="${td} whitespace-nowrap">${c.minQty}</td>
+                        <td class="${td}"><div class="flex flex-col gap-0.5">${c.stock.map(s => `<span class="whitespace-nowrap ${s.wh === currentWarehouse ? 'font-bold' : ''}">${escapeHtml(s.wh)}: <span class="${s.qty <= 0 ? 'text-red-400' : s.low ? 'text-klt-orange-light' : 'text-klt-emerald-light'}">${s.qty}</span> ${escapeHtml(c.unit)}</span>`).join('')}</div></td>
+                        <td class="${td} text-right"><button type="button" data-mmc-edit="${cmpAttr(c.sku)}" title="${cmpAttr(t('cmp_edit'))}" aria-label="${cmpAttr(t('cmp_edit'))}" class="${CMP_ICO}">✏️</button></td></tr>`).join('')}
+                    </tbody></table></div>`;
+            }
+            const reload = async () => {
+                try { await load(); } catch (e) {
+                    console.error(e);
+                    if (wrap.isConnected) $('mmc-list').innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('mmc_load_err')}</div>`;
+                    return;
+                }
+                if (wrap.isConnected) { drawChips(); drawList(); }
+            };
+            wrap.addEventListener('click', e => {
+                const c = e.target.closest('[data-mmc-cat]');
+                if (c) { mmcCat = c.dataset.mmcCat; drawChips(); drawList(); return; }
+                const ed = e.target.closest('[data-mmc-edit]');
+                if (ed) { const card = cards.find(x => x.sku === ed.dataset.mmcEdit); if (card) burOpenForm(card.rep, reload); }
+            });
+            $('mmc-search').addEventListener('input', e => { mmcQuery = e.target.value; drawList(); });
+            $('mmc-add').onclick = () => burOpenForm(undefined, reload);
+            $('mmc-ie').onclick = () => openImportExport('bureau');
+            $('mmc-bur').onclick = () => openPage('bureau-materials');
+            await reload();
+        }
+
 
         // Счётчики плиток главной: «Бюро-материалы (SKU)» и «Мало на складе» по текущему складу
         async function loadBureauStats() {
