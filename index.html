@@ -160,6 +160,9 @@
         .sidebar-toggle:hover { color: var(--emerald-light); }
 
         .sidebar-nav { flex: 1; overflow-y: auto; padding: 16px 12px; }
+        /* Полосы прокрутки скрыты визуально: колесо, тачпад и свайп работают как раньше */
+        html, body, .sidebar-nav { scrollbar-width: none; -ms-overflow-style: none; }
+        html::-webkit-scrollbar, body::-webkit-scrollbar, .sidebar-nav::-webkit-scrollbar { display: none; width: 0; height: 0; }
         .nav-group { margin-bottom: 22px; }
         .nav-group-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.9px; color: var(--text-muted); padding: 0 10px; margin-bottom: 10px; white-space: nowrap; }
         .sidebar.collapsed .nav-group-title { display: none; }
@@ -197,7 +200,7 @@
         }
         .lang-select:focus { border-color: var(--emerald); }
 
-.page-container { padding: 28px; margin: 0 auto; width: 100%; }
+.page-container { padding: 28px; max-width: 1200px; margin: 0 auto; width: 100%; }
 
         /* ===== Главная страница ===== */
         .home-header { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
@@ -3206,6 +3209,22 @@
             bur_lim_title: 'Threshold limit', bur_lim_note: 'The item passport is edited in Material Master only.', bur_lim_open: 'Open Material Master →'
         });
 
+        Object.assign(TR.ru, {
+            mmc_clear: 'Очистить справочник', mmc_clear_title: 'Очистить Material Master', mmc_clear_q: 'Удалить все карточки Material Master ({n} шт.)? Действие необратимо.',
+            mmc_clear_note: 'Остатки, карточки и история «Бюро-материалов» не затрагиваются. Новые Material Code можно будет создать заново.',
+            mmc_clear_type: 'Для подтверждения введите слово УДАЛИТЬ', mmc_clear_word: 'УДАЛИТЬ', mmc_clear_do: 'Удалить всё', mmc_cleared: 'Material Master очищен: удалено карточек {n}'
+        });
+        Object.assign(TR.uk, {
+            mmc_clear: 'Очистити довідник', mmc_clear_title: 'Очистити Material Master', mmc_clear_q: 'Видалити всі картки Material Master ({n} шт.)? Дію не можна скасувати.',
+            mmc_clear_note: 'Залишки, картки та історія «Бюро-матеріалів» не зачіпаються. Нові Material Code можна буде створити знову.',
+            mmc_clear_type: 'Для підтвердження введіть слово ВИДАЛИТИ', mmc_clear_word: 'ВИДАЛИТИ', mmc_clear_do: 'Видалити все', mmc_cleared: 'Material Master очищено: видалено карток {n}'
+        });
+        Object.assign(TR.en, {
+            mmc_clear: 'Clear catalog', mmc_clear_title: 'Clear Material Master', mmc_clear_q: 'Delete all Material Master cards ({n})? This cannot be undone.',
+            mmc_clear_note: 'Office supplies stock, cards and history are not affected. New Material Codes can be created again.',
+            mmc_clear_type: 'Type DELETE to confirm', mmc_clear_word: 'DELETE', mmc_clear_do: 'Delete all', mmc_cleared: 'Material Master cleared: {n} cards deleted'
+        });
+
         let mmcItems = [], mmcView = 'table', mmcQuery = '';
         const mmcByCode = new Map();
         try { mmcView = localStorage.getItem('kletka_mmc_view') === 'grid' ? 'grid' : 'table'; } catch (e) { /* storage недоступен */ }
@@ -3218,25 +3237,6 @@
         async function mmcLoad() {
             const snap = await getDocs(collection(db, 'material_catalog'));
             mmcSet(snap.docs.map(mmcFromDoc));
-        }
-        // Миграция: старые складские записи бюро хранили паспорт у себя. Копируем его в справочник (только отсутствующие коды, без перезаписи).
-        async function mmcSeedLegacy(docs) {
-            const now = Date.now(), add = [], seen = new Set();
-            docs.forEach(d => {
-                const x = d.data(), sku = normCode(x.sku || d.id.split('__').slice(1).join('__'));
-                if (!sku || !x.name || mmcByCode.has(sku) || seen.has(sku)) return;
-                seen.add(sku);
-                add.push({ sku, name: String(x.name), category: x.category || BUR_FALLBACK, unit: x.unit || 'шт', image: x.image || '', description: burCleanText(x.description), createdAt: x.createdAt || now, updatedAt: now, updatedBy: currentUserName || '' });
-            });
-            if (!add.length) return;
-            try {
-                for (let i = 0; i < add.length; i += 400) {
-                    const b = writeBatch(db);
-                    add.slice(i, i + 400).forEach(a => b.set(doc(db, 'material_catalog', mmcDocId(a.sku)), a));
-                    await b.commit();
-                }
-            } catch (e) { console.warn('material_catalog seed:', e); }
-            mmcSet(mmcItems.concat(add.map(a => mmcFromDoc({ id: mmcDocId(a.sku), data: () => a }))));
         }
         // Каталог в разрезе текущего склада: код из справочника + остаток склада (0, если на этот склад ещё не принимали)
         function burCatalogView() {
@@ -3328,6 +3328,40 @@
             m.$('#mmc-pv-x').onclick = m.close;
         }
 
+        // Полная очистка справочника Material Master (только админ, с подтверждением).
+        // Удаляются ТОЛЬКО документы material_catalog; складские записи «Бюро-материалов» (material_master) и журнал не трогаются.
+        function mmcOpenClear(after) {
+            if (!isAdmin) return;
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-red-300">🗑 ${t('mmc_clear_title')}</h2>
+                <p class="mb-3 mt-2 text-sm text-slate-50">${fmt(t('mmc_clear_q'), { n: mmcItems.length })}</p>
+                <p class="m-0 text-xs text-klt-muted">${t('mmc_clear_note')}</p>
+                <label class="mb-1.5 mt-4 block text-xs text-klt-muted" for="mmc-c-word">${t('mmc_clear_type')}</label>
+                <input id="mmc-c-word" type="text" autocomplete="off" class="${CMP_FLD}">
+                <div id="mmc-c-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="mmc-c-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button>
+                    <button type="button" id="mmc-c-ok" disabled class="cursor-pointer rounded-lg border-0 bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40">${t('mmc_clear_do')}</button></div>`);
+            const word = t('mmc_clear_word');
+            m.$('#mmc-c-cancel').onclick = m.close;
+            m.$('#mmc-c-word').oninput = e => { m.$('#mmc-c-ok').disabled = e.target.value.trim().toUpperCase() !== word; };
+            m.$('#mmc-c-word').focus();
+            m.$('#mmc-c-ok').onclick = async () => {
+                const ok = m.$('#mmc-c-ok'); if (ok.disabled) return;
+                ok.disabled = true;
+                try {
+                    const snap = await getDocs(collection(db, 'material_catalog'));
+                    for (let i = 0; i < snap.docs.length; i += 400) {
+                        const b = writeBatch(db);
+                        snap.docs.slice(i, i + 400).forEach(d => b.delete(d.ref));
+                        await b.commit();
+                    }
+                    mmcSet([]);
+                    logActivity('mm_clear', `Material Master: справочник очищен, удалено карточек: ${snap.size}`);
+                    m.close(); after(); cmpToast(fmt(t('mmc_cleared'), { n: snap.size }), 'ok');
+                } catch (e) { console.error(e); m.$('#mmc-c-err').textContent = t('cmp_err_save'); ok.disabled = false; }
+            };
+        }
+
         async function renderMaterialMaster(pv) {
             const wrap = document.createElement('div');
             wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';   // без max-width: на всю ширину монитора
@@ -3340,6 +3374,7 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div id="mmc-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="mmc-clear" style="display:none" class="${CMP_BTN} border-red-500/50 text-[13px] text-red-300 hover:border-red-400 hover:text-red-200">🗑 ${t('mmc_clear')}</button>
                         <button type="button" id="mmc-new" class="${CMP_BTN_MAIN}">${t('mmc_create')}</button>
                     </div>
                 </div>
@@ -3384,6 +3419,7 @@
                 const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q))
                     .sort((a, b) => a.sku.localeCompare(b.sku, 'ru', { numeric: true }));
                 $('mmc-count').textContent = fmt(t('mmc_count'), { n: list.length });
+                $('mmc-clear').style.display = isAdmin && mmcItems.length ? '' : 'none';
                 if (!list.length) {
                     $('mmc-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${mmcItems.length ? t('mmc_empty') : t('mmc_empty_first')}</div>`;
                     return;
@@ -3403,6 +3439,7 @@
             });
             $('mmc-search').addEventListener('input', e => { mmcQuery = e.target.value; drawList(); });
             $('mmc-new').onclick = () => mmcOpenForm();
+            $('mmc-clear').onclick = () => mmcOpenClear(() => { if (wrap.isConnected) { drawChrome(); drawList(); } });
             drawChrome();
             try { await burLoadCats(); await mmcLoad(); }   // категории грузятся только для совместимости данных с «Бюро-материалами», в UI Material Master не используются
             catch (e) {
@@ -3506,7 +3543,6 @@
                 await burLoadCats();   // категории грузим до позиций: позиция с неизвестной категорией отображается как «Хозтовары»
                 await mmcLoad();       // паспорта товаров — из Material Master
                 const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
-                await mmcSeedLegacy(snap.docs);   // одноразово переносит в справочник паспорта старых складских записей
                 burItems = snap.docs.map(burFromDoc);
             } catch (e) {
                 console.error(e);
