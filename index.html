@@ -2716,6 +2716,47 @@
         const burCatIcon = id => { const c = burCatById(id); return c ? c.icon : '📦'; };
         const burCatSafe = id => burCats.some(c => c.id === id) ? id : BUR_FALLBACK;
         const burSeedLocal = () => BUR_SEED_CATS.map(([id, icon], i) => ({ id, name: t('bur_cat_' + id), icon, order: i + 1, archived: false }));
+        // Цвета категорий: каждой категории — свой цвет, закреплённый в документе (поле color).
+        // Сначала раздаём контрастную палитру (порядок подобран так, чтобы соседние цвета сильно отличались),
+        // когда она закончилась — оттенок из хэша id, сдвигаемый «золотым углом», пока не отойдёт от занятых
+        // минимум на 14° (при нехватке места порог уменьшается). Одинаковые цвета (в т.ч. у старых категорий) при загрузке переназначаются.
+        const BUR_CAT_PALETTE = [['emerald', 160], ['amber', 40], ['indigo', 235], ['rose', 350], ['cyan', 188], ['violet', 265],
+            ['orange', 22], ['lime', 85], ['fuchsia', 295], ['sky', 205], ['red', 2], ['teal', 172], ['yellow', 54], ['blue', 220], ['pink', 325], ['green', 135]];
+        const BUR_PAL_HUE = new Map(BUR_CAT_PALETTE);
+        // 'emerald' → 160; 'h123' → 123; неизвестное значение → null
+        function burColorHue(v) {
+            if (BUR_PAL_HUE.has(v)) return BUR_PAL_HUE.get(v);
+            const m = /^h(\d{1,3})$/.exec(String(v || '')); return m && +m[1] < 360 ? +m[1] : null;
+        }
+        const burHueDist = (a, b) => { const d = Math.abs(a - b) % 360; return Math.min(d, 360 - d); };
+        function burPickColor(used, key) {   // used: Set значений color, уже занятых другими категориями
+            const free = BUR_CAT_PALETTE.find(([k]) => !used.has(k)); if (free) return free[0];
+            const hues = [...used].map(burColorHue).filter(h => h != null);
+            let h = 0; for (const ch of String(key)) h = (h * 31 + ch.codePointAt(0)) % 360;
+            // ищем оттенок, максимально удалённый от занятых; порог снижаем, только если места на круге не осталось
+            for (const gap of [14, 10, 7, 5, 3, 1]) {
+                for (let i = 0; i < 360; i++) {
+                    const cand = Math.round(h + i * 137.508) % 360;
+                    if (!used.has('h' + cand) && hues.every(x => burHueDist(x, cand) >= gap)) return 'h' + cand;
+                }
+            }
+            return 'h' + h;
+        }
+        // Проставляет недостающие/повторяющиеся цвета. persistIds — id документов, реально существующих в bureau_categories:
+        // только им изменения сохраняются в базу (локальная запасная «Хозтовары» документа не создаёт).
+        async function burAssignColors(persistIds) {
+            const used = new Set(), changed = [];
+            burCats.forEach(c => { if (burColorHue(c.color) != null && !used.has(c.color)) used.add(c.color); else c._recolor = true; });
+            burCats.forEach(c => {
+                if (!c._recolor) return; delete c._recolor;
+                c.color = burPickColor(used, c.id); used.add(c.color); changed.push(c);
+            });
+            const toSave = persistIds ? changed.filter(c => persistIds.has(c.id)) : [];
+            if (!toSave.length) return;
+            try { const b = writeBatch(db); toSave.forEach(c => b.set(doc(db, 'bureau_categories', c.id), { color: c.color }, { merge: true })); await b.commit(); }
+            catch (e) { console.error('bureau_categories color:', e); }   // цвет всё равно уже показан локально
+        }
+        const burCatHue = id => { const c = burCatById(id); const h = c ? burColorHue(c.color) : null; return h == null ? 210 : h; };
         async function burLoadCats() {
             try {
                 const col = collection(db, 'bureau_categories');
@@ -2725,12 +2766,13 @@
                     burSeedLocal().forEach(c => b.set(doc(col, c.id), { id: c.id, name: c.name, icon: c.icon, order: c.order, archived: false }));
                     await b.commit(); snap = await getDocs(col);
                 }
-                burCats = snap.docs.map(d => { const x = d.data(); return { id: d.id, name: String(x.name || d.id), icon: x.icon || '🏷️', order: Number(x.order) || 0, archived: x.archived === true }; })
+                burCats = snap.docs.map(d => { const x = d.data(); return { id: d.id, name: String(x.name || d.id), icon: x.icon || '🏷️', order: Number(x.order) || 0, archived: x.archived === true, color: String(x.color || '') }; })
                     .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'ru'));
                 if (!burCats.some(c => c.id === BUR_FALLBACK)) burCats.push(...burSeedLocal().filter(c => c.id === BUR_FALLBACK));
+                await burAssignColors(new Set(snap.docs.map(d => d.id)));
             } catch (e) {   // нет прав на коллекцию / нет сети: модуль продолжает работать с базовыми категориями
                 console.error('bureau_categories:', e);
-                burCats = burSeedLocal();
+                burCats = burSeedLocal(); burAssignColors(null);
             }
             burCatsLoaded = true;
         }
@@ -3165,9 +3207,10 @@
             const name = String(nameRaw || '').trim(), icon = cmpIconOf(iconRaw) || '🏷️';
             if (!name || burCats.some(x => x.name.toLowerCase() === name.toLowerCase())) { cmpToast(t(name ? 'cmp_cat_err_dup' : 'cmp_cat_err_name'), 'err'); return null; }
             const id = 'c_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36).slice(-3), order = Math.max(0, ...burCats.map(x => x.order)) + 1;
+            const color = burPickColor(new Set(burCats.map(x => x.color)), id);
             try {
-                await setDoc(doc(db, 'bureau_categories', id), { id, name, icon, order, archived: false });
-                const c = { id, name, icon, order, archived: false };
+                await setDoc(doc(db, 'bureau_categories', id), { id, name, icon, order, archived: false, color });
+                const c = { id, name, icon, order, archived: false, color };
                 burCats.push(c);
                 burLog('cat_add', `добавлена категория ${icon} «${name}»`);
                 cmpToast(t('cmp_cat_added'), 'ok'); burRedraw();
@@ -3339,6 +3382,7 @@
             const list = m.$('#bur-c-list');
             const draw = () => {
                 list.innerHTML = burCats.map((c, i) => `<div data-cid="${cmpAttr(c.id)}" class="flex items-center gap-2 ${c.archived ? 'opacity-60' : ''}">
+                    <span aria-hidden="true" class="h-3 w-3 shrink-0 rounded-full" style="background:hsl(${burCatHue(c.id)} 70% 55%)"></span>
                     <input data-f="icon" type="text" value="${cmpAttr(c.icon)}" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
                     <input data-f="name" type="text" maxlength="40" value="${cmpAttr(c.name)}" aria-label="${cmpAttr(t('cmp_cat_name_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
                     <button type="button" data-a="up" ${i === 0 ? 'disabled' : ''} aria-label="${cmpAttr(t('cmp_cat_up'))}" class="${CMP_ICO}">↑</button>
@@ -3437,7 +3481,6 @@
         Object.assign(TR.en, { mmc_unit_other: '✎ Custom unit…', mmc_unit_custom_ph: 'E.g. sheet, metre, bottle', mmc_err_unit: 'Enter the unit of measure', mmc_unit_warn: 'Stock is not converted: the same quantity will be shown in the new unit (e.g. 10 pcs → 10 packs).',
             mmc_u_pcs: 'pieces', mmc_u_pack: 'package', mmc_u_bundle: 'bundle', mmc_u_box: 'box', mmc_u_pair: 'pair', mmc_u_roll: 'roll' });
         const MMC_UNIT_HINT = { 'шт.': 'mmc_u_pcs', 'упак.': 'mmc_u_pack', 'пачка': 'mmc_u_bundle', 'коробка': 'mmc_u_box', 'пара': 'mmc_u_pair', 'рулон': 'mmc_u_roll' };
-        const mmcUnitBadge = u => `<span class="inline-flex items-center rounded-md border border-solid border-klt-line bg-klt-bg px-1.5 py-0.5 text-[11px] font-semibold leading-tight text-slate-200" title="${cmpAttr(t('mmc_f_unit'))}">${escapeHtml(burResolveUnit(u))}</span>`;
         // Категории в Material Master: выбор в карточке, создание прямо из формы, управление кнопкой «Категории»
         Object.assign(TR.ru, {
             mmc_f_cat: 'Категория', mmc_cat_pick: '— Выберите категорию —', mmc_err_cat: 'Выберите категорию', mmc_col_name_cat: 'Наименование / Категория',
@@ -3459,10 +3502,9 @@
             mmc_cat_new_ph: 'Nazwa nowej kategorii', mmc_cats_btn: 'Kategorie', mmc_cat_all: 'Wszystkie', bur_cat_new_inline: '＋ Nowa kategoria',
             bur_cats_from_mm: 'Kategorie przypisuje się w Material Master'
         });
-        // Цветной бейдж категории: оттенок стабильно вычисляется из id категории (одна категория — всегда один цвет)
+        // Цветной бейдж категории: оттенок — закреплённый за категорией цвет (уникален среди категорий, см. burAssignColors)
         function burCatBadge(id) {
-            const c = burCatById(id), key = c ? c.id : String(id || '');
-            let h = 0; for (const ch of key) h = (h * 31 + ch.codePointAt(0)) % 360;
+            const c = burCatById(id), h = burCatHue(id);
             return `<span class="inline-flex max-w-full items-center gap-1 rounded-full border border-solid px-2 py-0.5 text-[11px] font-semibold leading-tight" style="color:hsl(${h} 75% 74%);border-color:hsl(${h} 60% 55% / .45);background:hsl(${h} 60% 50% / .14);overflow-wrap:anywhere">${c ? c.icon : '🏷️'} ${escapeHtml(burCatName(id))}</span>`;
         }
         Object.assign(TR.uk, {
@@ -3792,7 +3834,7 @@
                     <div class="min-w-0 flex-1">
                         <div class="text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
                         <div class="mt-1.5">${burCatBadge(it.category)}</div>
-                        <div class="mt-1 flex flex-wrap items-center gap-2"><span class="font-mono text-xs text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</span>${mmcUnitBadge(it.unit)}</div>
+                        <div class="mt-1 flex flex-wrap items-center gap-2"><span class="font-mono text-xs text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</span></div>
                     </div>
                     <span class="flex shrink-0">${editBtn(it)}</span>
                 </div>
@@ -3801,15 +3843,14 @@
             const table = list => {
                 const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
                 const td = 'border-b border-solid border-klt-line px-3 py-3 align-top text-slate-50';
-                return `<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-collapse text-[13px]">
-                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name_cat')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-24">${t('mmc_col_unit')}</th><th class="${th} w-24"></th></tr></thead>
+                return `<div class="overflow-x-auto"><table class="w-full min-w-[820px] border-collapse text-[13px]">
+                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name_cat')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-24"></th></tr></thead>
                     <tbody>${list.map((it, i) => `<tr class="transition hover:bg-klt-hover">
                         <td class="${td} text-klt-muted">${i + 1}</td>
                         <td class="${td}">${mmcPhoto(it)}</td>
                         <td class="${td}"><div class="font-semibold" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><div class="mt-1.5">${burCatBadge(it.category)}</div></td>
                         <td class="${td}">${burDescHtml(it, 'text-xs leading-snug text-klt-muted') || '<span class="text-klt-muted">—</span>'}</td>
                         <td class="${td} font-mono text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</td>
-                        <td class="${td}">${mmcUnitBadge(it.unit)}</td>
                         <td class="${td} text-right">${editBtn(it)}</td></tr>`).join('')}</tbody></table></div>`;
             };
             function drawChrome() {
@@ -3818,7 +3859,7 @@
             }
             function drawList() {
                 const q = mmcQuery.trim().toLowerCase();
-                const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q) || burCatName(x.category).toLowerCase().includes(q) || x.unit.toLowerCase() === q)
+                const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q) || burCatName(x.category).toLowerCase().includes(q))
                     .sort((a, b) => a.sku.localeCompare(b.sku, 'ru', { numeric: true }));
                 $('mmc-count').textContent = fmt(t('mmc_count'), { n: list.length });
                 if (!list.length) {
