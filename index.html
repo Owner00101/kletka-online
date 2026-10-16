@@ -2703,7 +2703,12 @@
         // «Хозтовары» — запасная категория: в неё попадают позиции с неизвестной/архивной категорией (не архивируется).
         const BUR_SEED_CATS = [['stationery', '✏️'], ['paper', '📄'], ['ppe', '🧤'], ['packaging', '📦'], ['household', '🧹']];
         const BUR_FALLBACK = 'household';
-        const BUR_UNITS = ['шт', 'пачка', 'упаковка', 'пара', 'рулон'];
+        // Единицы измерения: значение хранится коротко ('шт.', 'упак.' …); свой вариант сохраняется как ввели.
+        // Пустая/старая запись без единицы → 'шт.'; старые 'шт' / 'упаковка' приводятся к 'шт.' / 'упак.'.
+        const BUR_UNITS = ['шт.', 'упак.', 'пачка', 'коробка', 'пара', 'рулон'];
+        const BUR_UNIT_ALIAS = { 'шт': 'шт.', 'штука': 'шт.', 'штуки': 'шт.', 'штук': 'шт.', 'pcs': 'шт.', 'pc': 'шт.',
+            'упак': 'упак.', 'уп': 'упак.', 'упаковка': 'упак.', 'пачка': 'пачка', 'пач': 'пачка', 'коробка': 'коробка', 'кор': 'коробка',
+            'пара': 'пара', 'пар': 'пара', 'рулон': 'рулон', 'рул': 'рулон' };
         let burCats = [], burCatsLoaded = false;
         const burActiveCats = () => burCats.filter(c => !c.archived);
         const burCatById = id => burCats.find(c => c.id === id) || burCats.find(c => c.id === BUR_FALLBACK);
@@ -2737,7 +2742,11 @@
                 Object.values(TR).some(l => String(l['bur_cat_' + c.id] || '').toLowerCase() === s));
             return hit ? hit.id : BUR_FALLBACK;
         }
-        const burResolveUnit = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\.$/, '') || 'шт';
+        const burResolveUnit = v => {
+            const raw = String(v == null ? '' : v).replace(/\s+/g, ' ').trim().slice(0, 20);
+            if (!raw) return 'шт.';
+            return BUR_UNIT_ALIAS[raw.toLowerCase().replace(/\.$/, '')] || raw;
+        };
         // Описание показываем целиком: неразрывные пробелы / невидимые символы заменяем обычными, чтобы текст чисто переносился
         const burCleanText = v => String(v == null ? '' : v).replace(/&nbsp;/gi, ' ').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, '');
         // Складская запись хранит только sku/warehouse/qty/minQty. Паспорт (название, категория, ед. изм., фото, описание)
@@ -2747,7 +2756,7 @@
             const p = mmcByCode.get(normCode(sku)) || x;
             return {
                 id: d.id, sku, name: String(p.name || ''), category: burCatSafe(p.category),
-                unit: String(p.unit || 'шт'), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: p.image || '',
+                unit: burResolveUnit(p.unit), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: p.image || '',
                 description: burCleanText(p.description), hasStock: true
             };
         };
@@ -3418,6 +3427,17 @@
         Object.assign(TR.uk, {"bur_del": "Видалити зі складу", "bur_del_title": "Видалити позицію зі складу", "bur_del_q": "Прибрати «{name}» з бюро-матеріалів складу {wh}?", "bur_del_note": "Картка в Material Master і записи інших складів не видаляються — позицію можна знову прийняти через «📥 Прийняти». Історія операцій збережеться.", "bur_del_zero": "Залишок на складі: 0 {unit} — списувати нічого.", "bur_del_stock": "На складі ще {n} {unit}", "bur_del_wo": "Залишок буде списано: у журнал запишеться операція «Списання» (−{n} {unit}).", "bur_del_reason": "Причина списання (необовʼязково)", "bur_del_reason_ph": "Наприклад: пересорт, брак, інвентаризація", "bur_del_do": "Видалити", "bur_del_do_wo": "Списати {n} {unit} і видалити", "bur_del_changed": "Залишок змінився: тепер {n} {unit}. Перевірте й підтвердьте ще раз.", "bur_del_gone": "Позицію вже видалено з цього складу", "bur_deleted": "Видалено зі складу: {code}", "bur_deleted_wo": "Видалено: {code}, списано {n} {unit} ({id})", "bur_del_mv_note": "Видалення позиції зі складу", "mm_t_writeoff": "Списання"});
         Object.assign(TR.pl, {"bur_del": "Usuń z magazynu", "bur_del_title": "Usuń pozycję z magazynu", "bur_del_q": "Usunąć „{name}” z materiałów biurowych magazynu {wh}?", "bur_del_note": "Karta w Material Master i rekordy innych magazynów nie są usuwane — pozycję można ponownie przyjąć przez „📥 Przyjmij”. Historia operacji zostaje.", "bur_del_zero": "Stan w magazynie: 0 {unit} — nie ma czego odpisywać.", "bur_del_stock": "W magazynie jest jeszcze {n} {unit}", "bur_del_wo": "Stan zostanie odpisany: w dzienniku pojawi się operacja „Odpis” (−{n} {unit}).", "bur_del_reason": "Powód odpisu (opcjonalnie)", "bur_del_reason_ph": "Np. pomyłka, wada, inwentaryzacja", "bur_del_do": "Usuń", "bur_del_do_wo": "Odpisz {n} {unit} i usuń", "bur_del_changed": "Stan się zmienił: teraz {n} {unit}. Sprawdź i potwierdź ponownie.", "bur_del_gone": "Pozycja została już usunięta z tego magazynu", "bur_deleted": "Usunięto z magazynu: {code}", "bur_deleted_wo": "Usunięto: {code}, odpisano {n} {unit} ({id})", "bur_del_mv_note": "Usunięcie pozycji z magazynu", "mm_t_writeoff": "Odpis"});
         Object.assign(TR.en, {"bur_del": "Remove from warehouse", "bur_del_title": "Remove item from warehouse", "bur_del_q": "Remove “{name}” from office supplies of warehouse {wh}?", "bur_del_note": "The Material Master card and other warehouses’ records are kept — the item can be received again via “📥 Receive”. Operation history is kept.", "bur_del_zero": "Stock in this warehouse: 0 {unit} — nothing to write off.", "bur_del_stock": "{n} {unit} still in stock", "bur_del_wo": "The stock will be written off: a “Write-off” operation (−{n} {unit}) is added to the journal.", "bur_del_reason": "Write-off reason (optional)", "bur_del_reason_ph": "E.g. mix-up, defect, stocktake", "bur_del_do": "Remove", "bur_del_do_wo": "Write off {n} {unit} and remove", "bur_del_changed": "Stock has changed: now {n} {unit}. Please check and confirm again.", "bur_del_gone": "The item was already removed from this warehouse", "bur_deleted": "Removed from warehouse: {code}", "bur_deleted_wo": "Removed: {code}, written off {n} {unit} ({id})", "bur_del_mv_note": "Item removed from warehouse", "mm_t_writeoff": "Write-off"});
+        // Единица измерения в Material Master
+        Object.assign(TR.ru, { mmc_unit_other: '✎ Своя единица…', mmc_unit_custom_ph: 'Например: лист, метр, бутылка', mmc_err_unit: 'Укажите единицу измерения', mmc_unit_warn: 'Остатки на складах не пересчитываются: то же количество будет показано в новой единице (например, 10 шт. → 10 упак.).',
+            mmc_u_pcs: 'штуки', mmc_u_pack: 'упаковка', mmc_u_bundle: 'пачка', mmc_u_box: 'коробка', mmc_u_pair: 'пара', mmc_u_roll: 'рулон' });
+        Object.assign(TR.uk, { mmc_f_unit: 'Одиниця виміру', mmc_col_unit: 'Од. виміру', mmc_unit_other: '✎ Своя одиниця…', mmc_unit_custom_ph: 'Наприклад: аркуш, метр, пляшка', mmc_err_unit: 'Вкажіть одиницю виміру', mmc_unit_warn: 'Залишки на складах не перераховуються: та сама кількість показуватиметься в новій одиниці (наприклад, 10 шт. → 10 упак.).',
+            mmc_u_pcs: 'штуки', mmc_u_pack: 'упаковка', mmc_u_bundle: 'пачка', mmc_u_box: 'коробка', mmc_u_pair: 'пара', mmc_u_roll: 'рулон' });
+        Object.assign(TR.pl, { mmc_f_unit: 'Jednostka miary', mmc_col_unit: 'J.m.', mmc_unit_other: '✎ Własna jednostka…', mmc_unit_custom_ph: 'Np. arkusz, metr, butelka', mmc_err_unit: 'Podaj jednostkę miary', mmc_unit_warn: 'Stany magazynowe nie są przeliczane: ta sama ilość będzie pokazana w nowej jednostce.',
+            mmc_u_pcs: 'sztuki', mmc_u_pack: 'opakowanie', mmc_u_bundle: 'paczka', mmc_u_box: 'pudełko', mmc_u_pair: 'para', mmc_u_roll: 'rolka' });
+        Object.assign(TR.en, { mmc_unit_other: '✎ Custom unit…', mmc_unit_custom_ph: 'E.g. sheet, metre, bottle', mmc_err_unit: 'Enter the unit of measure', mmc_unit_warn: 'Stock is not converted: the same quantity will be shown in the new unit (e.g. 10 pcs → 10 packs).',
+            mmc_u_pcs: 'pieces', mmc_u_pack: 'package', mmc_u_bundle: 'bundle', mmc_u_box: 'box', mmc_u_pair: 'pair', mmc_u_roll: 'roll' });
+        const MMC_UNIT_HINT = { 'шт.': 'mmc_u_pcs', 'упак.': 'mmc_u_pack', 'пачка': 'mmc_u_bundle', 'коробка': 'mmc_u_box', 'пара': 'mmc_u_pair', 'рулон': 'mmc_u_roll' };
+        const mmcUnitBadge = u => `<span class="inline-flex items-center rounded-md border border-solid border-klt-line bg-klt-bg px-1.5 py-0.5 text-[11px] font-semibold leading-tight text-slate-200" title="${cmpAttr(t('mmc_f_unit'))}">${escapeHtml(burResolveUnit(u))}</span>`;
         // Категории в Material Master: выбор в карточке, создание прямо из формы, управление кнопкой «Категории»
         Object.assign(TR.ru, {
             mmc_f_cat: 'Категория', mmc_cat_pick: '— Выберите категорию —', mmc_err_cat: 'Выберите категорию', mmc_col_name_cat: 'Наименование / Категория',
@@ -3468,7 +3488,7 @@
         const mmcDocId = code => normCode(code).replace(/\//g, '_');
         const mmcFromDoc = d => {
             const x = d.data();
-            return { id: d.id, sku: normCode(x.sku || x.code || d.id), name: String(x.name || ''), category: burCatSafe(x.category), unit: String(x.unit || 'шт'), image: x.image || '', description: burCleanText(x.description) };
+            return { id: d.id, sku: normCode(x.sku || x.code || d.id), name: String(x.name || ''), category: burCatSafe(x.category), unit: burResolveUnit(x.unit), image: x.image || '', description: burCleanText(x.description) };
         };
         function mmcSet(list) { mmcItems = list; mmcByCode.clear(); list.forEach(x => mmcByCode.set(normCode(x.sku), x)); }
         async function mmcLoad() {
@@ -3560,7 +3580,7 @@
                     <button type="button" id="mmc-d-ok" disabled class="cursor-pointer rounded-lg border-0 bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40">${t('mmc_del_do')}</button></div>`);
             const err = m.$('#mmc-d-err'), ok = m.$('#mmc-d-ok');
             const inStock = snaps => snaps.map(d => ({ wh: String(d.data().warehouse || d.id.split('__')[0]), qty: Math.max(0, Number(d.data().qty) || 0) })).filter(x => x.qty > 0);
-            const listOf = busy => busy.map(x => `${x.wh} — ${x.qty} ${it.unit || 'шт'}`).join(', ');
+            const listOf = busy => busy.map(x => `${x.wh} — ${x.qty} ${burResolveUnit(it.unit)}`).join(', ');
             const showErr = html => { err.className = 'mt-3 min-h-[18px] text-xs font-semibold text-red-300'; err.innerHTML = html; };
             let stockRefs = [];
             m.$('#mmc-d-cancel').onclick = m.close;
@@ -3610,6 +3630,10 @@
                             <input id="mmc-f-nname" type="text" maxlength="40" autocomplete="off" placeholder="${cmpAttr(t('mmc_cat_new_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
                             <button type="button" id="mmc-f-nadd" class="${CMP_BTN_MAIN} shrink-0">${t('cmp_cat_add')}</button>
                         </div></div>
+                    <div><label class="${CMP_LBL}" for="mmc-f-unit">${t('mmc_f_unit')}</label>
+                        <select id="mmc-f-unit" class="cursor-pointer ${CMP_FLD}"></select>
+                        <input id="mmc-f-ucustom" type="text" maxlength="20" autocomplete="off" placeholder="${cmpAttr(t('mmc_unit_custom_ph'))}" class="${CMP_FLD} mt-2 hidden">
+                        ${edit ? `<p id="mmc-f-uwarn" class="mb-0 mt-1.5 hidden text-xs text-klt-orange-light">⚠ ${t('mmc_unit_warn')}</p>` : ''}</div>
                     <div><label class="${CMP_LBL}" for="mmc-f-desc">${t('mmc_f_desc')}</label><textarea id="mmc-f-desc" rows="5" class="${CMP_FLD} resize-y" style="white-space:pre-wrap;overflow-wrap:anywhere">${edit ? escapeHtml(it.description) : ''}</textarea></div>
                     <div><label class="${CMP_LBL}">${t('bur_f_img')}</label>
                         <div class="flex items-center gap-3">
@@ -3643,6 +3667,18 @@
                 lastCat = c.id; fillCats(c.id); $('#mmc-f-nname').value = ''; showNew(false); err.textContent = '';
             };
             $('#mmc-f-nadd').onclick = addCat;
+            // Единица измерения: готовые варианты + «Своя единица…» (поле ввода). Новый товар — 'шт.' по умолчанию.
+            const unitSel = $('#mmc-f-unit'), unitCustom = $('#mmc-f-ucustom');
+            const curUnit = edit ? burResolveUnit(it.unit) : 'шт.', isPreset = BUR_UNITS.includes(curUnit);
+            unitSel.innerHTML = BUR_UNITS.map(u => `<option value="${cmpAttr(u)}" ${u === curUnit ? 'selected' : ''}>${escapeHtml(u)} (${escapeHtml(t(MMC_UNIT_HINT[u]))})</option>`).join('') +
+                `<option value="__other__" ${isPreset ? '' : 'selected'}>${escapeHtml(t('mmc_unit_other'))}</option>`;
+            const showCustom = on => { unitCustom.classList.toggle('hidden', !on); if (on) unitCustom.focus(); };
+            if (!isPreset) { unitCustom.value = curUnit; unitCustom.classList.remove('hidden'); }
+            const readUnit = () => unitSel.value === '__other__' ? unitCustom.value.replace(/\s+/g, ' ').trim() : unitSel.value;
+            // при смене единицы у существующего товара предупреждаем: остатки — те же числа, пересчёта нет
+            const unitWarn = () => { const w = $('#mmc-f-uwarn'); if (w) { const u = readUnit(); w.classList.toggle('hidden', !u || burResolveUnit(u) === curUnit); } };
+            unitSel.onchange = () => { showCustom(unitSel.value === '__other__'); err.textContent = ''; unitWarn(); };
+            unitCustom.addEventListener('input', unitWarn);
             $('#mmc-f-nname').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addCat(); } });
             const prev = src => { $('#mmc-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
             prev(edit ? cmpSafeImg(it.image) : '');
@@ -3662,6 +3698,9 @@
                 if (!name) { err.textContent = t('cmp_err_name'); return; }
                 const category = catSel.value;
                 if (!category || category === '__new__' || !burCats.some(c => c.id === category)) { err.textContent = t('mmc_err_cat'); catSel.focus(); return; }
+                const unitRaw = readUnit();
+                if (!unitRaw) { err.textContent = t('mmc_err_unit'); unitCustom.focus(); return; }
+                const unit = burResolveUnit(unitRaw);
                 if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
                 const image = fileImg || url || '';
                 okBtn.disabled = true; err.textContent = '';
@@ -3670,9 +3709,10 @@
                         const ch = [];
                         if (name !== it.name) ch.push(`название «${it.name}» → «${name}»`);
                         if (category !== it.category) ch.push(`категория ${burCatName(it.category)} → ${burCatName(category)}`);
+                        if (unit !== burResolveUnit(it.unit)) ch.push(`ед. изм. ${burResolveUnit(it.unit)} → ${unit}`);
                         if (desc !== it.description) ch.push('описание');
                         if (image !== it.image) ch.push('фото');
-                        const upd = { name, category, image, description: desc };
+                        const upd = { name, category, unit, image, description: desc };
                         if (sku !== normCode(it.sku)) {   // смена кода: перенос карточки и остатков + правки паспорта — одной транзакцией
                             const old = it.sku;
                             await mmcRenameCode(old, sku, upd);
@@ -3688,11 +3728,11 @@
                     }
                     const id = mmcDocId(sku), ref = doc(db, 'material_catalog', id);
                     if ((await getDoc(ref)).exists()) { err.textContent = t('mmc_err_dup'); okBtn.disabled = false; return; }
-                    const now = Date.now(), data = { sku, name, category, unit: 'шт', image, description: desc, createdAt: now, updatedAt: now, updatedBy: currentUserName };
+                    const now = Date.now(), data = { sku, name, category, unit, image, description: desc, createdAt: now, updatedAt: now, updatedBy: currentUserName };
                     await setDoc(ref, data);
                     const made = mmcFromDoc({ id, data: () => data });
                     mmcSet(mmcItems.concat(made));
-                    logActivity('mm_create', `Material Master: создан Material Code ${sku} «${name}», категория «${burCatName(category)}»`);
+                    logActivity('mm_create', `Material Master: создан Material Code ${sku} «${name}», категория «${burCatName(category)}», ед. изм. ${unit}`);
                     m.close(); burRedraw(); cmpToast(t('mmc_created'), 'ok'); if (onSaved) onSaved(made);
                 } catch (e) { console.error(e); err.innerHTML = mmcErrText(e); okBtn.disabled = false; }
             };
@@ -3752,7 +3792,7 @@
                     <div class="min-w-0 flex-1">
                         <div class="text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
                         <div class="mt-1.5">${burCatBadge(it.category)}</div>
-                        <div class="mt-1 font-mono text-xs text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</div>
+                        <div class="mt-1 flex flex-wrap items-center gap-2"><span class="font-mono text-xs text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</span>${mmcUnitBadge(it.unit)}</div>
                     </div>
                     <span class="flex shrink-0">${editBtn(it)}</span>
                 </div>
@@ -3761,14 +3801,15 @@
             const table = list => {
                 const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
                 const td = 'border-b border-solid border-klt-line px-3 py-3 align-top text-slate-50';
-                return `<div class="overflow-x-auto"><table class="w-full min-w-[820px] border-collapse text-[13px]">
-                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name_cat')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-24"></th></tr></thead>
+                return `<div class="overflow-x-auto"><table class="w-full min-w-[900px] border-collapse text-[13px]">
+                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name_cat')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-24">${t('mmc_col_unit')}</th><th class="${th} w-24"></th></tr></thead>
                     <tbody>${list.map((it, i) => `<tr class="transition hover:bg-klt-hover">
                         <td class="${td} text-klt-muted">${i + 1}</td>
                         <td class="${td}">${mmcPhoto(it)}</td>
                         <td class="${td}"><div class="font-semibold" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><div class="mt-1.5">${burCatBadge(it.category)}</div></td>
                         <td class="${td}">${burDescHtml(it, 'text-xs leading-snug text-klt-muted') || '<span class="text-klt-muted">—</span>'}</td>
                         <td class="${td} font-mono text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</td>
+                        <td class="${td}">${mmcUnitBadge(it.unit)}</td>
                         <td class="${td} text-right">${editBtn(it)}</td></tr>`).join('')}</tbody></table></div>`;
             };
             function drawChrome() {
@@ -3777,7 +3818,7 @@
             }
             function drawList() {
                 const q = mmcQuery.trim().toLowerCase();
-                const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q) || burCatName(x.category).toLowerCase().includes(q))
+                const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q) || burCatName(x.category).toLowerCase().includes(q) || x.unit.toLowerCase() === q)
                     .sort((a, b) => a.sku.localeCompare(b.sku, 'ru', { numeric: true }));
                 $('mmc-count').textContent = fmt(t('mmc_count'), { n: list.length });
                 if (!list.length) {
