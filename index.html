@@ -3342,6 +3342,33 @@
             mmc_code_note: 'При смене Material Code карточка и остатки на всех складах переносятся на новый код. В истории операций остаётся прежний код.',
             mmc_err_dup_stock: 'На складе {wh} уже есть запись с кодом {code} — смена кода отменена', mmc_code_changed: 'Material Code изменён: {old} → {code}'
         });
+        // Категории в Material Master: выбор в карточке, создание прямо из формы, управление кнопкой «Категории»
+        Object.assign(TR.ru, {
+            mmc_f_cat: 'Категория', mmc_cat_pick: '— Выберите категорию —', mmc_err_cat: 'Выберите категорию', mmc_col_name_cat: 'Наименование / Категория',
+            mmc_cat_new_ph: 'Название новой категории', mmc_cats_btn: 'Категории', mmc_cat_all: 'Все',
+            bur_cats_from_mm: 'Категории назначаются в Material Master'
+        });
+        Object.assign(TR.uk, {
+            mmc_f_cat: 'Категорія', mmc_cat_pick: '— Оберіть категорію —', mmc_err_cat: 'Оберіть категорію', mmc_col_name_cat: 'Найменування / Категорія',
+            mmc_cat_new_ph: 'Назва нової категорії', mmc_cats_btn: 'Категорії', mmc_cat_all: 'Усі', bur_cat_new_inline: '＋ Нова категорія',
+            bur_cats_title: 'Категорії бюро-матеріалів', bur_cats_from_mm: 'Категорії призначаються в Material Master'
+        });
+        Object.assign(TR.en, {
+            mmc_f_cat: 'Category', mmc_cat_pick: '— Choose a category —', mmc_err_cat: 'Choose a category', mmc_col_name_cat: 'Name / Category',
+            mmc_cat_new_ph: 'New category name', mmc_cats_btn: 'Categories', mmc_cat_all: 'All',
+            bur_cats_from_mm: 'Categories are assigned in Material Master'
+        });
+        Object.assign(TR.pl, {
+            mmc_f_cat: 'Kategoria', mmc_cat_pick: '— Wybierz kategorię —', mmc_err_cat: 'Wybierz kategorię', mmc_col_name_cat: 'Nazwa / Kategoria',
+            mmc_cat_new_ph: 'Nazwa nowej kategorii', mmc_cats_btn: 'Kategorie', mmc_cat_all: 'Wszystkie', bur_cat_new_inline: '＋ Nowa kategoria',
+            bur_cats_from_mm: 'Kategorie przypisuje się w Material Master'
+        });
+        // Цветной бейдж категории: оттенок стабильно вычисляется из id категории (одна категория — всегда один цвет)
+        function burCatBadge(id) {
+            const c = burCatById(id), key = c ? c.id : String(id || '');
+            let h = 0; for (const ch of key) h = (h * 31 + ch.codePointAt(0)) % 360;
+            return `<span class="inline-flex max-w-full items-center gap-1 rounded-full border border-solid px-2 py-0.5 text-[11px] font-semibold leading-tight" style="color:hsl(${h} 75% 74%);border-color:hsl(${h} 60% 55% / .45);background:hsl(${h} 60% 50% / .14);overflow-wrap:anywhere">${c ? c.icon : '🏷️'} ${escapeHtml(burCatName(id))}</span>`;
+        }
         Object.assign(TR.uk, {
             mmc_del: 'Видалити', mmc_del_title: 'Видалити товар з Material Master', mmc_del_q: 'Видалити картку «{name}» ({code})? Дію не можна скасувати.',
             mmc_del_note: 'Історія операцій збережеться. Порожні складські записи цього коду (залишок 0) буде видалено разом із карткою.',
@@ -3500,6 +3527,13 @@
                 <div class="grid gap-3.5">
                     <div><label class="${CMP_LBL}" for="mmc-f-code">${t('mmc_f_code')}</label><input id="mmc-f-code" type="text" autocomplete="off" value="${cmpAttr(edit ? it.sku : (presetCode || ''))}" placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono"></div>
                     <div><label class="${CMP_LBL}" for="mmc-f-name">${t('mmc_f_name')}</label><input id="mmc-f-name" type="text" autocomplete="off" value="${edit ? cmpAttr(it.name) : ''}" class="${CMP_FLD}"></div>
+                    <div><label class="${CMP_LBL}" for="mmc-f-cat">${t('mmc_f_cat')}</label>
+                        <select id="mmc-f-cat" class="cursor-pointer ${CMP_FLD}"></select>
+                        <div id="mmc-f-newcat" class="mt-2 hidden gap-2">
+                            <input id="mmc-f-nicon" type="text" value="🏷️" aria-label="${cmpAttr(t('cmp_cat_icon'))}" style="width:4rem" class="${CMP_FLD} shrink-0 text-center">
+                            <input id="mmc-f-nname" type="text" maxlength="40" autocomplete="off" placeholder="${cmpAttr(t('mmc_cat_new_ph'))}" class="${CMP_FLD} min-w-0 flex-1">
+                            <button type="button" id="mmc-f-nadd" class="${CMP_BTN_MAIN} shrink-0">${t('cmp_cat_add')}</button>
+                        </div></div>
                     <div><label class="${CMP_LBL}" for="mmc-f-desc">${t('mmc_f_desc')}</label><textarea id="mmc-f-desc" rows="5" class="${CMP_FLD} resize-y" style="white-space:pre-wrap;overflow-wrap:anywhere">${edit ? escapeHtml(it.description) : ''}</textarea></div>
                     <div><label class="${CMP_LBL}">${t('bur_f_img')}</label>
                         <div class="flex items-center gap-3">
@@ -3514,6 +3548,26 @@
                 <div id="mmc-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="mmc-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="mmc-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
             const $ = m.$, err = $('#mmc-f-err');
+            // Категория: активные категории + текущая (если она уже в архиве) + пункт «＋ Новая категория»
+            const catSel = $('#mmc-f-cat'), newRow = $('#mmc-f-newcat');
+            const fillCats = sel => {
+                const list = burActiveCats().slice();
+                if (sel && !list.some(c => c.id === sel)) { const c = burCats.find(x => x.id === sel); if (c) list.push(c); }
+                catSel.innerHTML = `<option value="" ${sel ? '' : 'selected'} disabled>${escapeHtml(t('mmc_cat_pick'))}</option>` +
+                    list.map(c => `<option value="${cmpAttr(c.id)}" ${c.id === sel ? 'selected' : ''}>${c.icon} ${escapeHtml(c.name)}</option>`).join('') +
+                    `<option value="__new__">${escapeHtml(t('bur_cat_new_inline'))}</option>`;
+            };
+            const showNew = on => { newRow.classList.toggle('hidden', !on); newRow.classList.toggle('flex', on); if (on) $('#mmc-f-nname').focus(); };
+            let lastCat = edit ? it.category : '';
+            fillCats(lastCat);
+            catSel.onchange = () => { if (catSel.value === '__new__') showNew(true); else { lastCat = catSel.value; showNew(false); err.textContent = ''; } };
+            const addCat = async () => {
+                const c = await burAddCat($('#mmc-f-nname').value, $('#mmc-f-nicon').value);
+                if (!c) return;
+                lastCat = c.id; fillCats(c.id); $('#mmc-f-nname').value = ''; showNew(false); err.textContent = '';
+            };
+            $('#mmc-f-nadd').onclick = addCat;
+            $('#mmc-f-nname').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addCat(); } });
             const prev = src => { $('#mmc-f-prev').innerHTML = src ? `<img src="${cmpAttr(src)}" alt="" class="h-full w-full object-cover" onerror="this.remove()">` : `<span class="absolute inset-0 flex items-center justify-center text-2xl opacity-40">🖼️</span>`; };
             prev(edit ? cmpSafeImg(it.image) : '');
             $('#mmc-f-file').onchange = async e => {
@@ -3530,6 +3584,8 @@
                 const desc = burCleanText($('#mmc-f-desc').value).replace(/\r\n?/g, '\n').trim();
                 if (!sku) { err.textContent = t('mmc_err_code'); return; }
                 if (!name) { err.textContent = t('cmp_err_name'); return; }
+                const category = catSel.value;
+                if (!category || category === '__new__' || !burCats.some(c => c.id === category)) { err.textContent = t('mmc_err_cat'); catSel.focus(); return; }
                 if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
                 const image = fileImg || url || '';
                 okBtn.disabled = true; err.textContent = '';
@@ -3537,9 +3593,10 @@
                     if (edit) {
                         const ch = [];
                         if (name !== it.name) ch.push(`название «${it.name}» → «${name}»`);
+                        if (category !== it.category) ch.push(`категория ${burCatName(it.category)} → ${burCatName(category)}`);
                         if (desc !== it.description) ch.push('описание');
                         if (image !== it.image) ch.push('фото');
-                        const upd = { name, image, description: desc };
+                        const upd = { name, category, image, description: desc };
                         if (sku !== normCode(it.sku)) {   // смена кода: перенос карточки и остатков + правки паспорта — одной транзакцией
                             const old = it.sku;
                             await mmcRenameCode(old, sku, upd);
@@ -3555,11 +3612,11 @@
                     }
                     const id = mmcDocId(sku), ref = doc(db, 'material_catalog', id);
                     if ((await getDoc(ref)).exists()) { err.textContent = t('mmc_err_dup'); okBtn.disabled = false; return; }
-                    const now = Date.now(), data = { sku, name, unit: 'шт', image, description: desc, createdAt: now, updatedAt: now, updatedBy: currentUserName };
+                    const now = Date.now(), data = { sku, name, category, unit: 'шт', image, description: desc, createdAt: now, updatedAt: now, updatedBy: currentUserName };
                     await setDoc(ref, data);
                     const made = mmcFromDoc({ id, data: () => data });
                     mmcSet(mmcItems.concat(made));
-                    logActivity('mm_create', `Material Master: создан Material Code ${sku} «${name}»`);
+                    logActivity('mm_create', `Material Master: создан Material Code ${sku} «${name}», категория «${burCatName(category)}»`);
                     m.close(); burRedraw(); cmpToast(t('mmc_created'), 'ok'); if (onSaved) onSaved(made);
                 } catch (e) { console.error(e); err.innerHTML = mmcErrText(e); okBtn.disabled = false; }
             };
@@ -3600,6 +3657,7 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div id="mmc-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="mmc-cats" class="${CMP_BTN} text-[13px]">⚙️ ${t('mmc_cats_btn')}</button>
                         <button type="button" id="mmc-new" class="${CMP_BTN_MAIN}">${t('mmc_create')}</button>
                     </div>
                 </div>
@@ -3617,6 +3675,7 @@
                     ${mmcPhoto(it)}
                     <div class="min-w-0 flex-1">
                         <div class="text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
+                        <div class="mt-1.5">${burCatBadge(it.category)}</div>
                         <div class="mt-1 font-mono text-xs text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</div>
                     </div>
                     <span class="flex shrink-0">${editBtn(it)}</span>
@@ -3627,11 +3686,11 @@
                 const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
                 const td = 'border-b border-solid border-klt-line px-3 py-3 align-top text-slate-50';
                 return `<div class="overflow-x-auto"><table class="w-full min-w-[820px] border-collapse text-[13px]">
-                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-24"></th></tr></thead>
+                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name_cat')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-24"></th></tr></thead>
                     <tbody>${list.map((it, i) => `<tr class="transition hover:bg-klt-hover">
                         <td class="${td} text-klt-muted">${i + 1}</td>
                         <td class="${td}">${mmcPhoto(it)}</td>
-                        <td class="${td} font-semibold" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</td>
+                        <td class="${td}"><div class="font-semibold" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><div class="mt-1.5">${burCatBadge(it.category)}</div></td>
                         <td class="${td}">${burDescHtml(it, 'text-xs leading-snug text-klt-muted') || '<span class="text-klt-muted">—</span>'}</td>
                         <td class="${td} font-mono text-klt-emerald-light" style="overflow-wrap:anywhere">${escapeHtml(it.sku)}</td>
                         <td class="${td} text-right">${editBtn(it)}</td></tr>`).join('')}</tbody></table></div>`;
@@ -3642,7 +3701,7 @@
             }
             function drawList() {
                 const q = mmcQuery.trim().toLowerCase();
-                const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q))
+                const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q) || burCatName(x.category).toLowerCase().includes(q))
                     .sort((a, b) => a.sku.localeCompare(b.sku, 'ru', { numeric: true }));
                 $('mmc-count').textContent = fmt(t('mmc_count'), { n: list.length });
                 if (!list.length) {
@@ -3666,8 +3725,9 @@
             });
             $('mmc-search').addEventListener('input', e => { mmcQuery = e.target.value; drawList(); });
             $('mmc-new').onclick = () => mmcOpenForm();
+            $('mmc-cats').onclick = () => burOpenCats();   // управление категориями — только здесь; «Бюро-материалы» их лишь фильтруют
             drawChrome();
-            try { await burLoadCats(); await mmcLoad(); }   // категории грузятся только для совместимости данных с «Бюро-материалами», в UI Material Master не используются
+            try { await burLoadCats(); await mmcLoad(); }   // категории грузим до карточек: бейджи и выбор категории в форме
             catch (e) {
                 console.error(e);
                 if (wrap.isConnected) $('mmc-list').innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('mmc_load_err')}</div>`;
@@ -3708,11 +3768,14 @@
                     const on = burCat === id;
                     return `<button type="button" data-bur-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
                 };
-                const cats = burActiveCats();
-                if (burCat !== 'all' && !cats.some(c => c.id === burCat)) burCat = 'all';
+                // Только фильтр: чипсы — категории, которые есть у товаров этого склада (берутся из карточек Material Master).
+                // Создавать/менять категории здесь нельзя — это делается в Material Master.
+                const n = new Map(); burItems.forEach(x => n.set(x.category, (n.get(x.category) || 0) + 1));
+                const cats = burCats.filter(c => n.has(c.id));
+                if (burCat !== 'all' && !n.has(burCat)) burCat = 'all';
                 $('bur-chips').innerHTML = chip('all', t('bur_cat_all'), burItems.length) +
-                    cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)}`, burItems.filter(x => x.category === c.id).length)).join('') +
-                    `<button type="button" data-bur-act="cats" class="${CMP_BTN} rounded-full px-3.5 py-1.5 text-[13px]">⚙️ ${t('cmp_cats_btn')}</button>`;
+                    cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)}`, n.get(c.id))).join('') +
+                    `<span class="ml-1 text-[11px] text-klt-muted">ℹ️ ${t('bur_cats_from_mm')}</span>`;
             }
             function drawList() {
                 const q = burQuery.trim().toLowerCase();
@@ -3749,7 +3812,6 @@
                 const b = e.target.closest('[data-bur-act]');
                 if (!b || b.disabled) return;
                 const a = b.dataset.burAct;
-                if (a === 'cats') { burOpenCats(); return; }
                 if (a === 'cart') { burOpenCart(); return; }
                 const it = burItems.find(x => x.id === b.dataset.id); if (!it) return;
                 if (a === 'edit') burOpenLimit(it);
