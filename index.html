@@ -2577,7 +2577,7 @@
                 <div id="mm-body" class="max-h-[58vh] overflow-auto rounded-xl border border-solid border-klt-line"></div>`, 'xl');
             const th = 'sticky top-0 whitespace-nowrap border-b border-solid border-klt-line bg-klt-card px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
             const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-top text-slate-50';
-            const typeCls = { receipt: 'bg-klt-emerald/15 text-klt-emerald-light', issue: 'bg-blue-500/15 text-blue-300', adjust: 'bg-klt-orange/15 text-klt-orange-light' };
+            const typeCls = { receipt: 'bg-klt-emerald/15 text-klt-emerald-light', issue: 'bg-blue-500/15 text-blue-300', adjust: 'bg-klt-orange/15 text-klt-orange-light', writeoff: 'bg-red-500/15 text-red-300' };
             const drawSeg = () => {
                 m.$('#mm-seg').innerHTML = [['today', 'mm_p_today'], ['week', 'mm_p_week'], ['all', 'mm_p_all']].map(([k, l]) =>
                     `<button type="button" data-p="${k}" aria-pressed="${period === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${period === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${t(l)}</button>`).join('');
@@ -2763,6 +2763,8 @@
                 (img ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-full w-full object-cover">` : '');
         }
         const burEditBtn = it => `<button type="button" data-bur-act="edit" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('cmp_edit'))}" aria-label="${cmpAttr(t('cmp_edit'))}" class="${CMP_ICO}">✏️</button>`;
+        // 🗑 Точечное удаление позиции со склада (паспорт в Material Master не трогаем)
+        const burDelBtn = it => `<button type="button" data-bur-act="del" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('bur_del'))}" aria-label="${cmpAttr(t('bur_del'))}" class="${CMP_ICO} hover:border-red-400">🗑</button>`;
         const burDescHtml = (it, cls) => {
             const d = burCleanText(it.description).trim();
             return d ? `<p class="m-0 ${cls}" style="white-space:pre-line;overflow-wrap:anywhere;word-break:normal">${escapeHtml(d)}</p>` : '';
@@ -2771,7 +2773,7 @@
             burCartEnsure();
             const id = cmpAttr(it.id), n = burCart.get(it.id) || 0;
             return `<div class="flex flex-wrap items-center gap-2 ${compact ? 'justify-end' : 'mt-4'}">
-                ${compact ? burEditBtn(it) : ''}
+                ${compact ? burEditBtn(it) + burDelBtn(it) : ''}
                 <button type="button" data-bur-act="order" data-id="${id}" class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'} ${it.qty <= 0 ? 'opacity-60' : ''}">${n ? fmt(t('bur_in_order'), { n }) : t('bur_to_order')}</button>
             </div>`;
         }
@@ -2783,7 +2785,7 @@
                     ${tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t(tn.zero ? 'bur_out' : 'bur_low')}</span>` : ''}
                 </div>
                 <div class="flex flex-1 flex-col p-4">
-                    <div class="flex items-start gap-2"><div class="min-w-0 flex-1 text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><span class="flex shrink-0">${burEditBtn(it)}</span></div>
+                    <div class="flex items-start gap-2"><div class="min-w-0 flex-1 text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><span class="flex shrink-0 gap-1.5">${burEditBtn(it)}${burDelBtn(it)}</span></div>
                     <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
                         <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span>
                     </div>
@@ -3213,6 +3215,75 @@
             };
         }
 
+        // Точечное удаление позиции из «Бюро-материалов» ТЕКУЩЕГО склада: удаляется только складская запись
+        // material_master/{WH}__{SKU}. Паспорт в Material Master (material_catalog) и записи других складов остаются,
+        // позицию можно снова принять через «📥 Принять». Если остаток > 0, он списывается: в material_movements
+        // пишется операция type:'writeoff' (WRITEOFF-…, delta = −остаток) в той же транзакции, что и удаление,
+        // поэтому журнал сходится: Σ(приход) − Σ(выдача) − Σ(списание) = 0 для удалённой позиции.
+        // Остаток перечитывается внутри транзакции; если он изменился с момента открытия окна — удаление не выполняется,
+        // окно показывает новый остаток и просит подтвердить ещё раз.
+        function burOpenRemove(it) {
+            let shown = it.qty, busy = false;
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-red-300">🗑 ${t('bur_del_title')} <span class="ml-1 rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                <div class="mt-3 flex gap-3 rounded-xl border border-solid border-klt-line bg-klt-bg p-3">
+                    <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-klt-card">${burPhoto(it, 'text-xl')}</div>
+                    <div class="min-w-0 flex-1"><div class="text-sm font-bold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><div class="mt-0.5 font-mono text-xs text-klt-emerald-light">${escapeHtml(it.sku)}</div></div>
+                </div>
+                <p class="mb-2 mt-3 text-sm text-slate-50">${fmt(t('bur_del_q'), { name: escapeHtml(it.name), wh: escapeHtml(currentWarehouse) })}</p>
+                <div id="bur-d-stock"></div>
+                <p class="m-0 mt-2 text-xs text-klt-muted">${t('bur_del_note')}</p>
+                <div id="bur-d-err" class="mt-3 min-h-[18px] text-xs font-semibold text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-d-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button>
+                    <button type="button" id="bur-d-ok" class="cursor-pointer rounded-lg border-0 bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40"></button></div>`);
+            const $ = m.$, err = $('#bur-d-err'), ok = $('#bur-d-ok');
+            const drawStock = () => {
+                $('#bur-d-stock').innerHTML = shown > 0
+                    ? `<div class="rounded-xl border border-solid border-klt-orange/60 bg-klt-orange/10 px-3.5 py-3 text-sm text-klt-orange-light">
+                        <div class="font-bold">⚠ ${fmt(t('bur_del_stock'), { n: shown, unit: escapeHtml(it.unit) })}</div>
+                        <div class="mt-1 text-xs">${fmt(t('bur_del_wo'), { n: shown, unit: escapeHtml(it.unit) })}</div>
+                        <label class="${CMP_LBL} mt-3" for="bur-d-note">${t('bur_del_reason')}</label>
+                        <input id="bur-d-note" type="text" autocomplete="off" placeholder="${cmpAttr(t('bur_del_reason_ph'))}" class="${CMP_FLD}"></div>`
+                    : `<div class="rounded-xl border border-solid border-klt-line px-3.5 py-2.5 text-sm text-klt-muted">${fmt(t('bur_del_zero'), { unit: escapeHtml(it.unit) })}</div>`;
+                ok.textContent = shown > 0 ? fmt(t('bur_del_do_wo'), { n: shown, unit: it.unit }) : t('bur_del_do');
+            };
+            drawStock();
+            $('#bur-d-cancel').onclick = m.close;
+            ok.onclick = async () => {
+                if (busy) return;
+                const noteEl = $('#bur-d-note'), reason = noteEl ? noteEl.value.trim() : '';
+                busy = true; ok.disabled = true; err.textContent = '';
+                const ref = doc(db, 'material_master', it.id), txRef = doc(collection(db, 'material_movements'));
+                const txId = mmTxId('WRITEOFF'), now = Date.now();
+                try {
+                    const res = await runTransaction(db, async tx => {
+                        const sn = await tx.get(ref);
+                        if (!sn.exists()) return { gone: true };
+                        const fresh = Math.max(0, Number(sn.data().qty) || 0);
+                        if (fresh !== shown) return { changed: true, fresh };   // остаток изменился — нужно новое подтверждение
+                        tx.delete(ref);
+                        if (fresh > 0) tx.set(txRef, {
+                            group: 'bureau', type: 'writeoff', txId,
+                            items: [{ sku: it.sku, name: it.name, unit: it.unit, delta: -fresh }],
+                            note: reason ? `${t('bur_del_mv_note')}: ${reason}` : t('bur_del_mv_note'),
+                            warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: now
+                        });
+                        return { ok: true, fresh };
+                    });
+                    if (res.changed) {
+                        shown = it.qty = res.fresh; drawStock(); burRedraw();
+                        err.textContent = fmt(t('bur_del_changed'), { n: res.fresh, unit: it.unit });
+                        busy = false; ok.disabled = false; return;
+                    }
+                    burItems = burItems.filter(x => x.id !== it.id);
+                    burCartEnsure(); if (burCart.has(it.id)) burCartDel(it.id);   // позиция ушла со склада — убираем её и из корзины выдачи
+                    burLog('delete', `удалена позиция «${it.name}» (${it.sku})${res.fresh > 0 ? `, списан остаток ${res.fresh} ${it.unit} (${txId})` : ''}`);
+                    m.close(); burRedraw();
+                    cmpToast(res.gone ? t('bur_del_gone') : res.fresh > 0 ? fmt(t('bur_deleted_wo'), { code: it.sku, n: res.fresh, unit: it.unit, id: txId }) : fmt(t('bur_deleted'), { code: it.sku }), 'ok');
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); busy = false; ok.disabled = false; }
+            };
+        }
+
         // Архивация категории: позиции (по всем складам) переносим в выбранную; без позиций — сразу в «Хозтовары»
         async function burArchiveCat(c, after) {
             const snap = await getDocs(query(collection(db, 'material_catalog'), where('category', '==', c.id)));
@@ -3342,6 +3413,11 @@
             mmc_code_note: 'При смене Material Code карточка и остатки на всех складах переносятся на новый код. В истории операций остаётся прежний код.',
             mmc_err_dup_stock: 'На складе {wh} уже есть запись с кодом {code} — смена кода отменена', mmc_code_changed: 'Material Code изменён: {old} → {code}'
         });
+        // Точечное удаление позиции в «Бюро-материалах»
+        Object.assign(TR.ru, {"bur_del": "Удалить со склада", "bur_del_title": "Удалить позицию со склада", "bur_del_q": "Убрать «{name}» из бюро-материалов склада {wh}?", "bur_del_note": "Карточка в Material Master и записи других складов не удаляются — позицию можно снова принять через «📥 Принять». История операций сохранится.", "bur_del_zero": "Остаток на складе: 0 {unit} — списывать нечего.", "bur_del_stock": "На складе ещё {n} {unit}", "bur_del_wo": "Остаток будет списан: в журнал запишется операция «Списание» (−{n} {unit}).", "bur_del_reason": "Причина списания (необязательно)", "bur_del_reason_ph": "Например: пересорт, брак, инвентаризация", "bur_del_do": "Удалить", "bur_del_do_wo": "Списать {n} {unit} и удалить", "bur_del_changed": "Остаток изменился: теперь {n} {unit}. Проверьте и подтвердите ещё раз.", "bur_del_gone": "Позиция уже удалена с этого склада", "bur_deleted": "Удалено со склада: {code}", "bur_deleted_wo": "Удалено: {code}, списано {n} {unit} ({id})", "bur_del_mv_note": "Удаление позиции со склада", "mm_t_writeoff": "Списание"});
+        Object.assign(TR.uk, {"bur_del": "Видалити зі складу", "bur_del_title": "Видалити позицію зі складу", "bur_del_q": "Прибрати «{name}» з бюро-матеріалів складу {wh}?", "bur_del_note": "Картка в Material Master і записи інших складів не видаляються — позицію можна знову прийняти через «📥 Прийняти». Історія операцій збережеться.", "bur_del_zero": "Залишок на складі: 0 {unit} — списувати нічого.", "bur_del_stock": "На складі ще {n} {unit}", "bur_del_wo": "Залишок буде списано: у журнал запишеться операція «Списання» (−{n} {unit}).", "bur_del_reason": "Причина списання (необовʼязково)", "bur_del_reason_ph": "Наприклад: пересорт, брак, інвентаризація", "bur_del_do": "Видалити", "bur_del_do_wo": "Списати {n} {unit} і видалити", "bur_del_changed": "Залишок змінився: тепер {n} {unit}. Перевірте й підтвердьте ще раз.", "bur_del_gone": "Позицію вже видалено з цього складу", "bur_deleted": "Видалено зі складу: {code}", "bur_deleted_wo": "Видалено: {code}, списано {n} {unit} ({id})", "bur_del_mv_note": "Видалення позиції зі складу", "mm_t_writeoff": "Списання"});
+        Object.assign(TR.pl, {"bur_del": "Usuń z magazynu", "bur_del_title": "Usuń pozycję z magazynu", "bur_del_q": "Usunąć „{name}” z materiałów biurowych magazynu {wh}?", "bur_del_note": "Karta w Material Master i rekordy innych magazynów nie są usuwane — pozycję można ponownie przyjąć przez „📥 Przyjmij”. Historia operacji zostaje.", "bur_del_zero": "Stan w magazynie: 0 {unit} — nie ma czego odpisywać.", "bur_del_stock": "W magazynie jest jeszcze {n} {unit}", "bur_del_wo": "Stan zostanie odpisany: w dzienniku pojawi się operacja „Odpis” (−{n} {unit}).", "bur_del_reason": "Powód odpisu (opcjonalnie)", "bur_del_reason_ph": "Np. pomyłka, wada, inwentaryzacja", "bur_del_do": "Usuń", "bur_del_do_wo": "Odpisz {n} {unit} i usuń", "bur_del_changed": "Stan się zmienił: teraz {n} {unit}. Sprawdź i potwierdź ponownie.", "bur_del_gone": "Pozycja została już usunięta z tego magazynu", "bur_deleted": "Usunięto z magazynu: {code}", "bur_deleted_wo": "Usunięto: {code}, odpisano {n} {unit} ({id})", "bur_del_mv_note": "Usunięcie pozycji z magazynu", "mm_t_writeoff": "Odpis"});
+        Object.assign(TR.en, {"bur_del": "Remove from warehouse", "bur_del_title": "Remove item from warehouse", "bur_del_q": "Remove “{name}” from office supplies of warehouse {wh}?", "bur_del_note": "The Material Master card and other warehouses’ records are kept — the item can be received again via “📥 Receive”. Operation history is kept.", "bur_del_zero": "Stock in this warehouse: 0 {unit} — nothing to write off.", "bur_del_stock": "{n} {unit} still in stock", "bur_del_wo": "The stock will be written off: a “Write-off” operation (−{n} {unit}) is added to the journal.", "bur_del_reason": "Write-off reason (optional)", "bur_del_reason_ph": "E.g. mix-up, defect, stocktake", "bur_del_do": "Remove", "bur_del_do_wo": "Write off {n} {unit} and remove", "bur_del_changed": "Stock has changed: now {n} {unit}. Please check and confirm again.", "bur_del_gone": "The item was already removed from this warehouse", "bur_deleted": "Removed from warehouse: {code}", "bur_deleted_wo": "Removed: {code}, written off {n} {unit} ({id})", "bur_del_mv_note": "Item removed from warehouse", "mm_t_writeoff": "Write-off"});
         // Категории в Material Master: выбор в карточке, создание прямо из формы, управление кнопкой «Категории»
         Object.assign(TR.ru, {
             mmc_f_cat: 'Категория', mmc_cat_pick: '— Выберите категорию —', mmc_err_cat: 'Выберите категорию', mmc_col_name_cat: 'Наименование / Категория',
@@ -3815,6 +3891,7 @@
                 if (a === 'cart') { burOpenCart(); return; }
                 const it = burItems.find(x => x.id === b.dataset.id); if (!it) return;
                 if (a === 'edit') burOpenLimit(it);
+                else if (a === 'del') burOpenRemove(it);
                 else if (a === 'order') burAddToOrder(it);
             });
             $('bur-search').addEventListener('input', e => { burQuery = e.target.value; drawList(); });
