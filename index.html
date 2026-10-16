@@ -49,6 +49,12 @@
             overflow: hidden;
         }
         .login-screen.hidden { display: none; }
+        /* Заставка на время восстановления сессии после F5: не мигаем экраном входа, пока Firebase читает сохранённого пользователя */
+        .boot-splash { position: fixed; inset: 0; z-index: 1001; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+            background: linear-gradient(160deg, #04140f 0%, #071c16 40%, #0a1f1a 100%); color: var(--text-muted); font-size: 13px; }
+        .boot-splash.hidden { display: none; }
+        .boot-spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(52, 211, 153, 0.2); border-top-color: var(--emerald-light); animation: boot-spin .8s linear infinite; }
+        @keyframes boot-spin { to { transform: rotate(360deg); } }
         .login-screen::before {
             content: ""; position: absolute; width: 600px; height: 600px; border-radius: 50%;
             background: radial-gradient(circle, rgba(52, 211, 153, 0.18), transparent 70%);
@@ -321,9 +327,17 @@
     </style>
 </head>
 <body>
+    <div class="boot-splash" id="boot-splash"><div class="boot-spinner"></div><div>Kletka Online…</div></div>
+    <script>
+        // Страховка: если модуль Firebase не загрузился (нет сети), через 10 с показываем экран входа вместо вечной заставки
+        setTimeout(function () {
+            var sp = document.getElementById('boot-splash');
+            if (sp && !sp.classList.contains('hidden')) { sp.classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
+        }, 10000);
+    </script>
 
     <!-- Экран входа -->
-    <div class="login-screen" id="login-screen">
+    <div class="login-screen hidden" id="login-screen">
         <div class="login-card">
             <div class="login-title">Kletka Online</div>
             <img class="login-logo" src="logo.png" alt="Kletka Online" draggable="false" oncontextmenu="return false;">
@@ -599,6 +613,7 @@
         const activityCollection = collection(db, 'activity_log');
 
         let currentUserName = '';
+        let currentUid = '';
         let isAdmin = false;
         let currentWarehouse = 'DC1';
         let currentLang = 'ru';
@@ -626,12 +641,23 @@
         const MAX_ATTEMPTS = 5;
         const LOCK_DURATION_MS = 60 * 1000;
 
+        // ===== Сохранение сессии между перезагрузками (F5) =====
+        // Сам вход хранит Firebase Auth (browserLocalPersistence — localStorage, «Запомнить меня»; иначе sessionStorage вкладки).
+        // Здесь дополнительно запоминаем, где был пользователь: страница, склад, язык — и возвращаем его туда после F5.
+        const UI_STATE_KEY = 'kletka_ui_state';
+        const RESTORABLE_PAGES = ['material-master', 'asset-ledger', 'components', 'bureau-materials', 'excel-import-export', 'po-pr', 'delivery-receive'];
+        function readUiState() { try { return JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}') || {}; } catch (e) { return {}; } }
+        function saveUiState(patch) { try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(Object.assign(readUiState(), patch))); } catch (e) { /* storage недоступен */ } }
+        function hideBootSplash() { const sp = document.getElementById('boot-splash'); if (sp) sp.classList.add('hidden'); }
+
         function showApp(userName) {
+            hideBootSplash();
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-content').style.display = 'block';
             document.getElementById('current-user-name').innerText = userName ? userName + ' —' : '';
         }
         function showLoginScreen() {
+            hideBootSplash();
             document.getElementById('app-content').style.display = 'none';
             document.getElementById('login-screen').classList.remove('hidden');
         }
@@ -708,16 +734,25 @@
                     const empSnap = await getDoc(doc(employeesCollection, user.uid));
                     if (empSnap.exists()) { name = empSnap.data().name || ''; isAdmin = empSnap.data().role === 'admin'; }
                 } catch (e) { console.error('Employee lookup error:', e); }
-                currentUserName = name;
+                currentUserName = name; currentUid = user.uid;
                 document.getElementById('add-emp-nav-btn').style.display = isAdmin ? 'inline-block' : 'none';
+                // восстанавливаем склад / язык / открытую страницу, сохранённые до перезагрузки
+                const ui = readUiState();
+                if (ui.wh && document.querySelector(`.warehouse-btn[data-wh="${CSS.escape(ui.wh)}"]`)) {
+                    currentWarehouse = ui.wh;
+                    document.querySelectorAll('.warehouse-btn').forEach(b => b.classList.toggle('active', b.dataset.wh === currentWarehouse));
+                }
+                if (ui.lang && TR[ui.lang]) { currentLang = ui.lang; const ls = document.getElementById('lang-select'); if (ls) ls.value = ui.lang; }
                 showApp(name);
                 subscribeToActivity();
-                showHome();
-                applyLanguage();
+                document.querySelectorAll('[data-i18n]').forEach(el => { el.innerText = t(el.dataset.i18n); });
+                if (ui.page && RESTORABLE_PAGES.includes(ui.page) && PAGES[ui.page]) openPage(ui.page); else showHome();
+                burCartSync();
             } else {
                 showLoginScreen();
                 unsubscribeFromActivity();
-                currentUserName = ''; isAdmin = false;
+                currentUserName = ''; currentUid = ''; isAdmin = false;
+                burCartSync();
             }
             btn.disabled = false; btn.innerText = 'Увійти';
         });
@@ -735,6 +770,7 @@
         });
 
         async function logout() {
+            saveUiState({ page: null });   // после явного выхода следующий вход начинается с главной
             try { await signOut(auth); } catch (err) { console.error('Logout error:', err); }
             document.getElementById('login-id').value = '';
             document.getElementById('login-pin').value = '';
@@ -940,6 +976,7 @@
 
         function setLanguage(lang) {
             currentLang = lang;
+            saveUiState({ lang });
             document.getElementById('lang-select').value = lang;
             applyLanguage();
         }
@@ -981,6 +1018,7 @@
 
         function showHome() {
             currentPageKey = null;
+            saveUiState({ page: null });
             document.getElementById('page-view').style.display = 'none';
             document.getElementById('home-view').style.display = 'block';
             setActiveNav('home');
@@ -993,6 +1031,7 @@
             const p = PAGES[key];
             if (!p) return;
             currentPageKey = key;
+            saveUiState({ page: key === 'bureau-issue' ? 'bureau-materials' : key });
             document.getElementById('home-view').style.display = 'none';
             const pv = document.getElementById('page-view');
             pv.style.display = 'block';
@@ -1183,6 +1222,8 @@
 
         function selectWarehouse(code) {
             currentWarehouse = code;
+            saveUiState({ wh: code });
+            burCartSync();   // у каждого склада своя корзина
             document.querySelectorAll('.warehouse-btn').forEach(b => b.classList.toggle('active', b.dataset.wh === code));
             renderHome();
             loadCageCount();
@@ -1402,7 +1443,6 @@
             }
         }
         (function initQuickIssue() {
-            const overlay = qiEl('quick-issue-overlay');
             qiEl('qi-scan').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); handleQuickIssueScan(); } });
             qiEl('qi-target').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); focusQiScan(); } });
             qiEl('qi-targets').addEventListener('click', e => {
@@ -1410,8 +1450,7 @@
                 qiTarget = b.dataset.target; localStorage.setItem('klt_qi_target', qiTarget);
                 renderQiTargets(); qiEl('qi-target').focus();
             });
-            overlay.addEventListener('click', e => { if (e.target === overlay) closeQuickIssue(); });
-            document.addEventListener('keydown', e => { if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeQuickIssue(); });
+            // закрытие только кнопкой «Закрыть» — клик по фону и Escape окно не закрывают
         })();
 
         // =====================================================================
@@ -1830,10 +1869,9 @@
             const ov = document.createElement('div');
             ov.className = 'fixed inset-0 z-[110] flex items-center justify-center overflow-y-auto bg-black/60 p-4';
             ov.innerHTML = `<div role="dialog" aria-modal="true" class="my-auto w-full ${wide === 'xl' ? 'max-w-[1100px]' : wide ? 'max-w-[640px]' : 'max-w-[480px]'} rounded-2xl border border-solid border-klt-line bg-klt-card p-6">${inner}</div>`;
-            const onKey = e => { if (e.key === 'Escape') close(); };
-            function close() { ov.remove(); document.removeEventListener('keydown', onKey); }
-            ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });
-            document.addEventListener('keydown', onKey);
+            // Окно закрывается ТОЛЬКО явной кнопкой (✕ / «Отмена» / «Готово»): ни клик по фону, ни Escape его не закрывают,
+            // чтобы случайный клик не сбрасывал заполненную форму или собранный заказ
+            function close() { ov.remove(); }
             document.body.appendChild(ov);
             return { ov, close, $: s => ov.querySelector(s) };
         }
@@ -2413,7 +2451,7 @@
             ie_target_bur: 'Бюро-материалы', ie_bur_desc: 'Канцелярия, бумага, СИЗ, упаковка, хозтовары: SKU, категории, остатки и лимиты (в структуре Material Master)',
             mm_title: 'История расхода и прихода', mm_search_ph: 'Поиск по SKU или названию', mm_p_today: 'За сегодня', mm_p_week: 'За неделю', mm_p_all: 'Все',
             mm_col_dt: 'Дата и время', mm_col_type: 'Тип', mm_col_sku: 'SKU', mm_col_name: 'Наименование', mm_col_delta: 'Изменение', mm_col_to: 'Кому выдано / Процесс',
-            mm_col_note: 'Комментарий', mm_col_actor: 'Оператор', mm_t_receipt: 'Приход', mm_t_issue: 'Выдача', mm_t_adjust: 'Коррекция',
+            mm_col_note: 'Комментарий', mm_col_actor: 'Оператор', mm_t_receipt: 'Принято', mm_t_issue: 'Выдано', mm_t_adjust: 'Коррекция',
             mm_empty: 'Записей за выбранный период нет', mm_count: 'Записей: {n}', mm_load_err: 'Не удалось загрузить журнал (проверьте связь / права Firestore)',
             mm_trunc: 'Загружены последние {n} записей журнала — выберите более короткий период',
             mm_note_create: 'Создание позиции', mm_note_import: 'Импорт: {file}', mm_note_import_adj: 'Импорт (корректировка остатка): {file}',
@@ -2446,7 +2484,7 @@
             ie_target_bur: 'Office supplies', ie_bur_desc: 'Stationery, paper, PPE, packaging, household: SKU, categories, stock and limits (Material Master structure)',
             mm_title: 'Usage & receipts history', mm_search_ph: 'Search by SKU or name', mm_p_today: 'Today', mm_p_week: 'This week', mm_p_all: 'All',
             mm_col_dt: 'Date & time', mm_col_type: 'Type', mm_col_sku: 'SKU', mm_col_name: 'Name', mm_col_delta: 'Change', mm_col_to: 'Issued to / Process',
-            mm_col_note: 'Comment', mm_col_actor: 'Operator', mm_t_receipt: 'Receipt', mm_t_issue: 'Issue', mm_t_adjust: 'Adjustment',
+            mm_col_note: 'Comment', mm_col_actor: 'Operator', mm_t_receipt: 'Received', mm_t_issue: 'Issued', mm_t_adjust: 'Adjustment',
             mm_empty: 'No records for the selected period', mm_count: 'Records: {n}', mm_load_err: 'Could not load the journal (check connection / Firestore rules)',
             mm_trunc: 'The latest {n} journal records were loaded — choose a shorter period',
             mm_note_create: 'Item created', mm_note_import: 'Import: {file}', mm_note_import_adj: 'Import (stock adjustment): {file}',
@@ -2549,31 +2587,44 @@
                 if (loading) { cnt.textContent = ''; body.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
                 if (failed) { cnt.textContent = ''; body.innerHTML = `<div class="px-4 py-8 text-center text-sm text-red-300">${t('mm_load_err')}</div>`; return; }
                 const s = q.trim().toLowerCase();
-                // комплексная операция = один документ с items[]; старые построчные записи показываются как операция из одной позиции
+                // комплексная операция = один документ с items[]; старые построчные записи показываются как операция из одной позиции.
+                // В таблице каждая позиция операции — отдельная строка (своё фото и название), общие поля операции повторяются.
                 const itemsOf = r => (Array.isArray(r.items) && r.items.length) ? r.items : [{ sku: r.sku, name: r.name, unit: r.unit, delta: r.delta }];
-                const list = rows.filter(r => r.group === group && r.warehouse === currentWarehouse &&
-                    (!s || String(r.txId || '').toLowerCase().includes(s) || String(r.to || '').toLowerCase().includes(s) ||
-                        itemsOf(r).some(i => String(i.sku || '').toLowerCase().includes(s) || String(i.name || '').toLowerCase().includes(s))));
-                cnt.textContent = fmt(t('mm_count'), { n: list.length }) + (truncated ? ' · ' + fmt(t('mm_trunc'), { n: MM_LIMIT }) : '');
-                if (!list.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('mm_empty')}</div>`; return; }
+                const lines = [];
+                rows.filter(r => r.group === group && r.warehouse === currentWarehouse).forEach(r => {
+                    itemsOf(r).forEach((i, k) => {
+                        if (s && ![i.sku, i.name, r.to, r.note, r.actor].some(v => String(v || '').toLowerCase().includes(s))) return;
+                        lines.push({ r, i, first: k === 0 });
+                    });
+                });
+                cnt.textContent = fmt(t('mm_count'), { n: lines.length }) + (truncated ? ' · ' + fmt(t('mm_trunc'), { n: MM_LIMIT }) : '');
+                if (!lines.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('mm_empty')}</div>`; return; }
+                // фото — из текущего паспорта товара (в журнале фото не хранится, чтобы не раздувать документы)
+                const photoOf = sku => {
+                    const k = normCode(sku);
+                    const src = group === 'bureau' ? mmcByCode.get(k) : cmpItems.find(x => normCode(x.sku) === k);
+                    const img = src ? cmpSafeImg(src.image) : '';
+                    return `<div class="relative h-11 w-11 overflow-hidden rounded-lg bg-klt-bg">${img
+                        ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-full w-full object-cover">`
+                        : '<span class="absolute inset-0 flex items-center justify-center text-lg opacity-40">🖼️</span>'}</div>`;
+                };
                 body.innerHTML = `<table class="w-full min-w-[900px] border-collapse text-[13px]"><thead><tr>
-                    ${['dt', 'type', 'id', 'items', 'to', 'note', 'actor'].map(c => `<th class="${th}">${t('mm_col_' + c)}</th>`).join('')}</tr></thead>
-                    <tbody>${list.map(r => {
+                    ${['dt', 'photo', 'name', 'to', 'note', 'actor', 'type'].map(c => `<th class="${th}">${t('mm_col_' + c)}</th>`).join('')}</tr></thead>
+                    <tbody>${lines.map(({ r, i, first }) => {
                         const to = r.to ? `${r.toType === 'proc' ? '⚙️' : '👤'} ${escapeHtml(r.to)}` : '<span class="text-klt-muted">—</span>';
-                        const comp = `<ul class="m-0 flex list-none flex-col gap-1 p-0">${itemsOf(r).map(i => {
-                            const d = Number(i.delta) || 0, unit = i.unit || 'шт.';
-                            const dTxt = (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d) + ' ' + unit;
-                            const dCls = d > 0 ? 'text-klt-emerald-light' : d < 0 ? 'text-red-400' : 'text-klt-muted';
-                            return `<li class="flex flex-wrap items-baseline gap-x-2"><span class="font-mono text-klt-emerald-light">${escapeHtml(i.sku || '—')}</span><span style="overflow-wrap:anywhere">${escapeHtml(i.name || '—')}</span><span class="whitespace-nowrap font-extrabold ${dCls}">${escapeHtml(dTxt)}</span></li>`;
-                        }).join('')}</ul>`;
-                        return `<tr class="transition hover:bg-klt-hover">
+                        const d = Number(i.delta) || 0, unit = i.unit || 'шт.';
+                        const dTxt = (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d) + ' ' + unit;
+                        const dCls = d > 0 ? 'text-klt-emerald-light' : d < 0 ? 'text-red-400' : 'text-klt-muted';
+                        const sep = first ? ' style="border-top:2px solid var(--border-color)"' : '';   // граница между операциями
+                        return `<tr class="transition hover:bg-klt-hover"${sep}>
                             <td class="${td} whitespace-nowrap text-klt-muted">${escapeHtml(mmFmtDate(r.timestamp))}</td>
-                            <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${typeCls[r.type] || 'bg-white/10 text-klt-muted'}">${escapeHtml(t('mm_t_' + r.type))}</span></td>
-                            <td class="${td} whitespace-nowrap font-mono text-xs text-klt-muted">${escapeHtml(r.txId || '—')}</td>
-                            <td class="${td}">${comp}</td>
+                            <td class="${td}">${photoOf(i.sku)}</td>
+                            <td class="${td}"><div class="font-semibold" style="overflow-wrap:anywhere">${escapeHtml(i.name || '—')}</div>
+                                <div class="mt-0.5 flex flex-wrap gap-x-2 text-xs"><span class="font-mono text-klt-muted">${escapeHtml(i.sku || '—')}</span><span class="whitespace-nowrap font-extrabold ${dCls}">${escapeHtml(dTxt)}</span></div></td>
                             <td class="${td}">${to}</td>
                             <td class="${td} text-klt-muted">${escapeHtml(r.note || '') || '—'}</td>
-                            <td class="${td} whitespace-nowrap">${escapeHtml(r.actor || '—')}</td></tr>`;
+                            <td class="${td} whitespace-nowrap">${escapeHtml(r.actor || '—')}</td>
+                            <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${typeCls[r.type] || 'bg-white/10 text-klt-muted'}">${escapeHtml(t('mm_t_' + r.type))}</span></td></tr>`;
                     }).join('')}</tbody></table>`;
             };
             async function load() {
@@ -2627,7 +2678,8 @@
             bur_cart_clear: 'Очистить', bur_cart_del: 'Убрать из заказа', bur_cart_do: 'Оформить выдачу', bur_cart_avail: 'Доступно: {n} {unit}',
             bur_no_stock: 'Товара нет в наличии', bur_short: 'Недостаточно на складе: доступно {n} {unit}', bur_cart_only: 'В заказе уже весь остаток: {n} {unit}',
             bur_cart_bad_qty: 'Количество — целое число от 1', bur_cart_issued: 'Выдача оформлена: {id}', bur_cart_blocked: 'Выдача заблокирована: остатки изменились, проверьте позиции',
-            mm_col_id: 'ID операции', mm_col_items: 'Состав'
+            mm_col_id: 'ID операции', mm_col_items: 'Состав', mm_col_photo: 'Фото товара', mm_col_name: 'Название товара', mm_col_type: 'Тип операции',
+            bur_cart_missing: 'Позиции больше нет на этом складе — уберите её из заказа'
         });
         Object.assign(TR.en, {
             bur_f_sku: 'Material Code (unique item code)', bur_col_sku: 'Material Code', bur_search_ph: 'Search by name or Material Code',
@@ -2642,7 +2694,8 @@
             bur_cart_clear: 'Clear', bur_cart_del: 'Remove from order', bur_cart_do: 'Confirm issue', bur_cart_avail: 'Available: {n} {unit}',
             bur_no_stock: 'Item is out of stock', bur_short: 'Not enough in stock: {n} {unit} available', bur_cart_only: 'The whole stock is already in the order: {n} {unit}',
             bur_cart_bad_qty: 'Quantity must be a whole number from 1', bur_cart_issued: 'Issue completed: {id}', bur_cart_blocked: 'Issue blocked: stock has changed, please check the lines',
-            mm_col_id: 'Operation ID', mm_col_items: 'Items'
+            mm_col_id: 'Operation ID', mm_col_items: 'Items', mm_col_photo: 'Item photo', mm_col_name: 'Item name', mm_col_type: 'Operation type',
+            bur_cart_missing: 'This item no longer exists in this warehouse — remove it from the order'
         });
 
         // Категории: коллекция bureau_categories (общие для всех складов), id = ключ, который хранится в позиции.
@@ -2715,6 +2768,7 @@
             return d ? `<p class="m-0 ${cls}" style="white-space:pre-line;overflow-wrap:anywhere;word-break:normal">${escapeHtml(d)}</p>` : '';
         };
         function burActions(it, compact) {
+            burCartEnsure();
             const id = cmpAttr(it.id), n = burCart.get(it.id) || 0;
             return `<div class="flex flex-wrap items-center gap-2 ${compact ? 'justify-end' : 'mt-4'}">
                 ${compact ? burEditBtn(it) : ''}
@@ -2768,20 +2822,61 @@
         // Остатки меняются только этими двумя процессами (кнопок +1 / −1 больше нет).
         // Обе операции пишутся в material_movements ОДНИМ документом: { txId, items:[{sku,name,unit,delta}], … }
         // =====================================================================
-        let burCart = new Map();   // id позиции → количество в заказе (живёт в пределах сессии)
-
-        function burCartPrune() { for (const id of [...burCart.keys()]) if (!burItems.some(x => x.id === id)) burCart.delete(id); }
-        function burCartSync() {
-            const fab = document.getElementById('bur-cart-fab'); if (!fab) return;
-            burCartPrune();
-            fab.style.display = burCart.size ? 'inline-flex' : 'none';
-            fab.querySelector('#bur-cart-fab-t').textContent = fmt(t('bur_cart_fab'), { n: burCart.size });
+        // Постоянная корзина: id позиции → количество в заказе. Хранится в localStorage отдельно для каждого
+        // пользователя и склада, переживает F5, переходы по страницам и выход из системы. Позиции уходят из корзины
+        // ТОЛЬКО вручную (✕ / «Очистить») или после успешно оформленной выдачи — автоматической чистки нет.
+        const BUR_CART_KEY = 'kletka_bur_cart_v1';
+        let burCart = new Map(), burCartScope = '', burCartOpenPending = false, burLoadedFor = '';
+        const burCartScopeNow = () => currentUid ? `${currentUid}|${currentWarehouse}` : '';
+        function burCartReadAll() { try { return JSON.parse(localStorage.getItem(BUR_CART_KEY) || '{}') || {}; } catch (e) { return {}; } }
+        function burCartLoad() {
+            burCartScope = burCartScopeNow();
+            const raw = (burCartScope && burCartReadAll()[burCartScope]) || {};
+            // мусор в хранилище отбрасываем; 0 (поле очищено при вводе) поднимаем до 1, как это делает поле при потере фокуса
+            burCart = new Map(Object.entries(raw).filter(([, q]) => Number.isInteger(q) && q >= 0).map(([id, q]) => [id, Math.max(1, q)]));
         }
+        function burCartSave() {
+            if (!burCartScope) return;
+            try {
+                const all = burCartReadAll();
+                if (burCart.size) all[burCartScope] = Object.fromEntries(burCart); else delete all[burCartScope];
+                localStorage.setItem(BUR_CART_KEY, JSON.stringify(all));
+            } catch (e) { /* storage недоступен — корзина живёт до перезагрузки */ }
+        }
+        function burCartEnsure() { if (burCartScope !== burCartScopeNow()) burCartLoad(); }
+        function burCartSet(id, q) { burCartEnsure(); burCart.set(id, q); burCartSave(); burCartSync(); }
+        function burCartDel(id) { burCartEnsure(); burCart.delete(id); burCartSave(); burCartSync(); }
+        function burCartClear() { burCartEnsure(); burCart.clear(); burCartSave(); burCartSync(); }
+        // Плавающая кнопка корзины — глобальная: видна на любой странице, пока в корзине есть позиции
+        function burCartSync() {
+            burCartEnsure();
+            let fab = document.getElementById('bur-cart-fab');
+            if (!fab) {
+                fab = document.createElement('button'); fab.type = 'button'; fab.id = 'bur-cart-fab';
+                fab.className = `${CMP_BTN_MAIN} fixed bottom-5 right-5 z-[100] items-center gap-2 px-5 py-3 shadow-2xl`;
+                fab.style.display = 'none'; fab.onclick = burCartFabClick;
+                document.body.appendChild(fab);
+            }
+            const appVisible = document.getElementById('app-content').style.display === 'block';
+            fab.style.display = currentUid && appVisible && burCart.size ? 'inline-flex' : 'none';
+            fab.textContent = fmt(t('bur_cart_fab'), { n: burCart.size });
+        }
+        function burCartFabClick() {
+            const onBureau = currentPageKey === 'bureau-materials' || currentPageKey === 'bureau-issue';
+            if (onBureau && burLoadedFor === currentWarehouse) { burOpenCart(); return; }
+            burCartOpenPending = true;   // откроется, как только загрузятся остатки склада
+            if (!onBureau) openPage('bureau-materials');
+        }
+        window.addEventListener('storage', e => {   // корзина, изменённая в другой вкладке
+            if (e.key !== BUR_CART_KEY) return;
+            burCartLoad(); burCartSync(); burRedraw();
+        });
         function burAddToOrder(it) {
             if (it.qty <= 0) { cmpToast(t('bur_no_stock'), 'err'); return; }
+            burCartEnsure();
             const cur = burCart.get(it.id) || 0;
             if (cur >= it.qty) { cmpToast(fmt(t('bur_cart_only'), { n: it.qty, unit: it.unit }), 'err'); return; }
-            burCart.set(it.id, cur + 1);
+            burCartSet(it.id, cur + 1);
             burRedraw(it.id, 'order');
         }
 
@@ -2928,7 +3023,7 @@
         // «Корзина выдачи»: несколько позиций из разных категорий → одна выдача одному получателю
         function burOpenCart() {
             let toType = 'emp', busy = false;
-            burCartPrune();
+            burCartEnsure();
             const m = cmpModal(`
                 <div class="mb-4 flex items-center justify-between gap-3">
                     <h2 class="text-lg font-bold text-klt-emerald-light">🛒 ${t('bur_cart_title')}</h2>
@@ -2942,17 +3037,32 @@
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-k-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-k-ok" class="${CMP_BTN_MAIN}">${t('bur_cart_do')}</button></div>`, true);
             const $ = m.$, err = $('#bur-k-err'), okBtn = $('#bur-k-ok');
 
-            const rowsNow = () => [...burCart].map(([id, q]) => ({ it: burItems.find(x => x.id === id), q })).filter(r => r.it);
-            // 'zero' — нет на складе; 'short' — больше остатка; 'bad' — не целое ≥1
-            const stateOf = (it, q) => it.qty <= 0 ? 'zero' : !Number.isInteger(q) || q < 1 ? 'bad' : q > it.qty ? 'short' : 'ok';
-            const msgOf = (it, st) => st === 'zero' ? t('bur_no_stock') : st === 'short' ? fmt(t('bur_short'), { n: it.qty, unit: it.unit }) : st === 'bad' ? t('bur_cart_bad_qty') : '';
+            // позиции без складской записи (удалены / переименованы на другом устройстве) НЕ выкидываем молча:
+            // они остаются в списке с пометкой, пока кладовщик сам не уберёт их
+            const rowsNow = () => [...burCart].map(([id, q]) => ({ id, it: burItems.find(x => x.id === id), q }));
+            // 'missing' — позиции нет на складе; 'zero' — остаток 0; 'short' — больше остатка; 'bad' — не целое ≥1
+            const stateOf = (it, q) => !it ? 'missing' : it.qty <= 0 ? 'zero' : !Number.isInteger(q) || q < 1 ? 'bad' : q > it.qty ? 'short' : 'ok';
+            const msgOf = (it, st) => st === 'missing' ? t('bur_cart_missing') : st === 'zero' ? t('bur_no_stock') : st === 'short' ? fmt(t('bur_short'), { n: it.qty, unit: it.unit }) : st === 'bad' ? t('bur_cart_bad_qty') : '';
 
+            let drawing = false;   // перерисовка удаляет поле в фокусе → blur → change → повторный вызов; не допускаем вложенности
             const drawLines = () => {
+                if (drawing) return; drawing = true;
+                try { drawLinesNow(); } finally { drawing = false; }
+            };
+            const drawLinesNow = () => {
                 const rows = rowsNow(), box = $('#bur-k-lines');
                 okBtn.disabled = !rows.length; $('#bur-k-clear').disabled = !rows.length;
                 if (!rows.length) { box.innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-8 text-center text-sm text-klt-muted">${t('bur_cart_empty')}</div>`; return; }
-                box.innerHTML = rows.map(({ it, q }) => {
-                    const st = stateOf(it, q), id = cmpAttr(it.id);
+                box.innerHTML = rows.map(({ id: rid, it, q }) => {
+                    const st = stateOf(it, q), id = cmpAttr(rid);
+                    if (!it) return `<div data-line="${id}" class="flex flex-wrap items-center gap-3 rounded-xl border border-solid border-red-500/60 bg-klt-bg p-2.5">
+                        <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-klt-card text-xl opacity-50">❔</div>
+                        <div class="min-w-0 flex-1 basis-40">
+                            <div class="font-mono text-sm font-bold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(rid.split('__').slice(1).join('__') || rid)}</div>
+                            <div data-msg class="text-xs font-semibold text-red-300">${escapeHtml(msgOf(it, st))}</div>
+                        </div>
+                        <span class="text-sm text-klt-muted">× ${q}</span>
+                        <button type="button" data-k-del="${id}" title="${cmpAttr(t('bur_cart_del'))}" aria-label="${cmpAttr(t('bur_cart_del'))}" class="${CMP_ICO}">✕</button></div>`;
                     return `<div data-line="${id}" class="flex flex-wrap items-center gap-3 rounded-xl border border-solid bg-klt-bg p-2.5 ${st === 'ok' ? 'border-klt-line' : 'border-red-500/60'}">
                         <div class="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-klt-card">${burPhoto(it, 'text-xl')}</div>
                         <div class="min-w-0 flex-1 basis-40">
@@ -2984,20 +3094,20 @@
             $('#bur-k-lines').addEventListener('input', e => {
                 const inp = e.target.closest('[data-k-qty]'); if (!inp) return;
                 const v = inp.value.trim();
-                burCart.set(inp.dataset.kQty, /^\d+$/.test(v) ? parseInt(v, 10) : 0);
+                burCartSet(inp.dataset.kQty, /^\d+$/.test(v) ? parseInt(v, 10) : 0);
                 err.textContent = ''; refreshStatus();
             });
             $('#bur-k-lines').addEventListener('change', e => {   // при уходе из поля приводим пустое/нулевое значение к 1
                 const inp = e.target.closest('[data-k-qty]'); if (!inp) return;
-                if (!(burCart.get(inp.dataset.kQty) >= 1)) burCart.set(inp.dataset.kQty, 1);
+                if (!(burCart.get(inp.dataset.kQty) >= 1)) burCartSet(inp.dataset.kQty, 1);
                 drawLines(); burRedraw();
             });
             $('#bur-k-lines').addEventListener('click', e => {
                 const d = e.target.closest('[data-k-del]'); if (!d) return;
-                burCart.delete(d.dataset.kDel); err.textContent = ''; drawLines(); burRedraw();
+                burCartDel(d.dataset.kDel); err.textContent = ''; drawLines(); burRedraw();
             });
-            $('#bur-k-clear').onclick = () => { burCart.clear(); err.textContent = ''; drawLines(); burRedraw(); };
-            $('#bur-k-cancel').onclick = m.close;
+            $('#bur-k-clear').onclick = () => { burCartClear(); err.textContent = ''; drawLines(); burRedraw(); };
+            $('#bur-k-cancel').onclick = m.close;   // «Отмена» только закрывает окно: состав заказа остаётся в корзине
             $('#bur-k-to').focus();
 
             const go = async () => {
@@ -3006,7 +3116,7 @@
                 const to = $('#bur-k-to').value.trim(), note = $('#bur-k-note').value.trim();
                 // 1) проверка наличия по данным на экране: нет на складе → блокируем выдачу
                 const bad = rows.filter(r => stateOf(r.it, r.q) !== 'ok');
-                if (bad.length) { err.innerHTML = bad.map(r => `${escapeHtml(r.it.name)}: ${escapeHtml(msgOf(r.it, stateOf(r.it, r.q)))}`).join('<br>'); refreshStatus(); return; }
+                if (bad.length) { err.innerHTML = bad.map(r => `${escapeHtml(r.it ? r.it.name : r.id)}: ${escapeHtml(msgOf(r.it, stateOf(r.it, r.q)))}`).join('<br>'); refreshStatus(); return; }
                 if (!to) { err.textContent = t('cmp_err_target'); $('#bur-k-to').focus(); return; }
                 busy = true; okBtn.disabled = true; err.textContent = '';
                 const txId = mmTxId('ISSUE'), now = Date.now(), txRef = doc(collection(db, 'material_movements'));
@@ -3029,7 +3139,8 @@
                         rows.forEach((r, i) => { r.it.qty = res.fresh[i]; });
                         drawLines(); burRedraw(); err.textContent = t('bur_cart_blocked'); busy = false; okBtn.disabled = false; return;
                     }
-                    rows.forEach(r => { r.it.qty -= r.q; burCart.delete(r.it.id); });
+                    // остаток на экране = свежий остаток из транзакции − выданное (а не устаревшее значение на экране − выданное)
+                    rows.forEach((r, i) => { r.it.qty = res.fresh[i] - r.q; burCartDel(r.id); });
                     m.close(); burRedraw(); cmpToast(fmt(t('bur_cart_issued'), { id: txId }), 'ok');   // позиции ниже лимита сразу получают плашку «Мало на складе»
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); busy = false; okBtn.disabled = false; }
             };
@@ -3053,38 +3164,52 @@
             } catch (x) { console.error(x); cmpToast(t('cmp_err_save'), 'err'); return null; }
         }
 
-        // Бюро-материалы хранят только операционные данные: здесь правится пороговый лимит.
-        // Паспорт товара (название, категория, ед. изм., фото, описание) редактируется только в Material Master.
+        // Карточка позиции в «Бюро-материалах»: здесь правятся Material Code и пороговый лимит склада.
+        // Смена кода — тот же перенос, что и в Material Master (карточка справочника + остатки на всех складах, одной транзакцией).
+        // Остальной паспорт (название, фото, описание) по-прежнему ведётся в справочнике.
         function burOpenLimit(it) {
             const m = cmpModal(`
-                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">✏️ ${t('bur_lim_title')} <span class="ml-1 rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">✏️ ${t('bur_edit_title')} <span class="ml-1 rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
                 <div class="flex gap-3 rounded-xl border border-solid border-klt-line bg-klt-bg p-3.5">
                     <div class="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-klt-card">${burPhoto(it, 'text-2xl')}</div>
                     <div class="min-w-0 flex-1">
                         <div class="text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
-                        <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span><span>${escapeHtml(it.unit)}</span></div>
+                        <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted"><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span><span>${escapeHtml(it.unit)}</span><span>${fmt(t('bur_cart_avail'), { n: it.qty, unit: escapeHtml(it.unit) })}</span></div>
                     </div>
                 </div>
-                <p class="mb-4 mt-2.5 text-xs text-klt-muted">🔒 ${t('bur_lim_note')} <button type="button" id="bur-l-mm" class="cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-klt-emerald-light hover:underline">${t('bur_lim_open')}</button></p>
-                <label class="${CMP_LBL}" for="bur-l-min">${t('bur_f_min')}, ${escapeHtml(it.unit)}</label>
-                <input id="bur-l-min" type="number" min="0" step="1" inputmode="numeric" value="${it.minQty}" class="${CMP_FLD}">
+                <div class="mt-4 grid gap-3.5">
+                    <div><label class="${CMP_LBL}" for="bur-l-code">${t('bur_f_sku')}</label>
+                        <input id="bur-l-code" type="text" autocomplete="off" value="${cmpAttr(it.sku)}" class="${CMP_FLD} font-mono">
+                        <p class="m-0 mt-1.5 text-xs text-klt-muted">ℹ️ ${t('mmc_code_note')}</p></div>
+                    <div><label class="${CMP_LBL}" for="bur-l-min">${t('bur_f_min')}, ${escapeHtml(it.unit)}</label>
+                        <input id="bur-l-min" type="number" min="0" step="1" inputmode="numeric" value="${it.minQty}" class="${CMP_FLD}"></div>
+                </div>
                 <div id="bur-l-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-l-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-l-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
-            const $ = m.$;
+            const $ = m.$, err = $('#bur-l-err');
             $('#bur-l-cancel').onclick = m.close;
-            $('#bur-l-mm').onclick = () => { m.close(); openPage('material-master'); };
-            $('#bur-l-min').focus();
+            $('#bur-l-code').focus();
             $('#bur-l-ok').onclick = async () => {
-                const raw = $('#bur-l-min').value.trim();
-                if (!/^\d+$/.test(raw)) { $('#bur-l-err').textContent = t('cmp_err_num'); return; }
-                const minQty = parseInt(raw, 10);
-                if (minQty === it.minQty) { m.close(); return; }
-                $('#bur-l-ok').disabled = true;
+                const code = normCode($('#bur-l-code').value), raw = $('#bur-l-min').value.trim();
+                if (!code) { err.textContent = t('mmc_err_code'); return; }
+                if (!/^\d+$/.test(raw)) { err.textContent = t('cmp_err_num'); return; }
+                const minQty = parseInt(raw, 10), codeChanged = code !== normCode(it.sku), minChanged = minQty !== it.minQty;
+                if (!codeChanged && !minChanged) { m.close(); return; }
+                $('#bur-l-ok').disabled = true; err.textContent = '';
+                const oldCode = it.sku;
                 try {
-                    await updateDoc(doc(db, 'material_master', it.id), { minQty, updatedAt: Date.now(), updatedBy: currentUserName });
-                    burLog('edit', `лимит «${it.name}» (${it.sku}): ${it.minQty} → ${minQty}`);
-                    it.minQty = minQty; m.close(); burRedraw(); cmpToast(t('cmp_saved'), 'ok');
-                } catch (e) { console.error(e); $('#bur-l-err').textContent = t('cmp_err_save'); $('#bur-l-ok').disabled = false; }
+                    if (codeChanged) await mmcRenameCode(oldCode, code);   // it.id / it.sku обновляются внутри (позиция из burItems)
+                    if (minChanged) {
+                        await updateDoc(doc(db, 'material_master', it.id), { minQty, updatedAt: Date.now(), updatedBy: currentUserName });
+                        burLog('edit', `лимит «${it.name}» (${it.sku}): ${it.minQty} → ${minQty}`);
+                        it.minQty = minQty;
+                    }
+                    m.close(); burRedraw();
+                    cmpToast(codeChanged ? fmt(t('mmc_code_changed'), { old: oldCode, code }) : t('cmp_saved'), 'ok');
+                } catch (e) {
+                    console.error(e); err.innerHTML = mmcErrText(e); $('#bur-l-ok').disabled = false;
+                    if (codeChanged && it.sku === code) { burRedraw(); }   // код уже сменился, не сохранился только лимит
+                }
             };
         }
 
@@ -3210,19 +3335,28 @@
         });
 
         Object.assign(TR.ru, {
-            mmc_clear: 'Очистить справочник', mmc_clear_title: 'Очистить Material Master', mmc_clear_q: 'Удалить все карточки Material Master ({n} шт.)? Действие необратимо.',
-            mmc_clear_note: 'Остатки, карточки и история «Бюро-материалов» не затрагиваются. Новые Material Code можно будет создать заново.',
-            mmc_clear_type: 'Для подтверждения введите слово УДАЛИТЬ', mmc_clear_word: 'УДАЛИТЬ', mmc_clear_do: 'Удалить всё', mmc_cleared: 'Material Master очищен: удалено карточек {n}'
+            mmc_del: 'Удалить', mmc_del_title: 'Удалить товар из Material Master', mmc_del_q: 'Удалить карточку «{name}» ({code})? Действие необратимо.',
+            mmc_del_note: 'История операций сохранится. Пустые складские записи этого кода (остаток 0) будут удалены вместе с карточкой.',
+            mmc_del_blocked: 'Удалить нельзя: товар есть на складе — {list}. Сначала выдайте остаток.', mmc_del_do: 'Удалить', mmc_deleted: 'Удалено: {code}',
+            mmc_del_check: 'Проверяю остатки на складах…',
+            mmc_code_note: 'При смене Material Code карточка и остатки на всех складах переносятся на новый код. В истории операций остаётся прежний код.',
+            mmc_err_dup_stock: 'На складе {wh} уже есть запись с кодом {code} — смена кода отменена', mmc_code_changed: 'Material Code изменён: {old} → {code}'
         });
         Object.assign(TR.uk, {
-            mmc_clear: 'Очистити довідник', mmc_clear_title: 'Очистити Material Master', mmc_clear_q: 'Видалити всі картки Material Master ({n} шт.)? Дію не можна скасувати.',
-            mmc_clear_note: 'Залишки, картки та історія «Бюро-матеріалів» не зачіпаються. Нові Material Code можна буде створити знову.',
-            mmc_clear_type: 'Для підтвердження введіть слово ВИДАЛИТИ', mmc_clear_word: 'ВИДАЛИТИ', mmc_clear_do: 'Видалити все', mmc_cleared: 'Material Master очищено: видалено карток {n}'
+            mmc_del: 'Видалити', mmc_del_title: 'Видалити товар з Material Master', mmc_del_q: 'Видалити картку «{name}» ({code})? Дію не можна скасувати.',
+            mmc_del_note: 'Історія операцій збережеться. Порожні складські записи цього коду (залишок 0) буде видалено разом із карткою.',
+            mmc_del_blocked: 'Видалити не можна: товар є на складі — {list}. Спочатку видайте залишок.', mmc_del_do: 'Видалити', mmc_deleted: 'Видалено: {code}',
+            mmc_del_check: 'Перевіряю залишки на складах…',
+            mmc_code_note: 'Під час зміни Material Code картка й залишки на всіх складах переносяться на новий код. В історії операцій лишається попередній код.',
+            mmc_err_dup_stock: 'На складі {wh} вже є запис із кодом {code} — зміну коду скасовано', mmc_code_changed: 'Material Code змінено: {old} → {code}'
         });
         Object.assign(TR.en, {
-            mmc_clear: 'Clear catalog', mmc_clear_title: 'Clear Material Master', mmc_clear_q: 'Delete all Material Master cards ({n})? This cannot be undone.',
-            mmc_clear_note: 'Office supplies stock, cards and history are not affected. New Material Codes can be created again.',
-            mmc_clear_type: 'Type DELETE to confirm', mmc_clear_word: 'DELETE', mmc_clear_do: 'Delete all', mmc_cleared: 'Material Master cleared: {n} cards deleted'
+            mmc_del: 'Delete', mmc_del_title: 'Delete item from Material Master', mmc_del_q: 'Delete the card “{name}” ({code})? This cannot be undone.',
+            mmc_del_note: 'Operation history is kept. Empty stock records of this code (stock 0) are deleted together with the card.',
+            mmc_del_blocked: 'Cannot delete: the item is in stock — {list}. Issue the remaining stock first.', mmc_del_do: 'Delete', mmc_deleted: 'Deleted: {code}',
+            mmc_del_check: 'Checking stock in warehouses…',
+            mmc_code_note: 'When the Material Code changes, the card and stock in all warehouses move to the new code. History keeps the old code.',
+            mmc_err_dup_stock: 'Warehouse {wh} already has a record with code {code} — code change cancelled', mmc_code_changed: 'Material Code changed: {old} → {code}'
         });
 
         let mmcItems = [], mmcView = 'table', mmcQuery = '';
@@ -3245,15 +3379,126 @@
                 Object.assign({}, m, { id: `${currentWarehouse}__${mmcDocId(m.sku)}`, qty: 0, minQty: 0, hasStock: false }));
         }
 
-        // Форма Material Code: без аргумента — создание, с позицией — редактирование (код блокируется)
+        // Складские записи «Бюро-материалов» данного кода на ВСЕХ складах (sku хранится как ввели — сравниваем нормализованно)
+        async function mmcStockDocs(code) {
+            const k = normCode(code);
+            const snap = await getDocs(query(collection(db, 'material_master'), where('group', '==', 'bureau')));
+            return snap.docs.filter(d => normCode(d.data().sku || d.id.split('__').slice(1).join('__')) === k);
+        }
+        class MmcError extends Error { constructor(key, vars) { super(key); this.key = key; this.vars = vars || {}; } }
+        const mmcErrText = e => e instanceof MmcError ? fmt(t(e.key), Object.fromEntries(Object.entries(e.vars).map(([k, v]) => [k, escapeHtml(String(v))]))) : t('cmp_err_save');
+
+        // Смена Material Code. Код входит в ID документов, поэтому это перенос, а не правка поля:
+        //   material_catalog/{старый} → {новый} (+ правки паспорта из формы, если переданы)
+        //   material_master/{WH}__{старый} → {WH}__{новый} на всех складах, qty / minQty переносятся как есть.
+        // Всё в одной транзакции: если параллельно кто-то принял/выдал товар, Firestore перечитает документы и повторит,
+        // поэтому остаток не теряется и не удваивается. Журнал движений не переписываем — там остаётся код на момент операции.
+        async function mmcRenameCode(oldCode, newCode, passportPatch) {
+            const oldN = normCode(oldCode), newN = normCode(newCode);
+            if (!newN) throw new MmcError('mmc_err_code');
+            const oldCatId = mmcDocId(oldN), newCatId = mmcDocId(newN), now = Date.now();
+            const stockRefs = (await mmcStockDocs(oldN)).map(d => d.ref);
+            const moved = await runTransaction(db, async tx => {
+                // 1) все чтения до записей (требование транзакций Firestore)
+                const catOld = await tx.get(doc(db, 'material_catalog', oldCatId));
+                const catNew = newCatId === oldCatId ? null : await tx.get(doc(db, 'material_catalog', newCatId));
+                if (catNew && catNew.exists()) throw new MmcError('mmc_err_dup');
+                const plan = [];
+                for (const ref of stockRefs) {
+                    const sn = await tx.get(ref); if (!sn.exists()) continue;
+                    const wh = String(sn.data().warehouse || sn.id.split('__')[0]);
+                    const newRef = doc(db, 'material_master', `${wh}__${newCatId}`);
+                    const clash = newRef.id === sn.id ? null : await tx.get(newRef);
+                    if (clash && clash.exists()) throw new MmcError('mmc_err_dup_stock', { wh, code: newN });
+                    plan.push({ sn, newRef });
+                }
+                // 2) записи: новый документ с теми же данными + удаление старого (или правка на месте, если ID совпал)
+                if (catOld.exists()) {
+                    const data = { ...catOld.data(), ...(passportPatch || {}), sku: newN, updatedAt: now, updatedBy: currentUserName };
+                    if (newCatId === oldCatId) tx.set(catOld.ref, data); else { tx.set(doc(db, 'material_catalog', newCatId), data); tx.delete(catOld.ref); }
+                }
+                plan.forEach(({ sn, newRef }) => {
+                    const data = { ...sn.data(), sku: newN, updatedAt: now, updatedBy: currentUserName };
+                    if (newRef.id === sn.id) tx.set(sn.ref, data); else { tx.set(newRef, data); tx.delete(sn.ref); }
+                });
+                return plan.map(({ sn, newRef }) => ({ oldId: sn.id, newId: newRef.id }));
+            });
+            // 3) локальное состояние: справочник, остатки текущего склада, корзины (все пользователи/склады на этом устройстве)
+            const card = mmcItems.find(x => normCode(x.sku) === oldN);
+            if (card) { Object.assign(card, passportPatch || {}, { id: newCatId, sku: newN }); mmcSet(mmcItems.slice()); }
+            const ids = new Map(moved.map(x => [x.oldId, x.newId]));
+            burItems.forEach(x => { if (ids.has(x.id)) { x.id = ids.get(x.id); x.sku = newN; if (passportPatch) Object.assign(x, passportPatch); } });
+            try {
+                const all = burCartReadAll(); let changed = false;
+                Object.values(all).forEach(cart => ids.forEach((nid, oid) => {
+                    if (cart[oid] == null) return;
+                    cart[nid] = (cart[nid] || 0) + cart[oid]; delete cart[oid]; changed = true;
+                }));
+                if (changed) { localStorage.setItem(BUR_CART_KEY, JSON.stringify(all)); burCartLoad(); burCartSync(); }
+            } catch (e) { /* storage недоступен */ }
+            logActivity('mm_code', `Material Master: Material Code ${oldN} → ${newN}${moved.length ? `, складских записей перенесено: ${moved.length}` : ''}`);
+            return { code: newN, moved };
+        }
+
+        // Точечное удаление карточки Material Master. Защита остатков: если код где-то лежит на складе (qty > 0),
+        // удаление блокируется. Складские записи с нулевым остатком удаляются вместе с карточкой (иначе в «Бюро-материалах»
+        // осталась бы безымянная позиция). Проверка повторяется внутри транзакции по свежим данным.
+        function mmcOpenDelete(it, after) {
+            const m = cmpModal(`
+                <h2 class="text-lg font-bold text-red-300">🗑 ${t('mmc_del_title')}</h2>
+                <div class="mt-3 flex gap-3 rounded-xl border border-solid border-klt-line bg-klt-bg p-3">
+                    <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-klt-card">${cmpSafeImg(it.image) ? `<img src="${cmpAttr(cmpSafeImg(it.image))}" alt="" class="absolute inset-0 h-full w-full object-cover" onerror="this.remove()">` : '<span class="absolute inset-0 flex items-center justify-center text-xl opacity-40">🖼️</span>'}</div>
+                    <div class="min-w-0 flex-1"><div class="text-sm font-bold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><div class="mt-0.5 font-mono text-xs text-klt-emerald-light">${escapeHtml(it.sku)}</div></div>
+                </div>
+                <p class="mb-2 mt-3 text-sm text-slate-50">${fmt(t('mmc_del_q'), { name: escapeHtml(it.name), code: escapeHtml(it.sku) })}</p>
+                <p class="m-0 text-xs text-klt-muted">${t('mmc_del_note')}</p>
+                <div id="mmc-d-err" class="mt-3 min-h-[18px] text-xs text-klt-muted">${t('mmc_del_check')}</div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="mmc-d-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button>
+                    <button type="button" id="mmc-d-ok" disabled class="cursor-pointer rounded-lg border-0 bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40">${t('mmc_del_do')}</button></div>`);
+            const err = m.$('#mmc-d-err'), ok = m.$('#mmc-d-ok');
+            const inStock = snaps => snaps.map(d => ({ wh: String(d.data().warehouse || d.id.split('__')[0]), qty: Math.max(0, Number(d.data().qty) || 0) })).filter(x => x.qty > 0);
+            const listOf = busy => busy.map(x => `${x.wh} — ${x.qty} ${it.unit || 'шт'}`).join(', ');
+            const showErr = html => { err.className = 'mt-3 min-h-[18px] text-xs font-semibold text-red-300'; err.innerHTML = html; };
+            let stockRefs = [];
+            m.$('#mmc-d-cancel').onclick = m.close;
+            (async () => {
+                try {
+                    const docs = await mmcStockDocs(it.sku); stockRefs = docs.map(d => d.ref);
+                    const busy = inStock(docs);
+                    if (busy.length) { showErr(mmcErrText(new MmcError('mmc_del_blocked', { list: listOf(busy) }))); return; }
+                    err.textContent = ''; ok.disabled = false;
+                } catch (e) { console.error(e); showErr(t('cmp_err_save')); }
+            })();
+            ok.onclick = async () => {
+                if (ok.disabled) return; ok.disabled = true;
+                try {
+                    await runTransaction(db, async tx => {
+                        const snaps = []; for (const ref of stockRefs) snaps.push(await tx.get(ref));
+                        const busy = inStock(snaps.filter(sn => sn.exists()));
+                        if (busy.length) throw new MmcError('mmc_del_blocked', { list: listOf(busy) });
+                        tx.delete(doc(db, 'material_catalog', it.id));
+                        snaps.forEach(sn => { if (sn.exists()) tx.delete(sn.ref); });
+                    });
+                    const gone = new Set(stockRefs.map(r => r.id));
+                    mmcSet(mmcItems.filter(x => x.id !== it.id));
+                    burItems = burItems.filter(x => !gone.has(x.id));
+                    logActivity('mm_delete', `Material Master: удалён ${it.sku} «${it.name}»${gone.size ? `, пустых складских записей: ${gone.size}` : ''}`);
+                    m.close(); after(); cmpToast(fmt(t('mmc_deleted'), { code: it.sku }), 'ok');
+                } catch (e) {
+                    console.error(e); showErr(mmcErrText(e));
+                    if (!(e instanceof MmcError)) ok.disabled = false;
+                }
+            };
+        }
+
+        // Форма Material Code: без аргумента — создание, с позицией — редактирование (код тоже можно поменять)
         function mmcOpenForm(it, presetCode, onSaved) {
             const edit = !!it;
             let fileImg = edit && /^data:/i.test(it.image) ? it.image : null;
-            const ro = edit ? ' disabled' : '', roCls = edit ? ' cursor-not-allowed opacity-60' : '';
             const m = cmpModal(`
                 <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">${edit ? '✏️ ' + t('mmc_edit_title') : '📦 ' + t('mmc_new_title')}</h2>
                 <div class="grid gap-3.5">
-                    <div><label class="${CMP_LBL}" for="mmc-f-code">${t('mmc_f_code')}${edit ? ' 🔒' : ''}</label><input id="mmc-f-code" type="text" autocomplete="off" value="${cmpAttr(edit ? it.sku : (presetCode || ''))}"${ro} placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono${roCls}"></div>
+                    <div><label class="${CMP_LBL}" for="mmc-f-code">${t('mmc_f_code')}</label><input id="mmc-f-code" type="text" autocomplete="off" value="${cmpAttr(edit ? it.sku : (presetCode || ''))}" placeholder="GLV-KNT-L" class="${CMP_FLD} font-mono"></div>
                     <div><label class="${CMP_LBL}" for="mmc-f-name">${t('mmc_f_name')}</label><input id="mmc-f-name" type="text" autocomplete="off" value="${edit ? cmpAttr(it.name) : ''}" class="${CMP_FLD}"></div>
                     <div><label class="${CMP_LBL}" for="mmc-f-desc">${t('mmc_f_desc')}</label><textarea id="mmc-f-desc" rows="5" class="${CMP_FLD} resize-y" style="white-space:pre-wrap;overflow-wrap:anywhere">${edit ? escapeHtml(it.description) : ''}</textarea></div>
                     <div><label class="${CMP_LBL}">${t('bur_f_img')}</label>
@@ -3264,7 +3509,7 @@
                                 <input id="mmc-f-url" type="url" autocomplete="off" value="${edit && /^https?:\/\//i.test(it.image) ? cmpAttr(it.image) : ''}" placeholder="${cmpAttr(t('bur_f_img_url'))}" class="${CMP_FLD}">
                             </div>
                         </div></div>
-                    ${edit ? `<p class="m-0 text-xs text-klt-muted">🔒 ${t('mmc_code_ro')}</p>` : ''}
+                    ${edit ? `<p class="m-0 text-xs text-klt-muted">ℹ️ ${t('mmc_code_note')}</p>` : ''}
                 </div>
                 <div id="mmc-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="mmc-f-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="mmc-f-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
@@ -3283,7 +3528,7 @@
                 const okBtn = $('#mmc-f-ok');
                 const sku = normCode($('#mmc-f-code').value), name = $('#mmc-f-name').value.trim(), url = $('#mmc-f-url').value.trim();
                 const desc = burCleanText($('#mmc-f-desc').value).replace(/\r\n?/g, '\n').trim();
-                if (!edit && !sku) { err.textContent = t('mmc_err_code'); return; }
+                if (!sku) { err.textContent = t('mmc_err_code'); return; }
                 if (!name) { err.textContent = t('cmp_err_name'); return; }
                 if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
                 const image = fileImg || url || '';
@@ -3294,8 +3539,14 @@
                         if (name !== it.name) ch.push(`название «${it.name}» → «${name}»`);
                         if (desc !== it.description) ch.push('описание');
                         if (image !== it.image) ch.push('фото');
-                        if (!ch.length) { m.close(); return; }
                         const upd = { name, image, description: desc };
+                        if (sku !== normCode(it.sku)) {   // смена кода: перенос карточки и остатков + правки паспорта — одной транзакцией
+                            const old = it.sku;
+                            await mmcRenameCode(old, sku, upd);
+                            if (ch.length) logActivity('mm_edit', `Material Master: изменён «${name}» (${sku}): ${ch.join('; ')}`);
+                            m.close(); burRedraw(); cmpToast(fmt(t('mmc_code_changed'), { old, code: sku }), 'ok'); if (onSaved) onSaved(it); return;
+                        }
+                        if (!ch.length) { m.close(); return; }
                         await updateDoc(doc(db, 'material_catalog', it.id), { ...upd, updatedAt: Date.now(), updatedBy: currentUserName });
                         Object.assign(it, upd);
                         burItems.forEach(x => { if (normCode(x.sku) === normCode(it.sku)) Object.assign(x, upd); });   // склад сразу видит новый паспорт
@@ -3310,7 +3561,7 @@
                     mmcSet(mmcItems.concat(made));
                     logActivity('mm_create', `Material Master: создан Material Code ${sku} «${name}»`);
                     m.close(); burRedraw(); cmpToast(t('mmc_created'), 'ok'); if (onSaved) onSaved(made);
-                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); okBtn.disabled = false; }
+                } catch (e) { console.error(e); err.innerHTML = mmcErrText(e); okBtn.disabled = false; }
             };
         }
 
@@ -3321,45 +3572,20 @@
                 ? `<button type="button" data-mmc-act="preview" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('mmc_photo_preview'))}" aria-label="${cmpAttr(t('mmc_photo_preview'))}" class="group relative block h-14 w-14 cursor-zoom-in overflow-hidden rounded-lg border border-solid border-klt-line bg-klt-bg p-0 transition hover:border-klt-emerald"><img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.parentNode.replaceWith(Object.assign(document.createElement('span'),{className:'flex h-14 w-14 items-center justify-center rounded-lg border border-solid border-klt-line bg-klt-bg text-xl opacity-40',textContent:'🖼️'}))" class="h-full w-full object-cover transition group-hover:scale-105"></button>`
                 : `<span class="flex h-14 w-14 items-center justify-center rounded-lg border border-solid border-klt-line bg-klt-bg text-xl opacity-40">🖼️</span>`;
         }
+        // Просмотр фото на весь экран: область картинки = окно минус шапка, изображение вписывается целиком (object-contain) —
+        // без обрезки и без искажения пропорций, на любом экране и в любой ориентации. Закрытие — только кнопкой ✕.
         function mmcOpenPreview(it) {
             const img = cmpSafeImg(it.image); if (!img) return;
-            const m = cmpModal(`<div class="flex items-start justify-between gap-3"><div class="min-w-0"><div class="font-mono text-xs text-klt-emerald-light">${escapeHtml(it.sku)}</div><h2 class="m-0 text-base font-bold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</h2></div><button type="button" id="mmc-pv-x" class="${CMP_ICO}" aria-label="×">✕</button></div>
-                <div class="mt-4 flex justify-center rounded-xl bg-klt-bg p-2"><img src="${cmpAttr(img)}" alt="" class="max-h-[70vh] max-w-full rounded-lg object-contain"></div>`, true);
-            m.$('#mmc-pv-x').onclick = m.close;
-        }
-
-        // Полная очистка справочника Material Master (только админ, с подтверждением).
-        // Удаляются ТОЛЬКО документы material_catalog; складские записи «Бюро-материалов» (material_master) и журнал не трогаются.
-        function mmcOpenClear(after) {
-            if (!isAdmin) return;
-            const m = cmpModal(`
-                <h2 class="text-lg font-bold text-red-300">🗑 ${t('mmc_clear_title')}</h2>
-                <p class="mb-3 mt-2 text-sm text-slate-50">${fmt(t('mmc_clear_q'), { n: mmcItems.length })}</p>
-                <p class="m-0 text-xs text-klt-muted">${t('mmc_clear_note')}</p>
-                <label class="mb-1.5 mt-4 block text-xs text-klt-muted" for="mmc-c-word">${t('mmc_clear_type')}</label>
-                <input id="mmc-c-word" type="text" autocomplete="off" class="${CMP_FLD}">
-                <div id="mmc-c-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
-                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="mmc-c-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button>
-                    <button type="button" id="mmc-c-ok" disabled class="cursor-pointer rounded-lg border-0 bg-red-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-40">${t('mmc_clear_do')}</button></div>`);
-            const word = t('mmc_clear_word');
-            m.$('#mmc-c-cancel').onclick = m.close;
-            m.$('#mmc-c-word').oninput = e => { m.$('#mmc-c-ok').disabled = e.target.value.trim().toUpperCase() !== word; };
-            m.$('#mmc-c-word').focus();
-            m.$('#mmc-c-ok').onclick = async () => {
-                const ok = m.$('#mmc-c-ok'); if (ok.disabled) return;
-                ok.disabled = true;
-                try {
-                    const snap = await getDocs(collection(db, 'material_catalog'));
-                    for (let i = 0; i < snap.docs.length; i += 400) {
-                        const b = writeBatch(db);
-                        snap.docs.slice(i, i + 400).forEach(d => b.delete(d.ref));
-                        await b.commit();
-                    }
-                    mmcSet([]);
-                    logActivity('mm_clear', `Material Master: справочник очищен, удалено карточек: ${snap.size}`);
-                    m.close(); after(); cmpToast(fmt(t('mmc_cleared'), { n: snap.size }), 'ok');
-                } catch (e) { console.error(e); m.$('#mmc-c-err').textContent = t('cmp_err_save'); ok.disabled = false; }
-            };
+            const ov = document.createElement('div');
+            ov.className = 'fixed inset-0 z-[120] flex flex-col bg-black/95';
+            ov.setAttribute('role', 'dialog'); ov.setAttribute('aria-modal', 'true');
+            ov.innerHTML = `<div class="flex shrink-0 items-center justify-between gap-3 px-4 py-3 sm:px-6">
+                    <div class="min-w-0"><div class="font-mono text-xs text-klt-emerald-light">${escapeHtml(it.sku)}</div><h2 class="m-0 text-base font-bold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</h2></div>
+                    <button type="button" id="mmc-pv-x" class="${CMP_ICO} shrink-0 bg-black/40 px-3.5 py-2.5 text-base" aria-label="${cmpAttr(t('btn_close'))}" title="${cmpAttr(t('btn_close'))}">✕</button></div>
+                <div class="flex min-h-0 flex-1 items-center justify-center px-2 pb-2 sm:px-6 sm:pb-6">
+                    <img src="${cmpAttr(img)}" alt="${cmpAttr(it.name)}" class="block h-full w-full rounded-lg object-contain"></div>`;
+            ov.querySelector('#mmc-pv-x').onclick = () => ov.remove();
+            document.body.appendChild(ov);
         }
 
         async function renderMaterialMaster(pv) {
@@ -3374,7 +3600,6 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div id="mmc-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
-                        <button type="button" id="mmc-clear" style="display:none" class="${CMP_BTN} border-red-500/50 text-[13px] text-red-300 hover:border-red-400 hover:text-red-200">🗑 ${t('mmc_clear')}</button>
                         <button type="button" id="mmc-new" class="${CMP_BTN_MAIN}">${t('mmc_create')}</button>
                     </div>
                 </div>
@@ -3383,7 +3608,8 @@
                 <div id="mmc-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
             pv.appendChild(wrap);
             const $ = id => wrap.querySelector('#' + id);
-            const editBtn = it => `<button type="button" data-mmc-act="edit" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('cmp_edit'))}" aria-label="${cmpAttr(t('cmp_edit'))}" class="${CMP_ICO}">✏️</button>`;
+            const editBtn = it => `<span class="inline-flex gap-1.5"><button type="button" data-mmc-act="edit" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('cmp_edit'))}" aria-label="${cmpAttr(t('cmp_edit'))}" class="${CMP_ICO}">✏️</button>` +
+                `<button type="button" data-mmc-act="delete" data-id="${cmpAttr(it.id)}" title="${cmpAttr(t('mmc_del'))}" aria-label="${cmpAttr(t('mmc_del'))}" class="${CMP_ICO} hover:border-red-400">🗑️</button></span>`;
 
             const card = (it, i) => `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid border-klt-line bg-klt-bg p-4">
                 <div class="flex items-start gap-3">
@@ -3401,7 +3627,7 @@
                 const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
                 const td = 'border-b border-solid border-klt-line px-3 py-3 align-top text-slate-50';
                 return `<div class="overflow-x-auto"><table class="w-full min-w-[820px] border-collapse text-[13px]">
-                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-14"></th></tr></thead>
+                    <thead><tr><th class="${th} w-12">${t('mmc_col_num')}</th><th class="${th} w-20">${t('mmc_col_photo')}</th><th class="${th}">${t('mmc_col_name')}</th><th class="${th}">${t('mmc_col_desc')}</th><th class="${th} w-48">${t('mmc_col_code')}</th><th class="${th} w-24"></th></tr></thead>
                     <tbody>${list.map((it, i) => `<tr class="transition hover:bg-klt-hover">
                         <td class="${td} text-klt-muted">${i + 1}</td>
                         <td class="${td}">${mmcPhoto(it)}</td>
@@ -3419,7 +3645,6 @@
                 const list = mmcItems.filter(x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q))
                     .sort((a, b) => a.sku.localeCompare(b.sku, 'ru', { numeric: true }));
                 $('mmc-count').textContent = fmt(t('mmc_count'), { n: list.length });
-                $('mmc-clear').style.display = isAdmin && mmcItems.length ? '' : 'none';
                 if (!list.length) {
                     $('mmc-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${mmcItems.length ? t('mmc_empty') : t('mmc_empty_first')}</div>`;
                     return;
@@ -3435,11 +3660,12 @@
                 if (v) { mmcView = v.dataset.mmcView; try { localStorage.setItem('kletka_mmc_view', mmcView); } catch (x) { /* ignore */ } drawChrome(); drawList(); return; }
                 const b = e.target.closest('[data-mmc-act]'); if (!b) return;
                 const it = mmcItems.find(x => x.id === b.dataset.id); if (!it) return;
-                if (b.dataset.mmcAct === 'preview') mmcOpenPreview(it); else mmcOpenForm(it);
+                if (b.dataset.mmcAct === 'preview') mmcOpenPreview(it);
+                else if (b.dataset.mmcAct === 'delete') mmcOpenDelete(it, () => { if (wrap.isConnected) { drawChrome(); drawList(); } });
+                else mmcOpenForm(it);
             });
             $('mmc-search').addEventListener('input', e => { mmcQuery = e.target.value; drawList(); });
             $('mmc-new').onclick = () => mmcOpenForm();
-            $('mmc-clear').onclick = () => mmcOpenClear(() => { if (wrap.isConnected) { drawChrome(); drawList(); } });
             drawChrome();
             try { await burLoadCats(); await mmcLoad(); }   // категории грузятся только для совместимости данных с «Бюро-материалами», в UI Material Master не используются
             catch (e) {
@@ -3466,14 +3692,12 @@
                         <button type="button" id="bur-hist" class="${CMP_BTN} text-[13px]">📜 ${t('bur_hist')}</button>
                         <button type="button" id="bur-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
                         <button type="button" id="bur-rc" class="${CMP_BTN_MAIN}">${t('bur_receive')}</button>
-                        <button type="button" id="bur-mm" class="${CMP_BTN} text-[13px]">📦 Material Master</button>
                     </div>
                 </div>
                 <input id="bur-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('bur_search_ph'))}" value="${cmpAttr(burQuery)}" class="mb-3 ${CMP_FLD}">
                 <div id="bur-chips" class="mb-3 flex flex-wrap items-center gap-2"></div>
                 <div id="bur-count" class="mb-3 text-xs text-klt-muted"></div>
-                <div id="bur-list"><div class="py-10 text-center text-klt-muted">…</div></div>
-                <button type="button" id="bur-cart-fab" data-bur-act="cart" style="display:none" class="${CMP_BTN_MAIN} fixed bottom-5 right-5 z-[100] items-center gap-2 px-5 py-3 shadow-2xl"><span id="bur-cart-fab-t"></span></button>`;
+                <div id="bur-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
             pv.appendChild(wrap);
             const $ = id => wrap.querySelector('#' + id);
 
@@ -3532,11 +3756,11 @@
                 else if (a === 'order') burAddToOrder(it);
             });
             $('bur-search').addEventListener('input', e => { burQuery = e.target.value; drawList(); });
-            $('bur-mm').onclick = () => openPage('material-master');
             $('bur-rc').onclick = () => burOpenReceive();
             $('bur-hist').onclick = () => openMaterialJournal('bureau');
             $('bur-ie').onclick = () => openImportExport('bureau');
 
+            burLoadedFor = ''; burCartEnsure(); burCartSync();
             drawChrome();
             if (focusSearch) $('bur-search').focus();   // «+ Выдать бюро-материалы» с главной: сразу к поиску нужной позиции
             try {
@@ -3549,7 +3773,10 @@
                 if (wrap.isConnected) $('bur-list').innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('bur_load_err')}</div>`;
                 return;
             }
-            if (wrap.isConnected) { drawChrome(); drawList(); burCartSync(); }
+            if (!wrap.isConnected) return;
+            burLoadedFor = currentWarehouse;
+            drawChrome(); drawList(); burCartSync();
+            if (burCartOpenPending) { burCartOpenPending = false; burOpenCart(); }
         }
 
         // Счётчики плиток главной: «Бюро-материалы (SKU)» и «Мало на складе» по текущему складу
