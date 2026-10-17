@@ -393,6 +393,9 @@
                         <button class="nav-item" data-key="bureau-materials" onclick="window.openPage('bureau-materials')">
                             <span class="nav-icon">🗂️</span><span class="nav-label" data-i18n="nav_bureau">Бюро-материалы</span>
                         </button>
+                        <button class="nav-item" data-key="code-audit" onclick="window.openPage('code-audit')">
+                            <span class="nav-icon">🔍</span><span class="nav-label" data-i18n="nav_audit">Аудит кодов</span>
+                        </button>
                         <button class="nav-item" data-key="regions" onclick="window.openPage('regions')">
                             <span class="nav-icon">🗺️</span><span class="nav-label" data-i18n="nav_regions">Регионы и склады</span>
                         </button>
@@ -645,7 +648,7 @@
         // Сам вход хранит Firebase Auth (browserLocalPersistence — localStorage, «Запомнить меня»; иначе sessionStorage вкладки).
         // Здесь дополнительно запоминаем, где был пользователь: страница, склад, язык — и возвращаем его туда после F5.
         const UI_STATE_KEY = 'kletka_ui_state';
-        const RESTORABLE_PAGES = ['material-master', 'asset-ledger', 'components', 'bureau-materials', 'excel-import-export', 'po-pr', 'delivery-receive'];
+        const RESTORABLE_PAGES = ['material-master', 'asset-ledger', 'components', 'bureau-materials', 'code-audit', 'excel-import-export', 'po-pr', 'delivery-receive'];
         function readUiState() { try { return JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}') || {}; } catch (e) { return {}; } }
         function saveUiState(patch) { try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(Object.assign(readUiState(), patch))); } catch (e) { /* storage недоступен */ } }
         function hideBootSplash() { const sp = document.getElementById('boot-splash'); if (sp) sp.classList.add('hidden'); }
@@ -1007,6 +1010,7 @@
             'transfer-out': { iconKey: '⬆️', labelKey: 'nav_transfer_out' },
             'bureau-materials': { iconKey: '🗂️', labelKey: 'm_bureau_label' },
             'bureau-issue': { iconKey: '🔵', labelKey: 'qa_issue_office' },
+            'code-audit': { iconKey: '🔍', labelKey: 'nav_audit' },
             'rma-cage': { iconKey: '🚫', labelKey: 'stat_tech_cage' },
             'write-off': { iconKey: '📝', labelKey: 'stat_tech_written_off' }
         };
@@ -1050,6 +1054,9 @@
             } else if (key === 'bureau-materials' || key === 'bureau-issue') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderBureau(pv, key === 'bureau-issue');
+            } else if (key === 'code-audit') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderCodeAudit(pv);
             } else if (key === 'excel-import-export') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderImportExport(pv);
@@ -3815,6 +3822,7 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div id="mmc-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="mmc-audit" class="${CMP_BTN} text-[13px]">🔍 ${t('aud_btn')}</button>
                         <button type="button" id="mmc-cats" class="${CMP_BTN} text-[13px]">⚙️ ${t('mmc_cats_btn')}</button>
                         <button type="button" id="mmc-new" class="${CMP_BTN_MAIN}">${t('mmc_create')}</button>
                     </div>
@@ -3883,6 +3891,7 @@
             });
             $('mmc-search').addEventListener('input', e => { mmcQuery = e.target.value; drawList(); });
             $('mmc-new').onclick = () => mmcOpenForm();
+            $('mmc-audit').onclick = () => openPage('code-audit');
             $('mmc-cats').onclick = () => burOpenCats();   // управление категориями — только здесь; «Бюро-материалы» их лишь фильтруют
             drawChrome();
             try { await burLoadCats(); await mmcLoad(); }   // категории грузим до карточек: бейджи и выбор категории в форме
@@ -3907,6 +3916,7 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div id="bur-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="bur-audit" class="${CMP_BTN} text-[13px]">🔍 ${t('aud_btn')}</button>
                         <button type="button" id="bur-hist" class="${CMP_BTN} text-[13px]">📜 ${t('bur_hist')}</button>
                         <button type="button" id="bur-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
                         <button type="button" id="bur-rc" class="${CMP_BTN_MAIN}">${t('bur_receive')}</button>
@@ -3979,6 +3989,7 @@
             $('bur-search').addEventListener('input', e => { burQuery = e.target.value; drawList(); });
             $('bur-rc').onclick = () => burOpenReceive();
             $('bur-hist').onclick = () => openMaterialJournal('bureau');
+            $('bur-audit').onclick = () => openPage('code-audit');
             $('bur-ie').onclick = () => openImportExport('bureau');
 
             burLoadedFor = ''; burCartEnsure(); burCartSync();
@@ -3998,6 +4009,339 @@
             burLoadedFor = currentWarehouse;
             drawChrome(); drawList(); burCartSync();
             if (burCartOpenPending) { burCartOpenPending = false; burOpenCart(); }
+        }
+
+        // =====================================================================
+        // СВЕРКА МАТЕРИАЛ-КОДОВ (Cross-Check): справочник material_catalog ↔ складские записи «Бюро-материалов»
+        // (material_master, group:'bureau'). Одна строка = один уникальный Material Code (normCode), поэтому
+        // ✅ + ⚠️ + ❌ всегда равно числу уникальных кодов в объединении обоих списков.
+        // =====================================================================
+        Object.assign(TR.ru, {
+            nav_audit: 'Аудит кодов', aud_title: 'Сверка складов / Аудит кодов',
+            aud_sub: 'Сопоставление Material Code из Material Master с позициями «Бюро-материалов». Одна строка — один уникальный код.',
+            aud_btn: 'Аудит кодов', aud_scope_all: 'Все склады', aud_scope_wh: 'Склад {wh}',
+            aud_f_all: 'Все', aud_s_ok: 'Синхронизировано', aud_s_mm: 'Только в Material Master', aud_s_orphan: 'Ошибка / Orphan',
+            aud_s_ok_d: 'Код есть в справочнике и используется в Бюро-материалах', aud_s_mm_d: 'Заведён в справочник, но на склад ещё не принимался',
+            aud_s_orphan_d: 'Есть в Бюро-материалах, но кода нет в Material Master',
+            aud_check: 'Проверка: {a} + {b} + {c} = {sum} из {n} уникальных кодов', aud_check_bad: 'Расхождение в подсчёте: {a} + {b} + {c} = {sum}, а уникальных кодов {n}',
+            aud_search_ph: 'Поиск по Material Code или названию', aud_col_status: 'Статус', aud_col_code: 'Material Code', aud_col_name: 'Наименование',
+            aud_col_wh: 'Склады / остаток', aud_col_act: 'Действие', aud_empty: 'Нет позиций в этой категории', aud_empty_all: 'Справочник и Бюро-материалы пусты',
+            aud_load_err: 'Не удалось загрузить данные для сверки (проверьте соединение / правила Firestore)',
+            aud_like: 'Похоже на {code} — возможна опечатка', aud_like_back: 'Возможно, принят под кодом {code}', aud_raw: 'В записи: «{raw}»',
+            aud_create: '＋ Завести в MM', aud_fix: '🔧 Исправить на {code}', aud_reload: '↻ Обновить', aud_export: '⬇ Excel', aud_no_name: 'без названия',
+            aud_fix_title: 'Исправить Material Code', aud_fix_q: 'Перенести складские записи с кода {old} на код {code} из Material Master?',
+            aud_fix_merge: 'суммируется с уже существующей записью', aud_fix_new: 'новая запись', aud_fix_note: 'Остаток не меняется — меняется только код. История операций сохраняет старый код.',
+            aud_fix_do: 'Исправить', aud_fix_done: 'Код исправлен: {old} → {code}', aud_fix_changed: 'Данные изменились, пока было открыто окно. Обновите сверку и повторите.',
+            aud_total: 'Всего уникальных кодов: {n} · в справочнике {mm} · в Бюро-материалах {bur}'
+        });
+        Object.assign(TR.uk, {
+            nav_audit: 'Аудит кодів', aud_title: 'Звірка складів / Аудит кодів',
+            aud_sub: 'Зіставлення Material Code з Material Master з позиціями «Офісних матеріалів». Один рядок — один унікальний код.',
+            aud_btn: 'Аудит кодів', aud_scope_all: 'Усі склади', aud_scope_wh: 'Склад {wh}',
+            aud_f_all: 'Усі', aud_s_ok: 'Синхронізовано', aud_s_mm: 'Лише в Material Master', aud_s_orphan: 'Помилка / Orphan',
+            aud_s_ok_d: 'Код є в довіднику й використовується в Офісних матеріалах', aud_s_mm_d: 'Заведено в довідник, але на склад ще не приймався',
+            aud_s_orphan_d: 'Є в Офісних матеріалах, але коду немає в Material Master',
+            aud_check: 'Перевірка: {a} + {b} + {c} = {sum} з {n} унікальних кодів', aud_check_bad: 'Розбіжність у підрахунку: {a} + {b} + {c} = {sum}, а унікальних кодів {n}',
+            aud_search_ph: 'Пошук за Material Code або назвою', aud_col_status: 'Статус', aud_col_code: 'Material Code', aud_col_name: 'Найменування',
+            aud_col_wh: 'Склади / залишок', aud_col_act: 'Дія', aud_empty: 'Немає позицій у цій категорії', aud_empty_all: 'Довідник і Офісні матеріали порожні',
+            aud_load_err: 'Не вдалося завантажити дані для звірки (перевірте з’єднання / правила Firestore)',
+            aud_like: 'Схоже на {code} — можлива помилка в коді', aud_like_back: 'Можливо, прийнято під кодом {code}', aud_raw: 'У записі: «{raw}»',
+            aud_create: '＋ Завести в MM', aud_fix: '🔧 Виправити на {code}', aud_reload: '↻ Оновити', aud_export: '⬇ Excel', aud_no_name: 'без назви',
+            aud_fix_title: 'Виправити Material Code', aud_fix_q: 'Перенести складські записи з коду {old} на код {code} з Material Master?',
+            aud_fix_merge: 'додається до наявного запису', aud_fix_new: 'новий запис', aud_fix_note: 'Залишок не змінюється — змінюється лише код. Історія операцій зберігає старий код.',
+            aud_fix_do: 'Виправити', aud_fix_done: 'Код виправлено: {old} → {code}', aud_fix_changed: 'Дані змінилися, поки було відкрито вікно. Оновіть звірку й повторіть.',
+            aud_total: 'Усього унікальних кодів: {n} · у довіднику {mm} · в Офісних матеріалах {bur}'
+        });
+        Object.assign(TR.pl, {
+            nav_audit: 'Audyt kodów', aud_title: 'Uzgodnienie magazynów / Audyt kodów',
+            aud_sub: 'Porównanie Material Code z Material Master z pozycjami „Materiałów biurowych”. Jeden wiersz — jeden unikalny kod.',
+            aud_btn: 'Audyt kodów', aud_scope_all: 'Wszystkie magazyny', aud_scope_wh: 'Magazyn {wh}',
+            aud_f_all: 'Wszystkie', aud_s_ok: 'Zsynchronizowano', aud_s_mm: 'Tylko w Material Master', aud_s_orphan: 'Błąd / Orphan',
+            aud_s_ok_d: 'Kod jest w katalogu i jest używany w Materiałach biurowych', aud_s_mm_d: 'Jest w katalogu, ale nie był jeszcze przyjmowany',
+            aud_s_orphan_d: 'Jest w Materiałach biurowych, ale kodu nie ma w Material Master',
+            aud_check: 'Kontrola: {a} + {b} + {c} = {sum} z {n} unikalnych kodów', aud_check_bad: 'Niezgodność: {a} + {b} + {c} = {sum}, a unikalnych kodów {n}',
+            aud_search_ph: 'Szukaj po Material Code lub nazwie', aud_col_status: 'Status', aud_col_code: 'Material Code', aud_col_name: 'Nazwa',
+            aud_col_wh: 'Magazyny / stan', aud_col_act: 'Akcja', aud_empty: 'Brak pozycji w tej kategorii', aud_empty_all: 'Katalog i Materiały biurowe są puste',
+            aud_load_err: 'Nie udało się wczytać danych (sprawdź połączenie / reguły Firestore)',
+            aud_like: 'Podobny do {code} — możliwa literówka', aud_like_back: 'Możliwe, że przyjęto pod kodem {code}', aud_raw: 'W rekordzie: „{raw}”',
+            aud_create: '＋ Dodaj do MM', aud_fix: '🔧 Popraw na {code}', aud_reload: '↻ Odśwież', aud_export: '⬇ Excel', aud_no_name: 'bez nazwy',
+            aud_fix_title: 'Popraw Material Code', aud_fix_q: 'Przenieść rekordy magazynowe z kodu {old} na kod {code} z Material Master?',
+            aud_fix_merge: 'sumuje się z istniejącym rekordem', aud_fix_new: 'nowy rekord', aud_fix_note: 'Stan się nie zmienia — zmienia się tylko kod. Historia operacji zachowuje stary kod.',
+            aud_fix_do: 'Popraw', aud_fix_done: 'Kod poprawiony: {old} → {code}', aud_fix_changed: 'Dane zmieniły się w trakcie. Odśwież audyt i powtórz.',
+            aud_total: 'Unikalnych kodów: {n} · w katalogu {mm} · w Materiałach biurowych {bur}'
+        });
+        Object.assign(TR.en, {
+            nav_audit: 'Code audit', aud_title: 'Warehouse reconciliation / Code audit',
+            aud_sub: 'Matches Material Codes from Material Master against “Office supplies” records. One row = one unique code.',
+            aud_btn: 'Code audit', aud_scope_all: 'All warehouses', aud_scope_wh: 'Warehouse {wh}',
+            aud_f_all: 'All', aud_s_ok: 'Synced', aud_s_mm: 'Material Master only', aud_s_orphan: 'Error / Orphan',
+            aud_s_ok_d: 'Code is in the catalog and used in Office supplies', aud_s_mm_d: 'In the catalog, but never received into stock',
+            aud_s_orphan_d: 'In Office supplies, but the code is missing from Material Master',
+            aud_check: 'Check: {a} + {b} + {c} = {sum} of {n} unique codes', aud_check_bad: 'Count mismatch: {a} + {b} + {c} = {sum}, but {n} unique codes',
+            aud_search_ph: 'Search by Material Code or name', aud_col_status: 'Status', aud_col_code: 'Material Code', aud_col_name: 'Name',
+            aud_col_wh: 'Warehouses / stock', aud_col_act: 'Action', aud_empty: 'No items in this category', aud_empty_all: 'Catalog and Office supplies are empty',
+            aud_load_err: 'Could not load reconciliation data (check connection / Firestore rules)',
+            aud_like: 'Looks like {code} — possible typo', aud_like_back: 'Possibly received as {code}', aud_raw: 'Stored as: “{raw}”',
+            aud_create: '＋ Add to MM', aud_fix: '🔧 Fix to {code}', aud_reload: '↻ Refresh', aud_export: '⬇ Excel', aud_no_name: 'no name',
+            aud_fix_title: 'Fix Material Code', aud_fix_q: 'Move stock records from code {old} to Material Master code {code}?',
+            aud_fix_merge: 'added to the existing record', aud_fix_new: 'new record', aud_fix_note: 'Stock does not change — only the code. Operation history keeps the old code.',
+            aud_fix_do: 'Fix', aud_fix_done: 'Code fixed: {old} → {code}', aud_fix_changed: 'Data changed while the dialog was open. Refresh the audit and try again.',
+            aud_total: 'Unique codes: {n} · in catalog {mm} · in Office supplies {bur}'
+        });
+
+        let audScope = 'all', audFilter = 'all', audQuery = '';
+        const AUD_ST = {
+            ok: { ic: '✅', k: 'aud_s_ok', chip: 'border-emerald-400/50 bg-emerald-500/15 text-emerald-300', row: '', code: 'text-klt-emerald-light' },
+            mm: { ic: '⚠️', k: 'aud_s_mm', chip: 'border-amber-400/50 bg-amber-500/15 text-amber-300', row: '', code: 'text-amber-300' },
+            orphan: { ic: '❌', k: 'aud_s_orphan', chip: 'border-red-400/60 bg-red-500/15 text-red-300', row: 'bg-red-500/10', code: 'text-red-300 font-bold' }
+        };
+        // «Сырой» ключ для поиска опечаток: без пробелов, дефисов, точек, слешей и т. п.
+        const audLoose = c => normCode(c).replace(/[^0-9A-ZА-ЯЁІЇЄҐ]/g, '');
+        function audLev(a, b) {
+            if (Math.abs(a.length - b.length) > 2) return 99;
+            let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+            for (let i = 1; i <= a.length; i++) {
+                const cur = [i];
+                for (let j = 1; j <= b.length; j++) cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+                prev = cur;
+            }
+            return prev[b.length];
+        }
+        // Ближайший код справочника для orphan: совпадение без разделителей, иначе расстояние Левенштейна ≤ 1 (≤ 2 для кодов от 8 символов)
+        function audSuggest(code, mmCodes) {
+            const lk = audLoose(code);
+            const same = mmCodes.find(c => audLoose(c) === lk);
+            if (same) return same;
+            const lim = lk.length >= 8 ? 2 : 1;
+            let best = null, bd = lim + 1;
+            if (lk.length < 4) return null;   // у коротких кодов почти всё «похоже» — не подсказываем
+            mmCodes.forEach(c => { const d = audLev(lk, audLoose(c)); if (d < bd) { bd = d; best = c; } });
+            return bd <= lim ? best : null;
+        }
+
+        // Чистая функция сверки: catalog — карточки Material Master, stock — складские записи бюро { id, wh, raw, qty, minQty, name }
+        function audBuild(catalog, stock, scope) {
+            const mm = new Map(catalog.map(m => [normCode(m.sku), m]));
+            const bur = new Map();
+            stock.forEach(s => {
+                if (scope !== 'all' && s.wh !== scope) return;
+                const k = normCode(s.raw);
+                if (!k) return;
+                if (!bur.has(k)) bur.set(k, { recs: [] });
+                bur.get(k).recs.push(s);
+            });
+            const rows = [];
+            new Set([...mm.keys(), ...bur.keys()]).forEach(code => {
+                const m = mm.get(code), b = bur.get(code);
+                const recs = b ? b.recs.slice().sort((x, y) => x.wh.localeCompare(y.wh)) : [];
+                rows.push({
+                    code, status: m && b ? 'ok' : m ? 'mm' : 'orphan', recs,
+                    name: m ? m.name : (recs.find(r => r.name) || {}).name || '', category: m ? m.category : null,
+                    qty: recs.reduce((s, r) => s + r.qty, 0),
+                    raws: [...new Set(recs.map(r => r.raw).filter(r => r !== code))]   // как код записан в документе, если отличается от нормализованного
+                });
+            });
+            const mmCodes = [...mm.keys()], mmOnly = new Set(rows.filter(r => r.status === 'mm').map(r => r.code));
+            rows.forEach(r => {
+                if (r.status !== 'orphan') return;
+                r.like = audSuggest(r.code, mmCodes);
+                if (r.like && mmOnly.has(r.like)) rows.find(x => x.code === r.like).likeBack = r.code;   // карточка без приёма ↔ orphan с опечаткой
+            });
+            const cnt = { ok: 0, mm: 0, orphan: 0 };
+            rows.forEach(r => cnt[r.status]++);
+            return { rows, cnt, n: rows.length, mmN: mm.size, burN: bur.size };
+        }
+
+        async function audLoad() {
+            await burLoadCats();
+            await mmcLoad();
+            const snap = await getDocs(query(collection(db, 'material_master'), where('group', '==', 'bureau')));
+            return snap.docs.map(d => {
+                const x = d.data(), parts = d.id.split('__');
+                return { id: d.id, wh: String(x.warehouse || parts[0] || ''), raw: String(x.sku != null ? x.sku : parts.slice(1).join('__')),
+                    qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), name: String(x.name || '') };
+            });
+        }
+
+        // Исправление опечатки: складские записи orphan-кода переносятся на код из справочника на каждом складе.
+        // Если на складе уже есть запись правильного кода — остатки складываются (qty = qty_правильного + qty_orphan).
+        function audOpenFix(row, onDone) {
+            const to = row.like, recs = row.recs;
+            const target = r => `${r.wh}__${mmcDocId(to)}`;
+            const m = cmpModal(`
+                <h2 class="mb-3 text-lg font-bold text-klt-emerald-light">🔧 ${t('aud_fix_title')}</h2>
+                <p class="mb-3 text-sm text-slate-50">${fmt(t('aud_fix_q'), { old: `<b class="font-mono text-red-300">${escapeHtml(row.code)}</b>`, code: `<b class="font-mono text-klt-emerald-light">${escapeHtml(to)}</b>` })}</p>
+                <div id="aud-fx-list" class="mb-3 grid gap-1.5 text-sm text-klt-muted">…</div>
+                <p class="mb-4 text-xs text-klt-muted">${t('aud_fix_note')}</p>
+                <div id="aud-fx-err" class="mb-3 text-sm text-red-300"></div>
+                <div class="flex justify-end gap-2"><button type="button" id="aud-fx-x" class="${CMP_BTN}">${t('cmp_cancel')}</button>
+                    <button type="button" id="aud-fx-ok" class="${CMP_BTN_MAIN}" disabled>${t('aud_fix_do')}</button></div>`);
+            m.$('#aud-fx-x').onclick = m.close;
+            const ok = m.$('#aud-fx-ok'), err = m.$('#aud-fx-err');
+            let plan = null, busy = false;
+            // Показываем расчёт по каждому складу ДО записи: «DC1: 3 + 5 = 8»
+            (async () => {
+                try {
+                    plan = await Promise.all(recs.map(async r => { const sn = await getDoc(doc(db, 'material_master', target(r))); return { r, has: sn.exists(), tq: sn.exists() ? Math.max(0, Number(sn.data().qty) || 0) : 0 }; }));
+                    m.$('#aud-fx-list').innerHTML = plan.map(p => `<div><b class="text-slate-50">${escapeHtml(p.r.wh)}</b>: ${p.has
+                        ? `${p.tq} + ${p.r.qty} = <b class="text-slate-50">${p.tq + p.r.qty}</b> (${t('aud_fix_merge')})`
+                        : `<b class="text-slate-50">${p.r.qty}</b> (${t('aud_fix_new')})`}</div>`).join('');
+                    ok.disabled = false;
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); }
+            })();
+            ok.onclick = async () => {
+                if (busy || !plan) return;
+                busy = true; ok.disabled = true; err.textContent = '';
+                try {
+                    const res = await runTransaction(db, async tx => {
+                        const reads = [];
+                        for (const p of plan) {   // все чтения до записей (требование транзакций Firestore)
+                            const from = await tx.get(doc(db, 'material_master', p.r.id)), dst = await tx.get(doc(db, 'material_master', target(p.r)));
+                            reads.push({ p, from, dst });
+                        }
+                        for (const { p, from, dst } of reads) {   // остаток мог измениться, пока окно было открыто — тогда не пишем ничего
+                            if (!from.exists() || Math.max(0, Number(from.data().qty) || 0) !== p.r.qty) return { changed: true };
+                            if (dst.exists() !== p.has || (dst.exists() && Math.max(0, Number(dst.data().qty) || 0) !== p.tq)) return { changed: true };
+                        }
+                        const now = Date.now();
+                        for (const { p, from, dst } of reads) {
+                            const fx = from.data();
+                            if (dst.exists()) {
+                                const dx = dst.data();
+                                tx.update(dst.ref, { qty: p.tq + p.r.qty, minQty: Math.max(Number(dx.minQty) || 0, Number(fx.minQty) || 0), updatedAt: now, updatedBy: currentUserName });
+                            } else {
+                                tx.set(dst.ref, Object.assign({}, fx, { sku: to, group: 'bureau', warehouse: p.r.wh, updatedAt: now, updatedBy: currentUserName }));
+                            }
+                            tx.delete(from.ref);
+                        }
+                        return { ok: true };
+                    });
+                    if (res.changed) { err.textContent = t('aud_fix_changed'); busy = false; return; }
+                    burCartEnsure();
+                    recs.forEach(r => { if (burCart.has(r.id)) burCartDel(r.id); });   // корзина выдачи ссылается на старый id записи
+                    logActivity('edit', `Аудит кодов: исправлен Material Code ${row.code} → ${to} (${plan.map(p => `${p.r.wh}: ${p.has ? `${p.tq}+${p.r.qty}=${p.tq + p.r.qty}` : p.r.qty}`).join(', ')})`);
+                    m.close();
+                    cmpToast(fmt(t('aud_fix_done'), { old: escapeHtml(row.code), code: escapeHtml(to) }), 'ok');
+                    onDone();
+                } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); busy = false; ok.disabled = false; }
+            };
+        }
+
+        async function renderCodeAudit(pv) {
+            const wrap = document.createElement('div');
+            wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            const seg = on => `cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${on ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}`;
+            wrap.innerHTML = `
+                <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h2 class="flex items-center gap-2.5 text-xl font-bold text-klt-emerald-light">🔍 ${t('aud_title')}</h2>
+                        <p class="mt-1 text-[13px] text-klt-muted">${t('aud_sub')}</p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <div id="aud-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                        <button type="button" id="aud-reload" class="${CMP_BTN} text-[13px]">${t('aud_reload')}</button>
+                        <button type="button" id="aud-export" class="${CMP_BTN} text-[13px]">${t('aud_export')}</button>
+                    </div>
+                </div>
+                <div id="aud-cards" class="mb-4 grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(min(220px,100%),1fr))"></div>
+                <div id="aud-check" class="mb-3 text-xs"></div>
+                <input id="aud-search" type="text" autocomplete="off" placeholder="${cmpAttr(t('aud_search_ph'))}" value="${cmpAttr(audQuery)}" class="mb-3 ${CMP_FLD}">
+                <div id="aud-chips" class="mb-3 flex flex-wrap items-center gap-2"></div>
+                <div id="aud-list"><div class="py-10 text-center text-klt-muted">…</div></div>`;
+            pv.appendChild(wrap);
+            const $ = id => wrap.querySelector('#' + id);
+            let stock = null, res = null;
+            if (audScope !== 'all' && audScope !== currentWarehouse) audScope = currentWarehouse;   // склад сменили — показываем текущий
+
+            const badge = st => `<span class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-solid px-2 py-0.5 text-[11px] font-bold ${AUD_ST[st].chip}">${AUD_ST[st].ic} ${t(AUD_ST[st].k)}</span>`;
+            const whCell = r => r.recs.length
+                ? r.recs.map(x => `<span class="mr-1.5 inline-block whitespace-nowrap rounded-md border border-solid border-klt-line px-1.5 py-0.5 text-[11px]"><b>${escapeHtml(x.wh)}</b>: ${x.qty}</span>`).join('')
+                : '<span class="text-klt-muted">—</span>';
+            const actCell = r => {
+                if (r.status !== 'orphan') return '';
+                const fix = r.like ? `<button type="button" data-aud-act="fix" data-code="${cmpAttr(r.code)}" class="${CMP_BTN} whitespace-nowrap text-xs">${fmt(t('aud_fix'), { code: escapeHtml(r.like) })}</button>` : '';
+                return `<span class="inline-flex flex-wrap justify-end gap-1.5">${fix}<button type="button" data-aud-act="create" data-code="${cmpAttr(r.code)}" class="${CMP_BTN} whitespace-nowrap text-xs">${t('aud_create')}</button></span>`;
+            };
+
+            function drawChrome() {
+                $('aud-seg').innerHTML = [['all', t('aud_scope_all')], [currentWarehouse, fmt(t('aud_scope_wh'), { wh: escapeHtml(currentWarehouse) })]].map(([k, l]) =>
+                    `<button type="button" data-aud-scope="${cmpAttr(k)}" aria-pressed="${audScope === k}" class="${seg(audScope === k)}">${l}</button>`).join('');
+            }
+            function drawSummary() {
+                const { cnt, n } = res, sum = cnt.ok + cnt.mm + cnt.orphan;
+                $('aud-cards').innerHTML = ['ok', 'mm', 'orphan'].map(st => `
+                    <button type="button" data-aud-f="${st}" class="cursor-pointer rounded-xl border border-solid p-4 text-left transition ${audFilter === st ? AUD_ST[st].chip : 'border-klt-line bg-klt-bg text-slate-50 hover:border-klt-emerald'}">
+                        <div class="text-[13px] font-bold">${AUD_ST[st].ic} ${t(AUD_ST[st].k)}</div>
+                        <div class="mt-1 text-2xl font-extrabold ${st === 'orphan' && cnt.orphan ? 'text-red-300' : ''}">${cnt[st]}</div>
+                        <div class="mt-1 text-[11px] leading-snug opacity-80">${t(AUD_ST[st].k + '_d')}</div>
+                    </button>`).join('');
+                const good = sum === n;   // контроль: каждая строка получила ровно один статус
+                $('aud-check').innerHTML = `<span class="${good ? 'text-klt-muted' : 'font-bold text-red-300'}">${good ? '✔ ' : '⚠ '}${fmt(t(good ? 'aud_check' : 'aud_check_bad'), { a: cnt.ok, b: cnt.mm, c: cnt.orphan, sum, n })}</span>
+                    <span class="text-klt-muted"> · ${fmt(t('aud_total'), { n, mm: res.mmN, bur: res.burN })}</span>`;
+            }
+            function visible() {
+                const q = audQuery.trim().toLowerCase(), order = { orphan: 0, mm: 1, ok: 2 };   // ошибки — сверху
+                return res.rows.filter(r => (audFilter === 'all' || r.status === audFilter) && (!q || r.code.toLowerCase().includes(q) || r.name.toLowerCase().includes(q) || (r.like || '').toLowerCase().includes(q)))
+                    .sort((a, b) => order[a.status] - order[b.status] || a.code.localeCompare(b.code, 'ru', { numeric: true }));
+            }
+            function drawList() {
+                const { cnt, n } = res;
+                const chip = (id, label, k) => `<button type="button" data-aud-f="${id}" aria-pressed="${audFilter === id}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${audFilter === id ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${k}</span></button>`;
+                $('aud-chips').innerHTML = chip('all', t('aud_f_all'), n) + ['ok', 'mm', 'orphan'].map(st => chip(st, `${AUD_ST[st].ic} ${t(AUD_ST[st].k)}`, cnt[st])).join('');
+                const list = visible();
+                if (!list.length) { $('aud-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${n ? t('aud_empty') : t('aud_empty_all')}</div>`; return; }
+                const th = 'border-b border-solid border-klt-line px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+                const td = 'border-b border-solid border-klt-line px-3 py-3 align-top text-slate-50';
+                $('aud-list').innerHTML = `<div class="overflow-x-auto"><table class="w-full min-w-[820px] border-collapse text-[13px]">
+                    <thead><tr><th class="${th} w-12">№</th><th class="${th} w-52">${t('aud_col_status')}</th><th class="${th} w-48">${t('aud_col_code')}</th><th class="${th}">${t('aud_col_name')}</th><th class="${th}">${t('aud_col_wh')}</th><th class="${th} text-right">${t('aud_col_act')}</th></tr></thead>
+                    <tbody>${list.map((r, i) => `<tr class="transition hover:bg-klt-hover ${AUD_ST[r.status].row}">
+                        <td class="${td} text-klt-muted">${i + 1}</td>
+                        <td class="${td}">${badge(r.status)}</td>
+                        <td class="${td} font-mono ${AUD_ST[r.status].code}" style="overflow-wrap:anywhere">${escapeHtml(r.code)}
+                            ${r.raws.length ? `<div class="mt-1 font-sans text-[11px] font-normal text-klt-muted">${fmt(t('aud_raw'), { raw: r.raws.map(escapeHtml).join('», «') })}</div>` : ''}
+                            ${r.like ? `<div class="mt-1 font-sans text-[11px] font-semibold text-amber-300">💡 ${fmt(t('aud_like'), { code: escapeHtml(r.like) })}</div>` : ''}
+                            ${r.likeBack ? `<div class="mt-1 font-sans text-[11px] font-semibold text-amber-300">💡 ${fmt(t('aud_like_back'), { code: escapeHtml(r.likeBack) })}</div>` : ''}</td>
+                        <td class="${td}"><div class="font-semibold" style="overflow-wrap:anywhere">${r.name ? escapeHtml(r.name) : `<span class="font-normal italic text-klt-muted">${t('aud_no_name')}</span>`}</div>${r.category ? `<div class="mt-1.5">${burCatBadge(r.category)}</div>` : ''}</td>
+                        <td class="${td}">${whCell(r)}</td>
+                        <td class="${td} text-right">${actCell(r)}</td></tr>`).join('')}</tbody></table></div>`;
+            }
+            function recompute() { res = audBuild(mmcItems, stock, audScope); drawChrome(); drawSummary(); drawList(); }
+            async function load() {
+                $('aud-list').innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>';
+                try { stock = await audLoad(); }
+                catch (e) {
+                    console.error(e);
+                    if (wrap.isConnected) $('aud-list').innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('aud_load_err')}</div>`;
+                    return;
+                }
+                if (wrap.isConnected) recompute();
+            }
+            burRedraw = () => { if (wrap.isConnected && stock) recompute(); };   // форма Material Master / менеджер категорий перерисовывают текущую страницу
+
+            wrap.addEventListener('click', e => {
+                const sc = e.target.closest('[data-aud-scope]');
+                if (sc) { audScope = sc.dataset.audScope; if (stock) recompute(); else drawChrome(); return; }
+                const f = e.target.closest('[data-aud-f]');
+                if (f && res) { audFilter = audFilter === f.dataset.audF && f.dataset.audF !== 'all' ? 'all' : f.dataset.audF; drawSummary(); drawList(); return; }
+                const b = e.target.closest('[data-aud-act]'); if (!b || !res) return;
+                const row = res.rows.find(r => r.code === b.dataset.code); if (!row) return;
+                if (b.dataset.audAct === 'create') mmcOpenForm(null, row.code, () => { if (wrap.isConnected) recompute(); });   // карточка добавилась в mmcItems — orphan становится ✅
+                else if (b.dataset.audAct === 'fix') audOpenFix(row, () => { if (wrap.isConnected) load(); });
+            });
+            $('aud-search').addEventListener('input', e => { audQuery = e.target.value; if (res) drawList(); });
+            $('aud-reload').onclick = () => load();
+            $('aud-export').onclick = () => {
+                if (!res) return;
+                const data = visible().map(r => ({
+                    [t('aud_col_status')]: `${AUD_ST[r.status].ic} ${t(AUD_ST[r.status].k)}`, [t('aud_col_code')]: r.code, [t('aud_col_name')]: r.name,
+                    [t('aud_col_wh')]: r.recs.map(x => `${x.wh}: ${x.qty}`).join(', '), Hint: r.like || r.likeBack || ''
+                }));
+                const ws = XLSX.utils.json_to_sheet(data), wb = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(wb, ws, 'code-audit');
+                XLSX.writeFile(wb, `code-audit_${audScope === 'all' ? 'ALL' : audScope}_${new Date().toISOString().slice(0, 10)}.xlsx`);
+            };
+            drawChrome();
+            await load();
         }
 
         // Счётчики плиток главной: «Бюро-материалы (SKU)» и «Мало на складе» по текущему складу
