@@ -2566,10 +2566,108 @@
             } catch (e) { console.warn('material_movements (import):', e); }
         }
 
+        // ---- Операции журнала и накладная (сборочный лист) ----
+        // Операция = документ с items[]; старые построчные записи с общим txId склеиваются, без txId — операция из одной позиции
+        const mmItemsOf = r => (Array.isArray(r.items) && r.items.length) ? r.items : [{ sku: r.sku, name: r.name, unit: r.unit, delta: r.delta }];
+        function mmGroupOps(rows, group) {
+            const ops = [], byKey = new Map();
+            rows.filter(r => r.group === group && r.warehouse === currentWarehouse).forEach(r => {
+                const key = r.txId ? `${r.type}|${r.txId}` : r.id;
+                let op = byKey.get(key);
+                if (!op) { op = { key, r, items: [] }; byKey.set(key, op); ops.push(op); }
+                op.items.push(...mmItemsOf(r));
+            });
+            return ops;
+        }
+        const mmDeltaTxt = (delta, unit) => { const d = Number(delta) || 0; return (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d) + ' ' + (unit || 'шт.'); };
+        const mmDeltaCls = delta => { const d = Number(delta) || 0; return d > 0 ? 'text-klt-emerald-light' : d < 0 ? 'text-red-400' : 'text-klt-muted'; };
+        const mmDeltaHtml = (delta, unit) => `<span class="whitespace-nowrap font-extrabold ${mmDeltaCls(delta)}">${escapeHtml(mmDeltaTxt(delta, unit))}</span>`;
+        // Итог операции по единицам измерения (шт. и упак. не складываем между собой)
+        function mmTotals(items) {
+            const by = new Map();
+            items.forEach(i => { const u = i.unit || 'шт.'; by.set(u, (by.get(u) || 0) + (Number(i.delta) || 0)); });
+            return [...by];
+        }
+        const mmTotalsHtml = items => mmTotals(items).map(([u, d]) => mmDeltaHtml(d, u)).join('<span class="text-klt-muted">, </span>');
+        const mmToHtml = r => r.to ? `${r.toType === 'proc' ? '⚙️' : '👤'} ${escapeHtml(r.to)}` : '<span class="text-klt-muted">—</span>';
+        // фото — из текущего паспорта товара (в журнале фото не хранится, чтобы не раздувать документы)
+        function mmImgOf(group, sku) {
+            const k = normCode(sku);
+            const src = group === 'bureau' ? mmcByCode.get(k) : cmpItems.find(x => normCode(x.sku) === k);
+            return src ? cmpSafeImg(src.image) : '';
+        }
+        function mmPhoto(group, sku, size) {
+            const img = mmImgOf(group, sku);
+            return `<div class="relative ${size} shrink-0 overflow-hidden rounded-lg bg-klt-bg">${img
+                ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-full w-full object-cover">`
+                : '<span class="absolute inset-0 flex items-center justify-center text-lg opacity-40">🖼️</span>'}</div>`;
+        }
+        // Развёрнутая накладная операции: шапка (№, дата, получатель, комментарий, оператор) + список позиций
+        function mmSheetHtml(group, op) {
+            const r = op.r, th = 'border-b border-solid border-klt-line px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+            const td = 'border-b border-solid border-klt-line px-3 py-2 align-middle text-slate-50';
+            const meta = (l, v) => `<div><div class="text-[11px] font-bold uppercase tracking-wider text-klt-muted">${l}</div><div class="mt-0.5 text-sm text-slate-50" style="overflow-wrap:anywhere">${v}</div></div>`;
+            return `<div class="p-4">
+                <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
+                    <div class="text-base font-bold text-klt-emerald-light">📄 ${fmt(t('mm_sheet_title'), { id: escapeHtml(r.txId || '—') })}</div>
+                    <button type="button" data-op-print="${cmpAttr(op.key)}" class="${CMP_BTN} text-[13px]">🖨 ${t('mm_sheet_print')}</button>
+                </div>
+                <div class="mb-3 grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+                    ${meta(t('mm_col_dt'), escapeHtml(mmFmtDate(r.timestamp)))}${meta(t('mm_sheet_to'), mmToHtml(r))}
+                    ${meta(t('mm_col_note'), escapeHtml(r.note || '') || '—')}${meta(t('mm_col_actor'), escapeHtml(r.actor || '—'))}
+                </div>
+                <table class="w-full border-collapse text-[13px]"><thead><tr><th class="${th} w-10">№</th><th class="${th} w-16">${t('mm_col_photo')}</th>
+                    <th class="${th}">${t('mm_col_name')}</th><th class="${th}">Material Code</th><th class="${th} text-right">${t('mm_sheet_qty')}</th></tr></thead>
+                    <tbody>${op.items.map((i, k) => `<tr><td class="${td} text-klt-muted">${k + 1}</td><td class="${td}">${mmPhoto(group, i.sku, 'h-11 w-11')}</td>
+                        <td class="${td} font-semibold" style="overflow-wrap:anywhere">${escapeHtml(i.name || '—')}</td>
+                        <td class="${td} font-mono text-klt-muted">${escapeHtml(i.sku || '—')}</td>
+                        <td class="${td} text-right text-base">${mmDeltaHtml(i.delta, i.unit)}</td></tr>`).join('')}</tbody>
+                    <tfoot><tr><td colspan="4" class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider text-klt-muted">${fmt(t('mm_sheet_total'), { n: op.items.length })}</td>
+                        <td class="px-3 py-2.5 text-right text-base">${mmTotalsHtml(op.items)}</td></tr></tfoot></table>
+            </div>`;
+        }
+        // Печать накладной как сборочного листа: светлая страница, колонка «✓» для отметки при комплектации
+        function mmPrintSheet(group, op) {
+            const r = op.r, e = escapeHtml, qty = i => e(String(Math.abs(Number(i.delta) || 0)) + ' ' + (i.unit || 'шт.'));
+            const totals = mmTotals(op.items).map(([u, d]) => e(Math.abs(d) + ' ' + u)).join(', ');
+            const to = r.to ? `${r.toType === 'proc' ? t('cmp_issue_to_proc') : t('cmp_issue_to_emp')}: ${e(r.to)}` : '—';
+            const html = `<!doctype html><html><head><meta charset="utf-8"><title>${e(r.txId || 'sheet')}</title><style>
+                *{box-sizing:border-box;font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif}body{margin:24px;color:#111}
+                h1{font-size:20px;margin:0 0 4px}.sub{color:#555;font-size:12px;margin-bottom:14px}
+                .meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;font-size:13px;margin-bottom:16px}.meta b{color:#555;font-weight:600}
+                table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;vertical-align:middle}
+                th{background:#f1f1f1;font-size:11px;text-transform:uppercase}td.n,th.n{text-align:right;white-space:nowrap}td.c{width:34px}
+                img{width:44px;height:44px;object-fit:cover;border-radius:4px;display:block}.code{font-family:ui-monospace,Consolas,monospace}
+                .sign{display:flex;gap:40px;margin-top:36px;font-size:13px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;color:#555}
+            </style></head><body>
+                <h1>${e(fmt(t('mm_sheet_title'), { id: r.txId || '—' }))}</h1>
+                <div class="sub">${e(t('mm_t_' + r.type))} · ${e(currentWarehouse)} · ${e(mmFmtDate(r.timestamp))}</div>
+                <div class="meta"><div><b>${e(t('mm_sheet_to'))}:</b> ${to}</div><div><b>${e(t('mm_col_actor'))}:</b> ${e(r.actor || '—')}</div>
+                    <div style="grid-column:1/-1"><b>${e(t('mm_col_note'))}:</b> ${e(r.note || '') || '—'}</div></div>
+                <table><thead><tr><th>№</th><th>${e(t('mm_col_photo'))}</th><th>${e(t('mm_col_name'))}</th><th>Material Code</th><th class="n">${e(t('mm_sheet_qty'))}</th><th>✓</th></tr></thead>
+                <tbody>${op.items.map((i, k) => { const img = mmImgOf(group, i.sku); return `<tr><td>${k + 1}</td><td>${img ? `<img src="${cmpAttr(img)}" alt="">` : ''}</td>
+                    <td>${e(i.name || '—')}</td><td class="code">${e(i.sku || '—')}</td><td class="n"><b>${qty(i)}</b></td><td class="c"></td></tr>`; }).join('')}</tbody>
+                <tfoot><tr><th colspan="4" class="n">${e(fmt(t('mm_sheet_total'), { n: op.items.length }))}</th><th class="n">${totals}</th><th></th></tr></tfoot></table>
+                <div class="sign"><div>${e(t('mm_sheet_sign_out'))}</div><div>${e(t('mm_sheet_sign_in'))}</div></div>
+            </body></html>`;
+            const f = document.createElement('iframe');
+            f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+            document.body.appendChild(f);
+            const d = f.contentDocument; d.open(); d.write(html); d.close();
+            // печатаем, когда догрузятся фото (или через 2 с, если какое-то не грузится)
+            const imgs = [...d.images].map(im => im.complete ? null : new Promise(res => { im.onload = im.onerror = res; })).filter(Boolean);
+            Promise.race([Promise.all(imgs), new Promise(res => setTimeout(res, 2000))]).then(() => {
+                f.contentWindow.focus(); f.contentWindow.print();
+                setTimeout(() => f.remove(), 1000);
+            });
+        }
+
         // Окно журнала: фильтр по периоду делается запросом (одно поле timestamp — без составного индекса),
         // фильтр по группе/складу/поиску — на клиенте.
         function openMaterialJournal(group) {
             let period = 'today', q = '', rows = [], loading = true, failed = false, truncated = false, seq = 0;
+            const opened = new Set();   // раскрытые накладные (ключ операции); сохраняются при смене поиска/периода
+            const lastOps = () => mmGroupOps(rows, group);
             const m = cmpModal(`
                 <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <h2 class="flex items-center gap-2.5 text-lg font-bold text-klt-emerald-light">📜 ${t('mm_title')}
@@ -2594,46 +2692,47 @@
                 if (loading) { cnt.textContent = ''; body.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
                 if (failed) { cnt.textContent = ''; body.innerHTML = `<div class="px-4 py-8 text-center text-sm text-red-300">${t('mm_load_err')}</div>`; return; }
                 const s = q.trim().toLowerCase();
-                // комплексная операция = один документ с items[]; старые построчные записи показываются как операция из одной позиции.
-                // В таблице каждая позиция операции — отдельная строка (своё фото и название), общие поля операции повторяются.
-                const itemsOf = r => (Array.isArray(r.items) && r.items.length) ? r.items : [{ sku: r.sku, name: r.name, unit: r.unit, delta: r.delta }];
-                const lines = [];
-                rows.filter(r => r.group === group && r.warehouse === currentWarehouse).forEach(r => {
-                    itemsOf(r).forEach((i, k) => {
-                        if (s && ![i.sku, i.name, r.to, r.note, r.actor].some(v => String(v || '').toLowerCase().includes(s))) return;
-                        lines.push({ r, i, first: k === 0 });
-                    });
-                });
-                cnt.textContent = fmt(t('mm_count'), { n: lines.length }) + (truncated ? ' · ' + fmt(t('mm_trunc'), { n: MM_LIMIT }) : '');
-                if (!lines.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('mm_empty')}</div>`; return; }
-                // фото — из текущего паспорта товара (в журнале фото не хранится, чтобы не раздувать документы)
-                const photoOf = sku => {
-                    const k = normCode(sku);
-                    const src = group === 'bureau' ? mmcByCode.get(k) : cmpItems.find(x => normCode(x.sku) === k);
-                    const img = src ? cmpSafeImg(src.image) : '';
-                    return `<div class="relative h-11 w-11 overflow-hidden rounded-lg bg-klt-bg">${img
-                        ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-full w-full object-cover">`
-                        : '<span class="absolute inset-0 flex items-center justify-center text-lg opacity-40">🖼️</span>'}</div>`;
-                };
+                // Комплексная операция = один документ с items[]; старые построчные записи с общим txId склеиваются в одну
+                // операцию, без txId — показываются как операция из одной позиции. Одна операция = одна сводная строка.
+                const shown = mmGroupOps(rows, group).filter(op => !s || [op.r.txId, op.r.to, op.r.note, op.r.actor, ...op.items.flatMap(i => [i.sku, i.name])]
+                    .some(v => String(v || '').toLowerCase().includes(s)));
+                const nLines = shown.reduce((a, op) => a + op.items.length, 0);
+                cnt.textContent = fmt(t('mm_ops_count'), { n: shown.length, m: nLines }) + (truncated ? ' · ' + fmt(t('mm_trunc'), { n: MM_LIMIT }) : '');
+                if (!shown.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('mm_empty')}</div>`; return; }
                 body.innerHTML = `<table class="w-full min-w-[900px] border-collapse text-[13px]"><thead><tr>
-                    ${['dt', 'photo', 'name', 'to', 'note', 'actor', 'type'].map(c => `<th class="${th}">${t('mm_col_' + c)}</th>`).join('')}</tr></thead>
-                    <tbody>${lines.map(({ r, i, first }) => {
-                        const to = r.to ? `${r.toType === 'proc' ? '⚙️' : '👤'} ${escapeHtml(r.to)}` : '<span class="text-klt-muted">—</span>';
-                        const d = Number(i.delta) || 0, unit = i.unit || 'шт.';
-                        const dTxt = (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d) + ' ' + unit;
-                        const dCls = d > 0 ? 'text-klt-emerald-light' : d < 0 ? 'text-red-400' : 'text-klt-muted';
-                        const sep = first ? ' style="border-top:2px solid var(--border-color)"' : '';   // граница между операциями
-                        return `<tr class="transition hover:bg-klt-hover"${sep}>
+                    ${['dt', 'op', 'items', 'to', 'note', 'actor'].map(c => `<th class="${th}">${t('mm_col_' + c)}</th>`).join('')}<th class="${th} w-10"></th></tr></thead>
+                    <tbody>${shown.map(op => {
+                        const r = op.r, isOpen = opened.has(op.key), one = op.items.length === 1;
+                        const comp = one
+                            ? `<div class="flex items-center gap-2.5">${mmPhoto(group, op.items[0].sku, 'h-10 w-10')}<div class="min-w-0">
+                                <div class="font-semibold" style="overflow-wrap:anywhere">${escapeHtml(op.items[0].name || '—')}</div>
+                                <div class="mt-0.5 flex flex-wrap gap-x-2 text-xs"><span class="font-mono text-klt-muted">${escapeHtml(op.items[0].sku || '—')}</span>${mmDeltaHtml(op.items[0].delta, op.items[0].unit)}</div></div></div>`
+                            : `<div class="flex items-center gap-3"><div class="flex shrink-0">${op.items.slice(0, 4).map((i, k) =>
+                                    `<div class="${k ? '-ml-3' : ''} rounded-lg ring-2 ring-[var(--card-bg)]">${mmPhoto(group, i.sku, 'h-9 w-9')}</div>`).join('')}</div>
+                                <div class="min-w-0"><div class="font-semibold">${fmt(t('mm_op_lines'), { n: op.items.length })}</div>
+                                <div class="mt-0.5 text-xs font-extrabold">${mmTotalsHtml(op.items)}</div></div></div>`;
+                        return `<tr data-op="${cmpAttr(op.key)}" tabindex="0" aria-expanded="${isOpen}" class="cursor-pointer transition hover:bg-klt-hover ${isOpen ? 'bg-klt-hover' : ''}">
                             <td class="${td} whitespace-nowrap text-klt-muted">${escapeHtml(mmFmtDate(r.timestamp))}</td>
-                            <td class="${td}">${photoOf(i.sku)}</td>
-                            <td class="${td}"><div class="font-semibold" style="overflow-wrap:anywhere">${escapeHtml(i.name || '—')}</div>
-                                <div class="mt-0.5 flex flex-wrap gap-x-2 text-xs"><span class="font-mono text-klt-muted">${escapeHtml(i.sku || '—')}</span><span class="whitespace-nowrap font-extrabold ${dCls}">${escapeHtml(dTxt)}</span></div></td>
-                            <td class="${td}">${to}</td>
+                            <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${typeCls[r.type] || 'bg-white/10 text-klt-muted'}">${escapeHtml(t('mm_t_' + r.type))}</span>
+                                ${r.txId ? `<div class="mt-1 whitespace-nowrap font-mono text-[11px] text-klt-muted">${escapeHtml(r.txId)}</div>` : ''}</td>
+                            <td class="${td}">${comp}</td>
+                            <td class="${td}">${mmToHtml(r)}</td>
                             <td class="${td} text-klt-muted">${escapeHtml(r.note || '') || '—'}</td>
                             <td class="${td} whitespace-nowrap">${escapeHtml(r.actor || '—')}</td>
-                            <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${typeCls[r.type] || 'bg-white/10 text-klt-muted'}">${escapeHtml(t('mm_t_' + r.type))}</span></td></tr>`;
+                            <td class="${td} text-center text-klt-muted">${isOpen ? '▾' : '▸'}</td></tr>` +
+                            (isOpen ? `<tr><td colspan="7" class="border-b border-solid border-klt-line bg-klt-bg/60 p-0">${mmSheetHtml(group, op)}</td></tr>` : '');
                     }).join('')}</tbody></table>`;
             };
+            const toggle = key => { if (opened.has(key)) opened.delete(key); else opened.add(key); draw(); };
+            m.$('#mm-body').addEventListener('click', e => {
+                const p = e.target.closest('[data-op-print]');
+                if (p) { const op = lastOps().find(o => o.key === p.dataset.opPrint); if (op) mmPrintSheet(group, op); return; }
+                const tr = e.target.closest('[data-op]'); if (tr) toggle(tr.dataset.op);
+            });
+            m.$('#mm-body').addEventListener('keydown', e => {
+                const tr = e.target.closest('[data-op]');
+                if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); toggle(tr.dataset.op); }
+            });
             async function load() {
                 const my = ++seq; loading = true; draw();
                 const now = new Date();
@@ -2814,6 +2913,9 @@
         let burItems = [], burView = 'grid', burCat = 'all', burQuery = '', burRedraw = () => {};
         try { burView = localStorage.getItem('kletka_bur_view') === 'table' ? 'table' : 'grid'; } catch (e) { /* storage недоступен */ }
 
+        // Вкладка-фильтр «Нет в наличии»: служебный id, который не пересекается с id категорий (у них префикс c_ / seed-имена)
+        const BUR_OUT = '__out';
+        const burIsOut = it => it.qty <= 0;
         const burTone = it => { const zero = it.qty <= 0, low = it.qty <= it.minQty; return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-klt-emerald-light' }; };
         function burPhoto(it, cls) {
             const img = cmpSafeImg(it.image);
@@ -2931,13 +3033,101 @@
             if (e.key !== BUR_CART_KEY) return;
             burCartLoad(); burCartSync(); burRedraw();
         });
+        // «+ В заказ»: быстрое окно количества. Позиция добавляется в корзину, окно закрывается, пользователь
+        // остаётся в списке (корзину не открываем). Ограничение: уже в заказе + добавляемое ≤ остаток на складе.
+        Object.assign(TR.ru, {
+            bur_out_none: 'Закончившихся позиций нет', bur_out_hint: 'Найдено в «Нет в наличии»: {n}',
+            bur_q_title: 'Добавить в заказ', bur_q_do: 'Добавить в заказ', bur_q_in_cart: 'Уже в заказе: {n} {unit}', bur_q_max: 'Максимум: {n}',
+            bur_q_over: 'Можно добавить не больше {n} {unit}: на складе {qty}, уже в заказе {cur}', bur_q_added: 'В заказе: {name} +{n} {unit} (всего {total})',
+            mm_col_op: 'Операция', mm_ops_count: 'Операций: {n} · позиций: {m}', mm_op_lines: 'Позиций: {n}',
+            mm_sheet_title: 'Накладная № {id}', mm_sheet_print: 'Печать / сборочный лист', mm_sheet_to: 'Получатель', mm_sheet_qty: 'Количество',
+            mm_sheet_total: 'Итого позиций: {n}', mm_sheet_sign_out: 'Выдал (подпись)', mm_sheet_sign_in: 'Получил (подпись)'
+        });
+        Object.assign(TR.uk, {
+            bur_out: 'Немає в наявності', bur_out_none: 'Позицій, що закінчились, немає', bur_out_hint: 'Знайдено в «Немає в наявності»: {n}',
+            bur_q_title: 'Додати до замовлення', bur_q_do: 'Додати до замовлення', bur_q_in_cart: 'Уже в замовленні: {n} {unit}', bur_q_max: 'Максимум: {n}',
+            bur_q_over: 'Можна додати не більше {n} {unit}: на складі {qty}, уже в замовленні {cur}', bur_q_added: 'У замовленні: {name} +{n} {unit} (усього {total})',
+            mm_col_op: 'Операція', mm_ops_count: 'Операцій: {n} · позицій: {m}', mm_op_lines: 'Позицій: {n}',
+            mm_sheet_title: 'Накладна № {id}', mm_sheet_print: 'Друк / збірний лист', mm_sheet_to: 'Отримувач', mm_sheet_qty: 'Кількість',
+            mm_sheet_total: 'Усього позицій: {n}', mm_sheet_sign_out: 'Видав (підпис)', mm_sheet_sign_in: 'Отримав (підпис)'
+        });
+        Object.assign(TR.pl, {
+            bur_out: 'Brak na stanie', bur_out_none: 'Brak wyczerpanych pozycji', bur_out_hint: 'Znaleziono w „Brak na stanie”: {n}',
+            bur_q_title: 'Dodaj do zamówienia', bur_q_do: 'Dodaj do zamówienia', bur_q_in_cart: 'Już w zamówieniu: {n} {unit}', bur_q_max: 'Maksimum: {n}',
+            bur_q_over: 'Można dodać najwyżej {n} {unit}: na stanie {qty}, już w zamówieniu {cur}', bur_q_added: 'W zamówieniu: {name} +{n} {unit} (razem {total})',
+            mm_col_op: 'Operacja', mm_ops_count: 'Operacji: {n} · pozycji: {m}', mm_op_lines: 'Pozycji: {n}',
+            mm_sheet_title: 'Dokument nr {id}', mm_sheet_print: 'Drukuj / lista kompletacji', mm_sheet_to: 'Odbiorca', mm_sheet_qty: 'Ilość',
+            mm_sheet_total: 'Razem pozycji: {n}', mm_sheet_sign_out: 'Wydał (podpis)', mm_sheet_sign_in: 'Odebrał (podpis)'
+        });
+        Object.assign(TR.en, {
+            bur_out_none: 'No out-of-stock items', bur_out_hint: 'Found in “Out of stock”: {n}',
+            bur_q_title: 'Add to order', bur_q_do: 'Add to order', bur_q_in_cart: 'Already in order: {n} {unit}', bur_q_max: 'Max: {n}',
+            bur_q_over: 'You can add at most {n} {unit}: {qty} in stock, {cur} already in the order', bur_q_added: 'In order: {name} +{n} {unit} (total {total})',
+            mm_col_op: 'Operation', mm_ops_count: 'Operations: {n} · lines: {m}', mm_op_lines: 'Lines: {n}',
+            mm_sheet_title: 'Delivery note # {id}', mm_sheet_print: 'Print / picking list', mm_sheet_to: 'Recipient', mm_sheet_qty: 'Quantity',
+            mm_sheet_total: 'Total lines: {n}', mm_sheet_sign_out: 'Issued by (signature)', mm_sheet_sign_in: 'Received by (signature)'
+        });
         function burAddToOrder(it) {
             if (it.qty <= 0) { cmpToast(t('bur_no_stock'), 'err'); return; }
             burCartEnsure();
-            const cur = burCart.get(it.id) || 0;
-            if (cur >= it.qty) { cmpToast(fmt(t('bur_cart_only'), { n: it.qty, unit: it.unit }), 'err'); return; }
-            burCartSet(it.id, cur + 1);
-            burRedraw(it.id, 'order');
+            const inCart = () => burCart.get(it.id) || 0, room = () => it.qty - inCart();
+            if (room() <= 0) { cmpToast(fmt(t('bur_cart_only'), { n: it.qty, unit: it.unit }), 'err'); return; }
+            const unit = escapeHtml(it.unit);
+            const m = cmpModal(`
+                <h2 class="mb-4 text-lg font-bold text-klt-emerald-light">🛒 ${t('bur_q_title')}</h2>
+                <div class="mb-4 flex items-center gap-3 rounded-xl border border-solid border-klt-line bg-klt-bg p-2.5">
+                    <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-klt-card">${burPhoto(it, 'text-2xl')}</div>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-sm font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
+                        <div class="text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${fmt(t('bur_cart_avail'), { n: it.qty, unit })}</div>
+                        <div id="bur-q-cur" class="text-xs text-klt-muted"></div>
+                    </div>
+                </div>
+                <label class="${CMP_LBL}" for="bur-q-n">${t('bur_rc_qty')}</label>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button type="button" data-q-step="-1" aria-label="−1" class="${CMP_ICO} px-3.5">−</button>
+                    <input id="bur-q-n" type="number" min="1" step="1" inputmode="numeric" value="1" style="width:6rem" class="${CMP_FLD} text-center text-base font-bold">
+                    <button type="button" data-q-step="1" aria-label="+1" class="${CMP_ICO} px-3.5">+</button>
+                    <span class="text-sm text-klt-muted">${unit}</span>
+                    <button type="button" id="bur-q-max" class="${CMP_BTN} ml-auto text-[13px]"></button>
+                </div>
+                <div id="bur-q-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-q-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-q-ok" class="${CMP_BTN_MAIN}">${t('bur_q_do')}</button></div>`);
+            const $ = m.$, inp = $('#bur-q-n'), err = $('#bur-q-err');
+            const read = () => { const v = inp.value.trim(); return /^\d+$/.test(v) ? parseInt(v, 10) : NaN; };
+            const drawRoom = () => {
+                const c = inCart(), r = room();
+                $('#bur-q-cur').textContent = c ? fmt(t('bur_q_in_cart'), { n: c, unit: it.unit }) : '';
+                $('#bur-q-max').textContent = fmt(t('bur_q_max'), { n: Math.max(0, r) });
+                inp.max = String(Math.max(1, r));
+            };
+            const check = () => {   // null — ок, иначе текст ошибки
+                const q = read(), r = room();
+                if (r <= 0) return fmt(t('bur_cart_only'), { n: it.qty, unit: it.unit });
+                if (!Number.isInteger(q) || q < 1) return t('bur_cart_bad_qty');
+                if (q > r) return fmt(t('bur_q_over'), { n: r, unit: it.unit, qty: it.qty, cur: inCart() });
+                return null;
+            };
+            drawRoom();
+            inp.addEventListener('input', () => { err.textContent = ''; });
+            m.ov.addEventListener('click', e => {
+                const b = e.target.closest('[data-q-step]'); if (!b) return;
+                const q = read(), next = (Number.isInteger(q) ? q : 0) + Number(b.dataset.qStep);
+                inp.value = String(Math.min(Math.max(1, room()), Math.max(1, next))); err.textContent = '';
+            });
+            $('#bur-q-max').onclick = () => { inp.value = String(Math.max(1, room())); err.textContent = ''; inp.focus(); };
+            $('#bur-q-cancel').onclick = m.close;
+            const go = () => {
+                burCartEnsure(); drawRoom();   // корзину могли изменить в другой вкладке — считаем по свежему значению
+                const e = check(); if (e) { err.textContent = e; inp.focus(); return; }
+                const q = read(), total = inCart() + q;
+                burCartSet(it.id, total);
+                m.close(); burRedraw(it.id, 'order');
+                cmpToast(fmt(t('bur_q_added'), { name: it.name, n: q, unit: it.unit, total }), 'ok');
+            };
+            $('#bur-q-ok').onclick = go;
+            inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); go(); } });
+            inp.focus(); inp.select();
         }
 
         // Живой поиск по Material Code и названию (точный код — первым, затем начало кода/названия, затем вхождение)
@@ -3916,7 +4106,6 @@
                     </div>
                     <div class="flex flex-wrap items-center gap-2">
                         <div id="bur-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
-                        <button type="button" id="bur-audit" class="${CMP_BTN} text-[13px]">🔍 ${t('aud_btn')}</button>
                         <button type="button" id="bur-hist" class="${CMP_BTN} text-[13px]">📜 ${t('bur_hist')}</button>
                         <button type="button" id="bur-ie" class="${CMP_BTN} text-[13px]">📊 ${t('ie_title')}</button>
                         <button type="button" id="bur-rc" class="${CMP_BTN_MAIN}">${t('bur_receive')}</button>
@@ -3932,26 +4121,37 @@
             function drawChrome() {
                 $('bur-seg').innerHTML = [['grid', '🔲', 'bur_view_grid'], ['table', '☰', 'bur_view_table']].map(([k, ic, l]) =>
                     `<button type="button" data-bur-view="${k}" aria-pressed="${burView === k}" class="${seg(burView === k)}">${ic} ${t(l)}</button>`).join('');
-                const chip = (id, label, n) => {
+                const chip = (id, label, n, out) => {
                     const on = burCat === id;
-                    return `<button type="button" data-bur-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
+                    const cls = out
+                        ? (on ? 'border-red-400 bg-red-500/15 text-red-300' : 'border-red-500/40 bg-transparent text-red-300/80 hover:border-red-400 hover:text-red-300')
+                        : (on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50');
+                    return `<button type="button" data-bur-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${cls}">${label} <span class="opacity-70">${n}</span></button>`;
                 };
                 // Только фильтр: чипсы — категории, которые есть у товаров этого склада (берутся из карточек Material Master).
                 // Создавать/менять категории здесь нельзя — это делается в Material Master.
-                const n = new Map(); burItems.forEach(x => n.set(x.category, (n.get(x.category) || 0) + 1));
+                // Позиции с остатком 0 в рабочие категории не попадают: они собраны в отдельной вкладке «Нет в наличии».
+                const n = new Map(); let outN = 0;
+                burItems.forEach(x => { if (burIsOut(x)) outN++; else n.set(x.category, (n.get(x.category) || 0) + 1); });
                 const cats = burCats.filter(c => n.has(c.id));
-                if (burCat !== 'all' && !n.has(burCat)) burCat = 'all';
-                $('bur-chips').innerHTML = chip('all', t('bur_cat_all'), burItems.length) +
+                if (burCat !== 'all' && burCat !== BUR_OUT && !n.has(burCat)) burCat = 'all';
+                $('bur-chips').innerHTML = chip('all', t('bur_cat_all'), burItems.length - outN) +
                     cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)}`, n.get(c.id))).join('') +
+                    chip(BUR_OUT, `⛔ ${t('bur_out')}`, outN, true) +
                     `<span class="ml-1 text-[11px] text-klt-muted">ℹ️ ${t('bur_cats_from_mm')}</span>`;
             }
             function drawList() {
                 const q = burQuery.trim().toLowerCase();
-                const list = burItems.filter(x => (burCat === 'all' || x.category === burCat) && (!q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q)))
-                    .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+                const hit = x => !q || x.name.toLowerCase().includes(q) || x.sku.toLowerCase().includes(q);
+                const inTab = x => burCat === BUR_OUT ? burIsOut(x) : !burIsOut(x) && (burCat === 'all' || x.category === burCat);
+                const list = burItems.filter(x => inTab(x) && hit(x)).sort((a, b) => a.name.localeCompare(b.name, 'ru'));
                 $('bur-count').textContent = fmt(t('bur_count'), { n: list.length });
                 if (!list.length) {
-                    $('bur-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${burItems.length ? t('bur_empty') : t('bur_empty_first')}</div>`;
+                    // в рабочей вкладке пусто, но подходящие позиции есть среди закончившихся — подсказываем, где их искать
+                    const hidden = burCat === BUR_OUT ? 0 : burItems.filter(x => burIsOut(x) && hit(x) && (burCat === 'all' || x.category === burCat)).length;
+                    const msg = !burItems.length ? t('bur_empty_first') : burCat === BUR_OUT && !q ? t('bur_out_none') : t('bur_empty');
+                    $('bur-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${msg}
+                        ${hidden ? `<div class="mt-3"><button type="button" data-bur-cat="${BUR_OUT}" class="${CMP_BTN} text-[13px]">⛔ ${fmt(t('bur_out_hint'), { n: hidden })}</button></div>` : ''}</div>`;
                     return;
                 }
                 $('bur-list').innerHTML = burView === 'grid'
@@ -3989,7 +4189,6 @@
             $('bur-search').addEventListener('input', e => { burQuery = e.target.value; drawList(); });
             $('bur-rc').onclick = () => burOpenReceive();
             $('bur-hist').onclick = () => openMaterialJournal('bureau');
-            $('bur-audit').onclick = () => openPage('code-audit');
             $('bur-ie').onclick = () => openImportExport('bureau');
 
             burLoadedFor = ''; burCartEnsure(); burCartSync();
