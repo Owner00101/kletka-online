@@ -2574,8 +2574,9 @@
             rows.filter(r => r.group === group && r.warehouse === currentWarehouse).forEach(r => {
                 const key = r.txId ? `${r.type}|${r.txId}` : r.id;
                 let op = byKey.get(key);
-                if (!op) { op = { key, r, items: [] }; byKey.set(key, op); ops.push(op); }
+                if (!op) { op = { key, r, items: [], notIssued: [] }; byKey.set(key, op); ops.push(op); }
                 op.items.push(...mmItemsOf(r));
+                if (Array.isArray(r.notIssued)) op.notIssued.push(...r.notIssued);
             });
             return ops;
         }
@@ -2602,6 +2603,11 @@
                 ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-full w-full object-cover">`
                 : '<span class="absolute inset-0 flex items-center justify-center text-lg opacity-40">🖼️</span>'}</div>`;
         }
+        // Заголовок листа: выдача бюро — «Выдача бюро материалов № <Номер в списке>», остальные операции — «Накладная № <txId>»
+        function mmSheetTitle(group, r) {
+            if (group === 'bureau' && r.type === 'issue') return r.listNo ? fmt(t('mm_sheet_title_bur'), { n: r.listNo }) : t('mm_sheet_title_bur0');
+            return fmt(t('mm_sheet_title'), { id: r.txId || '—' });
+        }
         // Развёрнутая накладная операции: шапка (№, дата, получатель, комментарий, оператор) + список позиций
         function mmSheetHtml(group, op) {
             const r = op.r, th = 'border-b border-solid border-klt-line px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
@@ -2609,7 +2615,8 @@
             const meta = (l, v) => `<div><div class="text-[11px] font-bold uppercase tracking-wider text-klt-muted">${l}</div><div class="mt-0.5 text-sm text-slate-50" style="overflow-wrap:anywhere">${v}</div></div>`;
             return `<div class="p-4">
                 <div class="mb-3 flex flex-wrap items-start justify-between gap-3">
-                    <div class="text-base font-bold text-klt-emerald-light">📄 ${fmt(t('mm_sheet_title'), { id: escapeHtml(r.txId || '—') })}</div>
+                    <div><div class="text-base font-bold text-klt-emerald-light">📄 ${escapeHtml(mmSheetTitle(group, r))}</div>
+                        ${r.txId ? `<div class="mt-0.5 font-mono text-[11px] text-klt-muted">${escapeHtml(r.txId)}</div>` : ''}</div>
                     <button type="button" data-op-print="${cmpAttr(op.key)}" class="${CMP_BTN} text-[13px]">🖨 ${t('mm_sheet_print')}</button>
                 </div>
                 <div class="mb-3 grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
@@ -2624,6 +2631,14 @@
                         <td class="${td} text-right text-base">${mmDeltaHtml(i.delta, i.unit)}</td></tr>`).join('')}</tbody>
                     <tfoot><tr><td colspan="4" class="px-3 py-2.5 text-right text-xs font-bold uppercase tracking-wider text-klt-muted">${fmt(t('mm_sheet_total'), { n: op.items.length })}</td>
                         <td class="px-3 py-2.5 text-right text-base">${mmTotalsHtml(op.items)}</td></tr></tfoot></table>
+                ${(op.notIssued || []).length ? `<div class="mt-4 mb-2 text-sm font-bold text-klt-orange-light">${escapeHtml(t('mm_sheet_out_title'))}</div>
+                <table class="w-full border-collapse text-[13px]"><thead><tr><th class="${th} w-10">№</th><th class="${th} w-16">${t('mm_col_photo')}</th>
+                    <th class="${th}">${t('mm_col_name')}</th><th class="${th}">Material Code</th><th class="${th} text-right">${t('mm_sheet_req')}</th><th class="${th}"></th></tr></thead>
+                    <tbody>${op.notIssued.map((i, k) => `<tr><td class="${td} text-klt-muted">${k + 1}</td><td class="${td}">${mmPhoto(group, i.sku, 'h-11 w-11')}</td>
+                        <td class="${td} font-semibold" style="overflow-wrap:anywhere">${escapeHtml(i.name || '—')}</td>
+                        <td class="${td} font-mono text-klt-muted">${escapeHtml(i.sku || '—')}</td>
+                        <td class="${td} text-right whitespace-nowrap font-bold">${escapeHtml((Number(i.qty) || 0) + ' ' + (i.unit || 'шт.'))}</td>
+                        <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full bg-red-500/15 px-2.5 py-0.5 text-[11px] font-bold text-red-300">${escapeHtml(fmt(t('mm_sheet_out_badge'), { unit: i.unit || 'шт.' }))}</span></td></tr>`).join('')}</tbody></table>` : ''}
             </div>`;
         }
         // Печать накладной как сборочного листа: светлая страница, колонка «✓» для отметки при комплектации
@@ -2631,16 +2646,21 @@
             const r = op.r, e = escapeHtml, qty = i => e(String(Math.abs(Number(i.delta) || 0)) + ' ' + (i.unit || 'шт.'));
             const totals = mmTotals(op.items).map(([u, d]) => e(Math.abs(d) + ' ' + u)).join(', ');
             const to = r.to ? `${r.toType === 'proc' ? t('cmp_issue_to_proc') : t('cmp_issue_to_emp')}: ${e(r.to)}` : '—';
-            const html = `<!doctype html><html><head><meta charset="utf-8"><title>${e(r.txId || 'sheet')}</title><style>
-                *{box-sizing:border-box;font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif}body{margin:24px;color:#111}
+            const title = mmSheetTitle(group, r), out = op.notIssued || [];
+            // @page margin:0 — браузер не печатает служебные колонтитулы (дата слева, заголовок/ID справа, URL, номера страниц);
+            // поля листа задаём отступами body
+            const html = `<!doctype html><html><head><meta charset="utf-8"><title>${e(title)}</title><style>
+                @page{size:A4;margin:0}
+                *{box-sizing:border-box;font-family:-apple-system,"Segoe UI",Roboto,Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}body{margin:0;padding:14mm 12mm;color:#111}
+                @media print{body{padding:14mm 12mm}tr{break-inside:avoid}thead{display:table-header-group}}
                 h1{font-size:20px;margin:0 0 4px}.sub{color:#555;font-size:12px;margin-bottom:14px}
                 .meta{display:grid;grid-template-columns:repeat(2,1fr);gap:6px 24px;font-size:13px;margin-bottom:16px}.meta b{color:#555;font-weight:600}
                 table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #bbb;padding:6px 8px;text-align:left;vertical-align:middle}
                 th{background:#f1f1f1;font-size:11px;text-transform:uppercase}td.n,th.n{text-align:right;white-space:nowrap}td.c{width:34px}
                 img{width:44px;height:44px;object-fit:cover;border-radius:4px;display:block}.code{font-family:ui-monospace,Consolas,monospace}
-                .sign{display:flex;gap:40px;margin-top:36px;font-size:13px}.sign div{flex:1;border-top:1px solid #333;padding-top:4px;color:#555}
+                h2{font-size:15px;margin:22px 0 8px;color:#b45309}.badge{display:inline-block;white-space:nowrap;border:1px solid #dc2626;color:#b91c1c;background:#fee2e2;border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700}
             </style></head><body>
-                <h1>${e(fmt(t('mm_sheet_title'), { id: r.txId || '—' }))}</h1>
+                <h1>${e(title)}</h1>
                 <div class="sub">${e(t('mm_t_' + r.type))} · ${e(currentWarehouse)} · ${e(mmFmtDate(r.timestamp))}</div>
                 <div class="meta"><div><b>${e(t('mm_sheet_to'))}:</b> ${to}</div><div><b>${e(t('mm_col_actor'))}:</b> ${e(r.actor || '—')}</div>
                     <div style="grid-column:1/-1"><b>${e(t('mm_col_note'))}:</b> ${e(r.note || '') || '—'}</div></div>
@@ -2648,7 +2668,11 @@
                 <tbody>${op.items.map((i, k) => { const img = mmImgOf(group, i.sku); return `<tr><td>${k + 1}</td><td>${img ? `<img src="${cmpAttr(img)}" alt="">` : ''}</td>
                     <td>${e(i.name || '—')}</td><td class="code">${e(i.sku || '—')}</td><td class="n"><b>${qty(i)}</b></td><td class="c"></td></tr>`; }).join('')}</tbody>
                 <tfoot><tr><th colspan="4" class="n">${e(fmt(t('mm_sheet_total'), { n: op.items.length }))}</th><th class="n">${totals}</th><th></th></tr></tfoot></table>
-                <div class="sign"><div>${e(t('mm_sheet_sign_out'))}</div><div>${e(t('mm_sheet_sign_in'))}</div></div>
+                ${out.length ? `<h2>${e(t('mm_sheet_out_title'))}</h2>
+                <table><thead><tr><th>№</th><th>${e(t('mm_col_photo'))}</th><th>${e(t('mm_col_name'))}</th><th>Material Code</th><th class="n">${e(t('mm_sheet_req'))}</th><th></th></tr></thead>
+                <tbody>${out.map((i, k) => { const img = mmImgOf(group, i.sku); return `<tr><td>${k + 1}</td><td>${img ? `<img src="${cmpAttr(img)}" alt="">` : ''}</td>
+                    <td>${e(i.name || '—')}</td><td class="code">${e(i.sku || '—')}</td><td class="n"><b>${e((Number(i.qty) || 0) + ' ' + (i.unit || 'шт.'))}</b></td>
+                    <td><span class="badge">${e(fmt(t('mm_sheet_out_badge'), { unit: i.unit || 'шт.' }))}</span></td></tr>`; }).join('')}</tbody></table>` : ''}
             </body></html>`;
             const f = document.createElement('iframe');
             f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
@@ -2694,7 +2718,7 @@
                 const s = q.trim().toLowerCase();
                 // Комплексная операция = один документ с items[]; старые построчные записи с общим txId склеиваются в одну
                 // операцию, без txId — показываются как операция из одной позиции. Одна операция = одна сводная строка.
-                const shown = mmGroupOps(rows, group).filter(op => !s || [op.r.txId, op.r.to, op.r.note, op.r.actor, ...op.items.flatMap(i => [i.sku, i.name])]
+                const shown = mmGroupOps(rows, group).filter(op => !s || [op.r.txId, op.r.listNo, op.r.to, op.r.note, op.r.actor, ...op.items.flatMap(i => [i.sku, i.name]), ...op.notIssued.flatMap(i => [i.sku, i.name])]
                     .some(v => String(v || '').toLowerCase().includes(s)));
                 const nLines = shown.reduce((a, op) => a + op.items.length, 0);
                 cnt.textContent = fmt(t('mm_ops_count'), { n: shown.length, m: nLines }) + (truncated ? ' · ' + fmt(t('mm_trunc'), { n: MM_LIMIT }) : '');
@@ -2714,8 +2738,9 @@
                         return `<tr data-op="${cmpAttr(op.key)}" tabindex="0" aria-expanded="${isOpen}" class="cursor-pointer transition hover:bg-klt-hover ${isOpen ? 'bg-klt-hover' : ''}">
                             <td class="${td} whitespace-nowrap text-klt-muted">${escapeHtml(mmFmtDate(r.timestamp))}</td>
                             <td class="${td}"><span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${typeCls[r.type] || 'bg-white/10 text-klt-muted'}">${escapeHtml(t('mm_t_' + r.type))}</span>
+                                ${r.listNo ? `<div class="mt-1 whitespace-nowrap text-xs font-bold text-slate-50">№ ${escapeHtml(String(r.listNo))}</div>` : ''}
                                 ${r.txId ? `<div class="mt-1 whitespace-nowrap font-mono text-[11px] text-klt-muted">${escapeHtml(r.txId)}</div>` : ''}</td>
-                            <td class="${td}">${comp}</td>
+                            <td class="${td}">${comp}${op.notIssued.length ? `<div class="mt-1 text-xs font-semibold text-klt-orange-light">⚠ ${escapeHtml(fmt(t('mm_op_not_issued'), { n: op.notIssued.length }))}</div>` : ''}</td>
                             <td class="${td}">${mmToHtml(r)}</td>
                             <td class="${td} text-klt-muted">${escapeHtml(r.note || '') || '—'}</td>
                             <td class="${td} whitespace-nowrap">${escapeHtml(r.actor || '—')}</td>
@@ -3041,7 +3066,7 @@
             bur_q_over: 'Можно добавить не больше {n} {unit}: на складе {qty}, уже в заказе {cur}', bur_q_added: 'В заказе: {name} +{n} {unit} (всего {total})',
             mm_col_op: 'Операция', mm_ops_count: 'Операций: {n} · позиций: {m}', mm_op_lines: 'Позиций: {n}',
             mm_sheet_title: 'Накладная № {id}', mm_sheet_print: 'Печать / сборочный лист', mm_sheet_to: 'Получатель', mm_sheet_qty: 'Количество',
-            mm_sheet_total: 'Итого позиций: {n}', mm_sheet_sign_out: 'Выдал (подпись)', mm_sheet_sign_in: 'Получил (подпись)'
+            mm_sheet_total: 'Итого позиций: {n}'
         });
         Object.assign(TR.uk, {
             bur_out: 'Немає в наявності', bur_out_none: 'Позицій, що закінчились, немає', bur_out_hint: 'Знайдено в «Немає в наявності»: {n}',
@@ -3049,7 +3074,7 @@
             bur_q_over: 'Можна додати не більше {n} {unit}: на складі {qty}, уже в замовленні {cur}', bur_q_added: 'У замовленні: {name} +{n} {unit} (усього {total})',
             mm_col_op: 'Операція', mm_ops_count: 'Операцій: {n} · позицій: {m}', mm_op_lines: 'Позицій: {n}',
             mm_sheet_title: 'Накладна № {id}', mm_sheet_print: 'Друк / збірний лист', mm_sheet_to: 'Отримувач', mm_sheet_qty: 'Кількість',
-            mm_sheet_total: 'Усього позицій: {n}', mm_sheet_sign_out: 'Видав (підпис)', mm_sheet_sign_in: 'Отримав (підпис)'
+            mm_sheet_total: 'Усього позицій: {n}'
         });
         Object.assign(TR.pl, {
             bur_out: 'Brak na stanie', bur_out_none: 'Brak wyczerpanych pozycji', bur_out_hint: 'Znaleziono w „Brak na stanie”: {n}',
@@ -3057,7 +3082,7 @@
             bur_q_over: 'Można dodać najwyżej {n} {unit}: na stanie {qty}, już w zamówieniu {cur}', bur_q_added: 'W zamówieniu: {name} +{n} {unit} (razem {total})',
             mm_col_op: 'Operacja', mm_ops_count: 'Operacji: {n} · pozycji: {m}', mm_op_lines: 'Pozycji: {n}',
             mm_sheet_title: 'Dokument nr {id}', mm_sheet_print: 'Drukuj / lista kompletacji', mm_sheet_to: 'Odbiorca', mm_sheet_qty: 'Ilość',
-            mm_sheet_total: 'Razem pozycji: {n}', mm_sheet_sign_out: 'Wydał (podpis)', mm_sheet_sign_in: 'Odebrał (podpis)'
+            mm_sheet_total: 'Razem pozycji: {n}'
         });
         Object.assign(TR.en, {
             bur_out_none: 'No out-of-stock items', bur_out_hint: 'Found in “Out of stock”: {n}',
@@ -3065,12 +3090,50 @@
             bur_q_over: 'You can add at most {n} {unit}: {qty} in stock, {cur} already in the order', bur_q_added: 'In order: {name} +{n} {unit} (total {total})',
             mm_col_op: 'Operation', mm_ops_count: 'Operations: {n} · lines: {m}', mm_op_lines: 'Lines: {n}',
             mm_sheet_title: 'Delivery note # {id}', mm_sheet_print: 'Print / picking list', mm_sheet_to: 'Recipient', mm_sheet_qty: 'Quantity',
-            mm_sheet_total: 'Total lines: {n}', mm_sheet_sign_out: 'Issued by (signature)', mm_sheet_sign_in: 'Received by (signature)'
+            mm_sheet_total: 'Total lines: {n}'
+        });
+        // Выдача бюро: «Номер в списке» (1–500, необязательно) и позиции без остатка → блок «Не выдано» (со склада не списываются)
+        Object.assign(TR.ru, {
+            mm_sheet_title_bur: 'Выдача бюро материалов № {n}', mm_sheet_title_bur0: 'Выдача бюро материалов', mm_sheet_list_no: 'Номер в списке',
+            mm_sheet_out_title: '⚠️ Не выдано (Нет в наличии на складе):', mm_sheet_req: 'Запрошенное кол-во', mm_sheet_out_badge: '0 {unit} / Отсутствует',
+            mm_op_not_issued: 'Не выдано: {n}',
+            bur_cart_listno: 'Номер в списке (необязательно, 1–500)', bur_cart_listno_err: 'Номер в списке — целое число от 1 до 500',
+            bur_cart_out: 'Нет в наличии — не будет выдано, попадёт в «Не выдано»', bur_cart_none_ok: 'Нет позиций в наличии: выдавать нечего',
+            bur_cart_missing: 'Позиции больше нет на этом складе — попадёт в «Не выдано»',
+            bur_q_out_note: 'Товара нет на складе: позиция попадёт в заказ и в печать блоком «Не выдано», со склада не спишется'
+        });
+        Object.assign(TR.uk, {
+            mm_sheet_title_bur: 'Видача бюро матеріалів № {n}', mm_sheet_title_bur0: 'Видача бюро матеріалів', mm_sheet_list_no: 'Номер у списку',
+            mm_sheet_out_title: '⚠️ Не видано (Немає в наявності на складі):', mm_sheet_req: 'Запитана кількість', mm_sheet_out_badge: '0 {unit} / Відсутній',
+            mm_op_not_issued: 'Не видано: {n}',
+            bur_cart_listno: 'Номер у списку (необовʼязково, 1–500)', bur_cart_listno_err: 'Номер у списку — ціле число від 1 до 500',
+            bur_cart_out: 'Немає в наявності — не буде видано, потрапить у «Не видано»', bur_cart_none_ok: 'Немає позицій у наявності: видавати нічого',
+            bur_cart_missing: 'Позиції більше немає на цьому складі — потрапить у «Не видано»',
+            bur_q_out_note: 'Товару немає на складі: позиція потрапить у замовлення та в друк блоком «Не видано», зі складу не спишеться'
+        });
+        Object.assign(TR.pl, {
+            mm_sheet_title_bur: 'Wydanie materiałów biurowych nr {n}', mm_sheet_title_bur0: 'Wydanie materiałów biurowych', mm_sheet_list_no: 'Numer na liście',
+            mm_sheet_out_title: '⚠️ Nie wydano (Brak na stanie magazynu):', mm_sheet_req: 'Zamówiona ilość', mm_sheet_out_badge: '0 {unit} / Brak',
+            mm_op_not_issued: 'Nie wydano: {n}',
+            bur_cart_listno: 'Numer na liście (opcjonalnie, 1–500)', bur_cart_listno_err: 'Numer na liście — liczba całkowita od 1 do 500',
+            bur_cart_out: 'Brak na stanie — nie zostanie wydane, trafi do „Nie wydano”', bur_cart_none_ok: 'Brak pozycji na stanie: nie ma czego wydać',
+            bur_cart_missing: 'Tej pozycji nie ma już w tym magazynie — trafi do „Nie wydano”',
+            bur_q_out_note: 'Brak towaru na stanie: pozycja trafi do zamówienia i na wydruk jako „Nie wydano”, nie zostanie zdjęta ze stanu'
+        });
+        Object.assign(TR.en, {
+            mm_sheet_title_bur: 'Office supplies issue # {n}', mm_sheet_title_bur0: 'Office supplies issue', mm_sheet_list_no: 'List number',
+            mm_sheet_out_title: '⚠️ Not issued (out of stock):', mm_sheet_req: 'Requested qty', mm_sheet_out_badge: '0 {unit} / Out of stock',
+            mm_op_not_issued: 'Not issued: {n}',
+            bur_cart_listno: 'List number (optional, 1–500)', bur_cart_listno_err: 'List number must be a whole number from 1 to 500',
+            bur_cart_out: 'Out of stock — will not be issued, goes to “Not issued”', bur_cart_none_ok: 'No items in stock: nothing to issue',
+            bur_cart_missing: 'This item no longer exists in this warehouse — goes to “Not issued”',
+            bur_q_out_note: 'Out of stock: the item goes into the order and onto the printout as “Not issued”; stock is not reduced'
         });
         function burAddToOrder(it) {
-            if (it.qty <= 0) { cmpToast(t('bur_no_stock'), 'err'); return; }
             burCartEnsure();
-            const inCart = () => burCart.get(it.id) || 0, room = () => it.qty - inCart();
+            // остаток 0: позицию всё равно можно заказать — при выдаче она уйдёт в блок «Не выдано» и со склада не спишется
+            const out = it.qty <= 0;
+            const inCart = () => burCart.get(it.id) || 0, room = () => out ? Infinity : it.qty - inCart();
             if (room() <= 0) { cmpToast(fmt(t('bur_cart_only'), { n: it.qty, unit: it.unit }), 'err'); return; }
             const unit = escapeHtml(it.unit);
             const m = cmpModal(`
@@ -3083,13 +3146,14 @@
                         <div id="bur-q-cur" class="text-xs text-klt-muted"></div>
                     </div>
                 </div>
+                ${out ? `<div class="mb-3 rounded-lg border border-solid border-klt-orange/60 bg-klt-orange/10 px-3 py-2 text-xs font-semibold text-klt-orange-light">⚠ ${t('bur_q_out_note')}</div>` : ''}
                 <label class="${CMP_LBL}" for="bur-q-n">${t('bur_rc_qty')}</label>
                 <div class="flex flex-wrap items-center gap-2">
                     <button type="button" data-q-step="-1" aria-label="−1" class="${CMP_ICO} px-3.5">−</button>
                     <input id="bur-q-n" type="number" min="1" step="1" inputmode="numeric" value="1" style="width:6rem" class="${CMP_FLD} text-center text-base font-bold">
                     <button type="button" data-q-step="1" aria-label="+1" class="${CMP_ICO} px-3.5">+</button>
                     <span class="text-sm text-klt-muted">${unit}</span>
-                    <button type="button" id="bur-q-max" class="${CMP_BTN} ml-auto text-[13px]"></button>
+                    <button type="button" id="bur-q-max" class="${CMP_BTN} ml-auto text-[13px]" ${out ? 'hidden' : ''}></button>
                 </div>
                 <div id="bur-q-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="bur-q-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="bur-q-ok" class="${CMP_BTN_MAIN}">${t('bur_q_do')}</button></div>`);
@@ -3098,6 +3162,7 @@
             const drawRoom = () => {
                 const c = inCart(), r = room();
                 $('#bur-q-cur').textContent = c ? fmt(t('bur_q_in_cart'), { n: c, unit: it.unit }) : '';
+                if (out) return;
                 $('#bur-q-max').textContent = fmt(t('bur_q_max'), { n: Math.max(0, r) });
                 inp.max = String(Math.max(1, r));
             };
@@ -3281,6 +3346,7 @@
                 </div>
                 <div id="bur-k-lines" class="mb-4 flex flex-col gap-2.5"></div>
                 <div class="mb-3.5 inline-flex overflow-hidden rounded-lg border border-solid border-klt-line" id="bur-k-seg"></div>
+                <div class="mb-3.5"><label class="${CMP_LBL}" for="bur-k-no">${t('bur_cart_listno')}</label><input id="bur-k-no" type="number" min="1" max="500" step="1" inputmode="numeric" autocomplete="off" style="width:8rem" class="${CMP_FLD} text-center"></div>
                 <div class="mb-3.5"><label class="${CMP_LBL}" id="bur-k-tl"></label><input id="bur-k-to" type="text" autocomplete="off" class="${CMP_FLD}"></div>
                 <div class="mb-1"><label class="${CMP_LBL}">${t('cmp_issue_note')}</label><input id="bur-k-note" type="text" autocomplete="off" class="${CMP_FLD}"></div>
                 <div id="bur-k-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
@@ -3291,8 +3357,12 @@
             // они остаются в списке с пометкой, пока кладовщик сам не уберёт их
             const rowsNow = () => [...burCart].map(([id, q]) => ({ id, it: burItems.find(x => x.id === id), q }));
             // 'missing' — позиции нет на складе; 'zero' — остаток 0; 'short' — больше остатка; 'bad' — не целое ≥1
+            // 'missing' и 'zero' выдачу НЕ блокируют: такие строки уходят в «Не выдано» и со склада не списываются
             const stateOf = (it, q) => !it ? 'missing' : it.qty <= 0 ? 'zero' : !Number.isInteger(q) || q < 1 ? 'bad' : q > it.qty ? 'short' : 'ok';
-            const msgOf = (it, st) => st === 'missing' ? t('bur_cart_missing') : st === 'zero' ? t('bur_no_stock') : st === 'short' ? fmt(t('bur_short'), { n: it.qty, unit: it.unit }) : st === 'bad' ? t('bur_cart_bad_qty') : '';
+            const isOut = st => st === 'missing' || st === 'zero';
+            const msgOf = (it, st) => st === 'missing' ? t('bur_cart_missing') : st === 'zero' ? t('bur_cart_out') : st === 'short' ? fmt(t('bur_short'), { n: it.qty, unit: it.unit }) : st === 'bad' ? t('bur_cart_bad_qty') : '';
+            const lineCls = st => st === 'ok' ? 'border-klt-line' : isOut(st) ? 'border-klt-orange/70' : 'border-red-500/60';
+            const msgCls = st => isOut(st) ? 'text-klt-orange-light' : 'text-red-300';
 
             let drawing = false;   // перерисовка удаляет поле в фокусе → blur → change → повторный вызов; не допускаем вложенности
             const drawLines = () => {
@@ -3305,22 +3375,22 @@
                 if (!rows.length) { box.innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-8 text-center text-sm text-klt-muted">${t('bur_cart_empty')}</div>`; return; }
                 box.innerHTML = rows.map(({ id: rid, it, q }) => {
                     const st = stateOf(it, q), id = cmpAttr(rid);
-                    if (!it) return `<div data-line="${id}" class="flex flex-wrap items-center gap-3 rounded-xl border border-solid border-red-500/60 bg-klt-bg p-2.5">
+                    if (!it) return `<div data-line="${id}" class="flex flex-wrap items-center gap-3 rounded-xl border border-solid ${lineCls(st)} bg-klt-bg p-2.5">
                         <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-klt-card text-xl opacity-50">❔</div>
                         <div class="min-w-0 flex-1 basis-40">
                             <div class="font-mono text-sm font-bold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(rid.split('__').slice(1).join('__') || rid)}</div>
-                            <div data-msg class="text-xs font-semibold text-red-300">${escapeHtml(msgOf(it, st))}</div>
+                            <div data-msg class="text-xs font-semibold ${msgCls(st)}">${escapeHtml(msgOf(it, st))}</div>
                         </div>
                         <span class="text-sm text-klt-muted">× ${q}</span>
                         <button type="button" data-k-del="${id}" title="${cmpAttr(t('bur_cart_del'))}" aria-label="${cmpAttr(t('bur_cart_del'))}" class="${CMP_ICO}">✕</button></div>`;
-                    return `<div data-line="${id}" class="flex flex-wrap items-center gap-3 rounded-xl border border-solid bg-klt-bg p-2.5 ${st === 'ok' ? 'border-klt-line' : 'border-red-500/60'}">
+                    return `<div data-line="${id}" class="flex flex-wrap items-center gap-3 rounded-xl border border-solid bg-klt-bg p-2.5 ${lineCls(st)}">
                         <div class="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-klt-card">${burPhoto(it, 'text-xl')}</div>
                         <div class="min-w-0 flex-1 basis-40">
                             <div class="text-sm font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
                             <div class="text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))} · ${fmt(t('bur_cart_avail'), { n: it.qty, unit: escapeHtml(it.unit) })}</div>
-                            <div data-msg class="text-xs font-semibold text-red-300">${escapeHtml(msgOf(it, st))}</div>
+                            <div data-msg class="text-xs font-semibold ${msgCls(st)}">${escapeHtml(msgOf(it, st))}</div>
                         </div>
-                        <input type="number" data-k-qty="${id}" min="1" max="${it.qty}" step="1" inputmode="numeric" value="${q}" aria-label="${cmpAttr(t('cmp_issue_qty'))}" style="width:5rem" class="${CMP_FLD} text-center">
+                        <input type="number" data-k-qty="${id}" min="1" ${it.qty > 0 ? `max="${it.qty}"` : ''} step="1" inputmode="numeric" value="${q}" aria-label="${cmpAttr(t('cmp_issue_qty'))}" style="width:5rem" class="${CMP_FLD} text-center">
                         <span class="text-sm text-klt-muted">${escapeHtml(it.unit)}</span>
                         <button type="button" data-k-del="${id}" title="${cmpAttr(t('bur_cart_del'))}" aria-label="${cmpAttr(t('bur_cart_del'))}" class="${CMP_ICO}">✕</button></div>`;
                 }).join('');
@@ -3329,9 +3399,10 @@
             const refreshStatus = () => {
                 m.ov.querySelectorAll('[data-line]').forEach(el => {
                     const it = burItems.find(x => x.id === el.dataset.line); if (!it) return;
-                    const st = stateOf(it, burCart.get(it.id)), ok = st === 'ok';
-                    el.classList.toggle('border-klt-line', ok); el.classList.toggle('border-red-500/60', !ok);
-                    el.querySelector('[data-msg]').textContent = msgOf(it, st);
+                    const st = stateOf(it, burCart.get(it.id)), cls = lineCls(st);
+                    ['border-klt-line', 'border-klt-orange/70', 'border-red-500/60'].forEach(c => el.classList.toggle(c, c === cls));
+                    const msg = el.querySelector('[data-msg]');
+                    msg.textContent = msgOf(it, st); msg.classList.toggle('text-klt-orange-light', isOut(st)); msg.classList.toggle('text-red-300', !isOut(st));
                 });
             };
             const drawSeg = () => {
@@ -3364,38 +3435,53 @@
                 if (busy) return;
                 const rows = rowsNow(); if (!rows.length) return;
                 const to = $('#bur-k-to').value.trim(), note = $('#bur-k-note').value.trim();
-                // 1) проверка наличия по данным на экране: нет на складе → блокируем выдачу
-                const bad = rows.filter(r => stateOf(r.it, r.q) !== 'ok');
+                // «Номер в списке»: необязательный, но если указан — целое 1…500
+                const noRaw = $('#bur-k-no').value.trim();
+                if (noRaw && !(/^\d+$/.test(noRaw) && +noRaw >= 1 && +noRaw <= 500)) { err.textContent = t('bur_cart_listno_err'); $('#bur-k-no').focus(); return; }
+                const listNo = noRaw ? parseInt(noRaw, 10) : null;
+                // 1) проверка по данным на экране: «больше остатка» / неверное количество блокируют выдачу;
+                //    остаток 0 и удалённые позиции — не блокируют, а уходят в «Не выдано»
+                const bad = rows.filter(r => { const st = stateOf(r.it, r.q); return st !== 'ok' && !isOut(st); });
                 if (bad.length) { err.innerHTML = bad.map(r => `${escapeHtml(r.it ? r.it.name : r.id)}: ${escapeHtml(msgOf(r.it, stateOf(r.it, r.q)))}`).join('<br>'); refreshStatus(); return; }
+                const give = rows.filter(r => stateOf(r.it, r.q) === 'ok'), skip = rows.filter(r => isOut(stateOf(r.it, r.q)));
+                if (!give.length) { err.textContent = t('bur_cart_none_ok'); refreshStatus(); return; }
                 if (!to) { err.textContent = t('cmp_err_target'); $('#bur-k-to').focus(); return; }
                 busy = true; okBtn.disabled = true; err.textContent = '';
                 const txId = mmTxId('ISSUE'), now = Date.now(), txRef = doc(collection(db, 'material_movements'));
                 try {
                     // 2) повторная проверка по актуальным остаткам + списание всех позиций и запись журнала в одной транзакции
+                    // строки «Не выдано» с существующей складской записью тоже перечитываем: если остаток успел появиться,
+                    // выдачу останавливаем, чтобы кладовщик решил заново (иначе товар на полке, а в листе — «отсутствует»)
+                    const skipIn = skip.filter(r => r.it);
                     const res = await runTransaction(db, async tx => {
-                        const snaps = [];
-                        for (const r of rows) snaps.push(await tx.get(doc(db, 'material_master', r.it.id)));
-                        const fresh = snaps.map(sn => sn.exists() ? Math.max(0, Number(sn.data().qty) || 0) : 0);
-                        if (rows.some((r, i) => fresh[i] < r.q)) return { ok: false, fresh };
-                        rows.forEach(r => tx.update(doc(db, 'material_master', r.it.id), { qty: increment(-r.q), updatedAt: now, updatedBy: currentUserName }));
-                        tx.set(txRef, {
+                        const read = async list => { const out = []; for (const r of list) out.push(await tx.get(doc(db, 'material_master', r.it.id))); return out.map(sn => sn.exists() ? Math.max(0, Number(sn.data().qty) || 0) : 0); };
+                        const fresh = await read(give), freshSkip = await read(skipIn);
+                        if (give.some((r, i) => fresh[i] < r.q) || freshSkip.some(q => q > 0)) return { ok: false, fresh, freshSkip };
+                        // списываем ТОЛЬКО выдаваемые позиции; «Не выдано» на остаток не влияет
+                        give.forEach(r => tx.update(doc(db, 'material_master', r.it.id), { qty: increment(-r.q), updatedAt: now, updatedBy: currentUserName }));
+                        tx.set(txRef, Object.assign({
                             group: 'bureau', type: 'issue', txId, toType, to, note,
-                            items: rows.map(r => ({ sku: r.it.sku, name: r.it.name, unit: r.it.unit, delta: -r.q })),
+                            items: give.map(r => ({ sku: r.it.sku, name: r.it.name, unit: r.it.unit, delta: -r.q })),
                             warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: now
-                        });
+                        }, listNo ? { listNo } : {}, skip.length ? { notIssued: skip.map(r => {
+                            const sku = r.it ? r.it.sku : (r.id.split('__').slice(1).join('__') || r.id), mm = !r.it && mmcByCode.get(normCode(sku));
+                            return { sku, name: r.it ? r.it.name : (mm && mm.name) || '', unit: r.it ? r.it.unit : (mm && mm.unit) || 'шт.', qty: r.q };
+                        }) } : {}));
                         return { ok: true, fresh };
                     });
-                    if (!res.ok) {   // кто-то уже забрал товар: обновляем остатки и блокируем выдачу
-                        rows.forEach((r, i) => { r.it.qty = res.fresh[i]; });
+                    if (!res.ok) {   // остатки изменились (забрали товар или он появился): обновляем экран и блокируем выдачу
+                        give.forEach((r, i) => { r.it.qty = res.fresh[i]; });
+                        skipIn.forEach((r, i) => { r.it.qty = res.freshSkip[i]; });
                         drawLines(); burRedraw(); err.textContent = t('bur_cart_blocked'); busy = false; okBtn.disabled = false; return;
                     }
                     // остаток на экране = свежий остаток из транзакции − выданное (а не устаревшее значение на экране − выданное)
-                    rows.forEach((r, i) => { r.it.qty = res.fresh[i] - r.q; burCartDel(r.id); });
+                    give.forEach((r, i) => { r.it.qty = res.fresh[i] - r.q; });
+                    rows.forEach(r => burCartDel(r.id));   // заказ оформлен целиком: «Не выдано» тоже уходит из корзины (оно зафиксировано в накладной)
                     m.close(); burRedraw(); cmpToast(fmt(t('bur_cart_issued'), { id: txId }), 'ok');   // позиции ниже лимита сразу получают плашку «Мало на складе»
                 } catch (e) { console.error(e); err.textContent = t('cmp_err_save'); busy = false; okBtn.disabled = false; }
             };
             okBtn.onclick = go;
-            m.ov.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && (e.target.id === 'bur-k-to' || e.target.id === 'bur-k-note')) { e.preventDefault(); go(); } });
+            m.ov.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && ['bur-k-no', 'bur-k-to', 'bur-k-note'].includes(e.target.id)) { e.preventDefault(); go(); } });
         }
 
         // Общее добавление категории (используется менеджером категорий и быстрым «＋ Новая категория» в форме).
