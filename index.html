@@ -5429,46 +5429,111 @@
             tlBusyN = Math.max(0, tlBusyN - 1);
             const el = document.getElementById('tl-busy'); if (el && !tlBusyN) el.style.display = 'none';
         }
-        // Фото товаров → data URL (иначе внешние картинки «портят» canvas); не загрузилось — убираем <img>, лист всё равно соберётся
+        // Фото товаров → data URL + ожидание загрузки; печатная форма → html2canvas → JPEG Data URL
+        const tlSleep = ms => new Promise(res => setTimeout(res, ms));
+
+        // Загрузка одной картинки → data URL. 2 попытки; при неудаче <img> НЕ удаляется
+        // (раньше im.remove() оставлял пустую ячейку), а подменяется прозрачным пикселем,
+        // чтобы вёрстка таблицы не поехала.
+        const TL_PIXEL = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+
+        async function tlFetchAsDataUrl(src, timeoutMs) {
+            const ac = new AbortController(), tm = setTimeout(() => ac.abort(), timeoutMs);
+            try {
+                const r = await fetch(src, { mode: 'cors', cache: 'force-cache', signal: ac.signal });
+                if (!r.ok) throw new Error('img ' + r.status);
+                const b = await r.blob();
+                return await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); });
+            } finally { clearTimeout(tm); }
+        }
+
+        // Запасной путь, если fetch не прошёл: Image(crossOrigin) → canvas → data URL
+        function tlImgViaCanvas(src, timeoutMs) {
+            return new Promise((res, rej) => {
+                const im = new Image(), tm = setTimeout(() => rej(new Error('img timeout')), timeoutMs);
+                im.crossOrigin = 'anonymous';
+                im.onload = () => {
+                    clearTimeout(tm);
+                    try {
+                        const c = document.createElement('canvas'); c.width = im.naturalWidth || 1; c.height = im.naturalHeight || 1;
+                        c.getContext('2d').drawImage(im, 0, 0);
+                        res(c.toDataURL('image/jpeg', 0.85));
+                    } catch (e) { rej(e); }
+                };
+                im.onerror = () => { clearTimeout(tm); rej(new Error('img error')); };
+                im.src = src;
+            });
+        }
+
         async function tlInlineImgs(d) {
-            await Promise.all([...d.images].map(async im => {
+            const imgs = [...d.images];
+
+            // 1) lazy-картинки в скрытом iframe браузер не грузит вовсе — отключаем
+            imgs.forEach(im => { im.loading = 'eager'; im.removeAttribute('loading'); im.decoding = 'sync'; });
+
+            // 2) всё → data URL (с повтором и запасным способом)
+            await Promise.all(imgs.map(async im => {
                 const src = im.getAttribute('src') || '';
                 if (!src || /^data:/i.test(src)) return;
-                try {
-                    const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 5000);
-                    const r = await fetch(src, { mode: 'cors', signal: ac.signal }); clearTimeout(tm);
-                    if (!r.ok) throw new Error('img ' + r.status);
-                    const b = await r.blob();
-                    im.src = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); });
-                } catch (e) { im.remove(); }
+                let url = '';
+                for (let attempt = 0; attempt < 2 && !url; attempt++) {
+                    try { url = await tlFetchAsDataUrl(src, 6000); } catch (e) { /* повтор */ }
+                }
+                if (!url) { try { url = await tlImgViaCanvas(src, 6000); } catch (e) { /* сдаёмся */ } }
+                if (url) im.src = url;
+                else { console.warn('[sheet] image not loaded:', src); im.src = TL_PIXEL; }
             }));
-            await Promise.all([...d.images].map(im => im.complete ? null : new Promise(res => { im.onload = im.onerror = res; })));
+
+            // 3) принудительное ожидание полной загрузки/декодирования ВСЕХ <img>
+            await Promise.all(imgs.map(im => new Promise(res => {
+                const done = () => { (im.decode ? im.decode().catch(() => { }) : Promise.resolve()).then(res); };
+                if (im.complete && im.naturalWidth > 0) return done();
+                im.onload = done; im.onerror = res;
+                if (im.complete) done();                    // успела загрузиться между проверками
+            })));
         }
-        // Печатная форма сборочного листа (тот же HTML, что идёт на печать) → скриншот html2canvas → JPEG Data URL (Base64).
-        // JPEG вместо PNG: лист с таблицей в PNG весит в разы больше, а у EmailJS жёсткие лимиты на размер.
+
+        // Печатная форма сборочного листа → скриншот html2canvas → JPEG Data URL (Base64).
         async function mmSheetToDataUrl(group, op, lang) {
             if (typeof html2canvas !== 'function') throw new Error('html2canvas not loaded');
             const f = document.createElement('iframe');
             f.setAttribute('aria-hidden', 'true');
-            f.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none';   // 794px = A4 при 96 dpi
+            f.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none';
             document.body.appendChild(f);
             try {
                 const d = f.contentDocument; d.open(); d.write(mmSheetPrintHtml(group, op, lang)); d.close();
-                await Promise.race([tlInlineImgs(d), new Promise(res => setTimeout(res, 8000))]);
+
+                // ждём картинки (общий предел 12 с, чтобы письмо не зависло навсегда)
+                await Promise.race([tlInlineImgs(d), tlSleep(12000)]);
+
+                // пауза: DOM и картинки гарантированно отрисованы перед снимком
+                await tlSleep(300);
+
                 const body = d.body, h = Math.max(body.scrollHeight, 300);
                 f.style.height = h + 'px';
-                const shot = () => html2canvas(body, { scale: 1, backgroundColor: '#ffffff', useCORS: true, logging: false, width: 794, height: h, windowWidth: 794, windowHeight: h });
-                // подгоняем под лимит: сначала качество JPEG, затем размер; '' — не влезло
+
+                const shot = () => html2canvas(body, {
+                    scale: 2,                 // чёткость
+                    useCORS: true,
+                    allowTaint: true,         // см. примечание: картинки уже data URL, canvas не «портится»
+                    logging: false,
+                    backgroundColor: '#ffffff',
+                    imageTimeout: 15000,
+                    width: 794, height: h, windowWidth: 794, windowHeight: h
+                });
+
+                // подгон под лимит EmailJS: сначала качество JPEG, затем размер
                 const fit = canvas => {
-                    for (let k = 0; k < 3; k++) {
+                    for (let k = 0; k < 5; k++) {   // scale:2 → больше шагов уменьшения, чем раньше (было 3)
                         for (let q = 0.7; q >= 0.39; q -= 0.1) { const u = canvas.toDataURL('image/jpeg', q); if (u.length <= TL_SHEET_MAX_B64) return u; }
                         const c = document.createElement('canvas'); c.width = Math.round(canvas.width * 0.85); c.height = Math.round(canvas.height * 0.85);
                         const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0, c.width, c.height); canvas = c;
                     }
                     return '';
                 };
+
                 let url = fit(await shot());
-                if (!url && d.images.length) {          // фото товаров — главный «вес»: убираем их и снимаем лист ещё раз
+                if (!url && d.images.length) {      // крайний случай: не влезло даже после сжатия — лист без фото
                     [...d.images].forEach(im => im.remove());
                     url = fit(await shot());
                 }
