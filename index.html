@@ -183,6 +183,12 @@
         .sidebar.collapsed .nav-item span.nav-label { display: none; }
         .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
         .nav-item.active { background: rgba(16, 185, 129, 0.16); color: var(--emerald-light); border-left-color: var(--emerald); font-weight: 700; }
+        .nav-badge { margin-left: auto; min-width: 20px; padding: 1px 7px; border-radius: 999px; background: var(--danger-color); color: #fff; font-size: 11px; font-weight: 700; text-align: center; }
+        .nav-badge[hidden] { display: none; }
+        .sidebar.collapsed .nav-badge { position: absolute; margin: -18px 0 0 14px; padding: 0 5px; min-width: 0; }
+        /* Режим тимлида: доступен только «Портал заявок» (остальные разделы, склад в шторке и корзина выдачи скрыты) */
+        body.tl-mode .sidebar-nav .nav-group:not(#nav-grp-req), body.tl-mode .sidebar-nav .nav-item:not([data-key="tl-portal"]),
+        body.tl-mode .sidebar-warehouses, body.tl-mode #bur-cart-fab { display: none !important; }
 
         .sidebar-warehouses { padding: 14px 12px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
         .warehouse-row { display: flex; gap: 6px; }
@@ -404,6 +410,16 @@
                         </button>
                     </div>
 
+                    <div class="nav-group" id="nav-grp-req">
+                        <div class="nav-group-title" data-i18n="grp_requests">Заявки тимлидов</div>
+                        <button class="nav-item" data-key="tl-portal" onclick="window.openPage('tl-portal')">
+                            <span class="nav-icon">🧾</span><span class="nav-label" data-i18n="nav_tl_portal">Портал заявок</span>
+                        </button>
+                        <button class="nav-item" data-key="tl-requests" onclick="window.openPage('tl-requests')" style="position:relative">
+                            <span class="nav-icon">📨</span><span class="nav-label" data-i18n="nav_tl_requests">Входящие заявки</span><span class="nav-badge" id="tl-req-badge" hidden></span>
+                        </button>
+                    </div>
+
                     <div class="nav-group">
                         <div class="nav-group-title" data-i18n="grp_delivery">Delivery</div>
                         <button class="nav-item" data-key="delivery-calendar" onclick="window.openPage('delivery-calendar')">
@@ -515,6 +531,13 @@
                 <label>Имя сотрудника</label>
                 <input type="text" id="new-emp-name" placeholder="Например: Иван Иванов">
             </div>
+            <div class="field">
+                <label>Роль</label>
+                <select id="new-emp-role">
+                    <option value="staff">Сотрудник склада (кладовщик)</option>
+                    <option value="teamlead">Тимлид (только портал заявок)</option>
+                </select>
+            </div>
             <div class="modal-actions">
                 <button class="btn btn-secondary" onclick="window.closeAddEmployeeModal()">Отмена</button>
                 <button class="btn btn-add" onclick="window.addEmployee()" id="add-emp-btn">Добавить</button>
@@ -618,6 +641,10 @@
         let currentUserName = '';
         let currentUid = '';
         let isAdmin = false;
+        // Роль из employees/{uid}.role: 'admin' | 'staff' (кладовщик) | 'teamlead' (видит только «Портал заявок»)
+        let currentRole = '';
+        let currentEmpId = '';
+        const isTeamlead = () => currentRole === 'teamlead';
         let currentWarehouse = 'DC1';
         let currentLang = 'ru';
 
@@ -648,7 +675,7 @@
         // Сам вход хранит Firebase Auth (browserLocalPersistence — localStorage, «Запомнить меня»; иначе sessionStorage вкладки).
         // Здесь дополнительно запоминаем, где был пользователь: страница, склад, язык — и возвращаем его туда после F5.
         const UI_STATE_KEY = 'kletka_ui_state';
-        const RESTORABLE_PAGES = ['material-master', 'asset-ledger', 'components', 'bureau-materials', 'code-audit', 'excel-import-export', 'po-pr', 'delivery-receive'];
+        const RESTORABLE_PAGES = ['material-master', 'asset-ledger', 'components', 'bureau-materials', 'code-audit', 'excel-import-export', 'po-pr', 'delivery-receive', 'tl-portal', 'tl-requests'];
         function readUiState() { try { return JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}') || {}; } catch (e) { return {}; } }
         function saveUiState(patch) { try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(Object.assign(readUiState(), patch))); } catch (e) { /* storage недоступен */ } }
         function hideBootSplash() { const sp = document.getElementById('boot-splash'); if (sp) sp.classList.add('hidden'); }
@@ -732,12 +759,16 @@
             const btn = document.getElementById('login-btn');
             if (user) {
                 let name = '';
-                isAdmin = false;
+                isAdmin = false; currentRole = ''; currentEmpId = '';
                 try {
                     const empSnap = await getDoc(doc(employeesCollection, user.uid));
-                    if (empSnap.exists()) { name = empSnap.data().name || ''; isAdmin = empSnap.data().role === 'admin'; }
+                    if (empSnap.exists()) {
+                        name = empSnap.data().name || ''; isAdmin = empSnap.data().role === 'admin';
+                        currentRole = String(empSnap.data().role || 'staff'); currentEmpId = String(empSnap.data().id || '');
+                    }
                 } catch (e) { console.error('Employee lookup error:', e); }
                 currentUserName = name; currentUid = user.uid;
+                document.body.classList.toggle('tl-mode', isTeamlead());
                 document.getElementById('add-emp-nav-btn').style.display = isAdmin ? 'inline-block' : 'none';
                 // восстанавливаем склад / язык / открытую страницу, сохранённые до перезагрузки
                 const ui = readUiState();
@@ -749,12 +780,16 @@
                 showApp(name);
                 subscribeToActivity();
                 document.querySelectorAll('[data-i18n]').forEach(el => { el.innerText = t(el.dataset.i18n); });
-                if (ui.page && RESTORABLE_PAGES.includes(ui.page) && PAGES[ui.page]) openPage(ui.page); else showHome();
+                if (isTeamlead()) openPage('tl-portal');   // тимлиду доступен только портал заявок
+                else if (ui.page && RESTORABLE_PAGES.includes(ui.page) && PAGES[ui.page]) openPage(ui.page); else showHome();
                 burCartSync();
+                tlWatchStart();
             } else {
                 showLoginScreen();
                 unsubscribeFromActivity();
-                currentUserName = ''; currentUid = ''; isAdmin = false;
+                currentUserName = ''; currentUid = ''; isAdmin = false; currentRole = ''; currentEmpId = '';
+                document.body.classList.remove('tl-mode');
+                tlWatchStop();
                 burCartSync();
             }
             btn.disabled = false; btn.innerText = 'Увійти';
@@ -789,6 +824,7 @@
             const newId = document.getElementById('new-emp-id').value.trim();
             const newPin = document.getElementById('new-emp-pin').value.trim();
             const newName = document.getElementById('new-emp-name').value.trim();
+            const newRole = document.getElementById('new-emp-role').value === 'teamlead' ? 'teamlead' : 'staff';
             const errorEl = document.getElementById('add-emp-error');
             const btn = document.getElementById('add-emp-btn');
             errorEl.innerText = '';
@@ -803,14 +839,15 @@
 
             try {
                 const cred = await createUserWithEmailAndPassword(secondaryAuth, idToEmail(newId), pinToPassword(newPin));
-                await setDoc(doc(collection(secondaryDb, 'employees'), cred.user.uid), { id: newId, name: newName, role: 'staff' });
+                await setDoc(doc(collection(secondaryDb, 'employees'), cred.user.uid), { id: newId, name: newName, role: newRole });
                 await signOut(secondaryAuth);
                 await deleteApp(secondaryApp);
-                logActivity('employee', `Добавлен сотрудник: ${newName} (ID ${newId})`);
+                logActivity('employee', `Добавлен сотрудник: ${newName} (ID ${newId})${newRole === 'teamlead' ? ', роль: тимлид' : ''}`);
                 closeAddEmployeeModal();
                 document.getElementById('new-emp-id').value = '';
                 document.getElementById('new-emp-pin').value = '';
                 document.getElementById('new-emp-name').value = '';
+                document.getElementById('new-emp-role').value = 'staff';
             } catch (err) {
                 console.error('Add employee error:', err);
                 if (err.code === 'auth/email-already-in-use') errorEl.innerText = 'Сотрудник с таким ID уже существует';
@@ -1011,6 +1048,8 @@
             'bureau-materials': { iconKey: '🗂️', labelKey: 'm_bureau_label' },
             'bureau-issue': { iconKey: '🔵', labelKey: 'qa_issue_office' },
             'code-audit': { iconKey: '🔍', labelKey: 'nav_audit' },
+            'tl-portal': { iconKey: '🧾', labelKey: 'nav_tl_portal' },
+            'tl-requests': { iconKey: '📨', labelKey: 'nav_tl_requests' },
             'rma-cage': { iconKey: '🚫', labelKey: 'stat_tech_cage' },
             'write-off': { iconKey: '📝', labelKey: 'stat_tech_written_off' }
         };
@@ -1021,6 +1060,7 @@
         }
 
         function showHome() {
+            if (isTeamlead()) { openPage('tl-portal'); return; }
             currentPageKey = null;
             saveUiState({ page: null });
             document.getElementById('page-view').style.display = 'none';
@@ -1032,6 +1072,7 @@
         }
 
         function openPage(key) {
+            if (isTeamlead()) key = 'tl-portal';   // у тимлида нет доступа к остальным разделам
             const p = PAGES[key];
             if (!p) return;
             currentPageKey = key;
@@ -1057,6 +1098,12 @@
             } else if (key === 'code-audit') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderCodeAudit(pv);
+            } else if (key === 'tl-portal') {
+                pv.innerHTML = isTeamlead() ? '' : `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderTlPortal(pv);
+            } else if (key === 'tl-requests') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderTlRequests(pv);
             } else if (key === 'excel-import-export') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderImportExport(pv);
@@ -1235,7 +1282,8 @@
             renderHome();
             loadCageCount();
             loadBureauStats();
-            if (['components', 'bureau-materials', 'bureau-issue'].includes(currentPageKey)) openPage(currentPageKey);   // остатки привязаны к складу
+            tlWatchStart();   // входящие заявки и счётчик на шторке — по выбранному складу
+            if (['components', 'bureau-materials', 'bureau-issue', 'tl-requests'].includes(currentPageKey)) openPage(currentPageKey);   // остатки привязаны к складу
             // Пока переключение склада меняет только заголовок — данные по складам подключим,
             // когда определим структуру Material Master/Delivery для каждого DC отдельно.
         }
@@ -2626,6 +2674,7 @@
                 <div class="mb-3 grid gap-3" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
                     ${meta(t('mm_col_dt'), escapeHtml(mmFmtDate(r.timestamp)))}${meta(t('mm_sheet_to'), mmToHtml(r))}
                     ${meta(t('mm_col_note'), escapeHtml(r.note || '') || '—')}${meta(t('mm_col_actor'), escapeHtml(r.actor || '—'))}
+                    ${r.reqNo ? meta(t('tl_f_process'), escapeHtml(r.process || '') || '—') + meta(t('tl_col_req'), `<span class="font-mono">${escapeHtml(r.reqNo)}</span>`) : ''}
                 </div>
                 <table class="w-full border-collapse text-[13px]"><thead><tr><th class="${th} w-10">№</th><th class="${th} w-16">${t('mm_col_photo')}</th>
                     <th class="${th}">${t('mm_col_name')}</th><th class="${th}">Material Code</th><th class="${th} text-right">${t('mm_sheet_qty')}</th></tr></thead>
@@ -2655,6 +2704,7 @@
                 to: 'Отримувач:', actor: 'Оператор:', note: 'Коментар:', date: 'Дата:', wh: 'Склад:', proc: 'процес',
                 col_no: '№', col_photo: 'Фото товару', col_name: 'Назва товару', col_code: 'Матеріал код', col_qty: 'Кількість',
                 total: 'Всього позицій:', out_title: '⚠️ Не видано (Немає в наявності на складі):', req: 'Запитано', absent: 'Відсутній',
+                process: 'Процес:', request: 'Заявка:',
                 units: { 'шт.': 'шт.', 'упак.': 'упак.', 'пачка': 'пачка', 'коробка': 'коробка', 'пара': 'пара', 'рулон': 'рулон' }
             },
             pl: {
@@ -2662,6 +2712,7 @@
                 to: 'Odbiorca:', actor: 'Operator:', note: 'Komentarz:', date: 'Data:', wh: 'Magazyn:', proc: 'proces',
                 col_no: 'Lp.', col_photo: 'Zdjęcie', col_name: 'Nazwa towaru', col_code: 'Kod materiału', col_qty: 'Ilość',
                 total: 'Łącznie pozycji:', out_title: '⚠️ Brak wydania (Brak na magazynie):', req: 'Zamówiono', absent: 'Brak',
+                process: 'Proces:', request: 'Zgłoszenie:',
                 units: { 'шт.': 'szt.', 'упак.': 'opak.', 'пачка': 'paczka', 'коробка': 'pudełko', 'пара': 'para', 'рулон': 'rolka' }
             },
             en: {
@@ -2669,6 +2720,7 @@
                 to: 'Recipient:', actor: 'Operator:', note: 'Comment:', date: 'Date:', wh: 'Warehouse:', proc: 'process',
                 col_no: 'No.', col_photo: 'Photo', col_name: 'Item Name', col_code: 'Material Code', col_qty: 'Quantity',
                 total: 'Total items:', out_title: '⚠️ Not issued (Out of stock):', req: 'Requested', absent: 'Out of stock',
+                process: 'Process:', request: 'Request:',
                 units: { 'шт.': 'pcs.', 'упак.': 'pack', 'пачка': 'bundle', 'коробка': 'box', 'пара': 'pair', 'рулон': 'roll' }
             }
         };
@@ -2686,7 +2738,8 @@
                     date: new Date(r.timestamp).toLocaleString(P.locale, { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
                     to: P.to, toVal: r.to ? r.to + (r.toType === 'proc' ? ` (${P.proc})` : '') : '', actor: P.actor, note: P.note, dateL: P.date, wh: P.wh,
                     no: P.col_no, photo: P.col_photo, name: P.col_name, code: P.col_code, qty: P.col_qty,
-                    total: n => `${P.total} ${n}`, outTitle: P.out_title, req: P.req, badge: u => `0 ${unit(u)} / ${P.absent}`
+                    total: n => `${P.total} ${n}`, outTitle: P.out_title, req: P.req, badge: u => `0 ${unit(u)} / ${P.absent}`,
+                    procL: P.process, reqL: P.request
                 };
             }
             return {
@@ -2723,7 +2776,8 @@
                 <div class="sub">${L.bur ? `${e(L.wh)} ${e(currentWarehouse)}` : `${e(t('mm_t_' + r.type))} · ${e(currentWarehouse)} · ${e(L.date)}`}</div>
                 <div class="meta"><div><b>${e(L.to)}</b> ${e(L.toVal) || '—'}</div><div><b>${e(L.actor)}</b> ${e(r.actor || '—')}</div>
                     ${L.bur ? `<div><b>${e(L.dateL)}</b> ${e(L.date)}</div><div><b>${e(L.note)}</b> ${e(r.note || '') || '—'}</div>`
-                        : `<div style="grid-column:1/-1"><b>${e(L.note)}</b> ${e(r.note || '') || '—'}</div>`}</div>
+                        : `<div style="grid-column:1/-1"><b>${e(L.note)}</b> ${e(r.note || '') || '—'}</div>`}
+                    ${L.bur && r.reqNo ? `<div><b>${e(L.procL)}</b> ${e(r.process || '') || '—'}</div><div><b>${e(L.reqL)}</b> ${e(r.reqNo)}</div>` : ''}</div>
                 <table><thead><tr><th>${e(L.no)}</th><th>${e(L.photo)}</th><th>${e(L.name)}</th><th>${e(L.code)}</th><th class="n">${e(L.qty)}</th><th>✓</th></tr></thead>
                 <tbody>${op.items.map((i, k) => { const img = mmImgOf(group, i.sku); return `<tr><td>${k + 1}</td><td>${img ? `<img src="${cmpAttr(img)}" alt="">` : ''}</td>
                     <td>${e(i.name || '—')}</td><td class="code">${e(i.sku || '—')}</td><td class="n"><b>${qty(i)}</b></td><td class="c"></td></tr>`; }).join('')}</tbody>
@@ -2778,7 +2832,7 @@
                 const s = q.trim().toLowerCase();
                 // Комплексная операция = один документ с items[]; старые построчные записи с общим txId склеиваются в одну
                 // операцию, без txId — показываются как операция из одной позиции. Одна операция = одна сводная строка.
-                const shown = mmGroupOps(rows, group).filter(op => !s || [op.r.txId, op.r.listNo, op.r.to, op.r.note, op.r.actor, ...op.items.flatMap(i => [i.sku, i.name]), ...op.notIssued.flatMap(i => [i.sku, i.name])]
+                const shown = mmGroupOps(rows, group).filter(op => !s || [op.r.txId, op.r.listNo, op.r.to, op.r.note, op.r.actor, op.r.reqNo, op.r.process, ...op.items.flatMap(i => [i.sku, i.name]), ...op.notIssued.flatMap(i => [i.sku, i.name])]
                     .some(v => String(v || '').toLowerCase().includes(s)));
                 const nLines = shown.reduce((a, op) => a + op.items.length, 0);
                 cnt.textContent = fmt(t('mm_ops_count'), { n: shown.length, m: nLines }) + (truncated ? ' · ' + fmt(t('mm_trunc'), { n: MM_LIMIT }) : '');
@@ -3109,7 +3163,7 @@
                 document.body.appendChild(fab);
             }
             const appVisible = document.getElementById('app-content').style.display === 'block';
-            fab.style.display = currentUid && appVisible && burCart.size ? 'inline-flex' : 'none';
+            fab.style.display = currentUid && appVisible && burCart.size && !isTeamlead() ? 'inline-flex' : 'none';
             fab.textContent = fmt(t('bur_cart_fab'), { n: burCart.size });
         }
         function burCartFabClick() {
@@ -3404,6 +3458,33 @@
             };
         }
 
+        // Общая транзакция выдачи бюро-материалов — используется корзиной кладовщика и выдачей по заявке тимлида.
+        // give: [{ it, q }] — списываемые строки (it.id — id складской записи текущего склада);
+        // notIssued: [{ sku, name, unit, qty }] — блок «Не выдано» (со склада не списывается);
+        // mustBeZero: [it] — позиции из «Не выдано», чей остаток к моменту выдачи должен оставаться 0 (иначе — стоп, решить заново);
+        // before(tx) — доп. чтения/проверки до записей (вернуть код причины, чтобы отменить); after(tx, mvDoc) — доп. записи.
+        // Возвращает { ok, txId, mvDoc, fresh, freshZero, why }.
+        async function burCommitIssue({ give, notIssued = [], mustBeZero = [], meta = {}, before, after }) {
+            const txId = mmTxId('ISSUE'), now = Date.now(), txRef = doc(collection(db, 'material_movements'));
+            let mvDoc = null;
+            const res = await runTransaction(db, async tx => {
+                const read = async list => { const out = []; for (const it of list) out.push(await tx.get(doc(db, 'material_master', it.id))); return out.map(sn => sn.exists() ? Math.max(0, Number(sn.data().qty) || 0) : 0); };
+                if (before) { const why = await before(tx); if (why) return { ok: false, why }; }
+                const fresh = await read(give.map(r => r.it)), freshZero = await read(mustBeZero);
+                if (give.some((r, i) => fresh[i] < r.q) || freshZero.some(q => q > 0)) return { ok: false, why: 'stock', fresh, freshZero };
+                // списываем ТОЛЬКО выдаваемые позиции; «Не выдано» на остаток не влияет
+                give.forEach(r => tx.update(doc(db, 'material_master', r.it.id), { qty: increment(-r.q), updatedAt: now, updatedBy: currentUserName }));
+                tx.set(txRef, mvDoc = Object.assign({
+                    group: 'bureau', type: 'issue', txId,
+                    items: give.map(r => ({ sku: r.it.sku, name: r.it.name, unit: r.it.unit, delta: -r.q })),
+                    warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: now
+                }, meta, notIssued.length ? { notIssued } : {}));
+                if (after) after(tx, mvDoc);
+                return { ok: true, fresh };
+            });
+            return Object.assign(res, { txId, mvDoc });
+        }
+
         // «Корзина выдачи»: несколько позиций из разных категорий → одна выдача одному получателю
         // Язык печати выдачи запоминается для пользователя и склада (как корзина); по умолчанию — UA
         const BUR_PRINT_LANG_KEY = 'kletka_bur_print_lang_v1';
@@ -3528,32 +3609,23 @@
                 if (!give.length) { err.textContent = t('bur_cart_none_ok'); refreshStatus(); return; }
                 if (!to) { err.textContent = t('cmp_err_target'); $('#bur-k-to').focus(); return; }
                 busy = true; okBtn.disabled = okPrintBtn.disabled = true; err.textContent = '';
-                const txId = mmTxId('ISSUE'), now = Date.now(), txRef = doc(collection(db, 'material_movements'));
                 try {
                     // 2) повторная проверка по актуальным остаткам + списание всех позиций и запись журнала в одной транзакции
                     // строки «Не выдано» с существующей складской записью тоже перечитываем: если остаток успел появиться,
                     // выдачу останавливаем, чтобы кладовщик решил заново (иначе товар на полке, а в листе — «отсутствует»)
                     const skipIn = skip.filter(r => r.it);
-                    let mvDoc = null;
-                    const res = await runTransaction(db, async tx => {
-                        const read = async list => { const out = []; for (const r of list) out.push(await tx.get(doc(db, 'material_master', r.it.id))); return out.map(sn => sn.exists() ? Math.max(0, Number(sn.data().qty) || 0) : 0); };
-                        const fresh = await read(give), freshSkip = await read(skipIn);
-                        if (give.some((r, i) => fresh[i] < r.q) || freshSkip.some(q => q > 0)) return { ok: false, fresh, freshSkip };
-                        // списываем ТОЛЬКО выдаваемые позиции; «Не выдано» на остаток не влияет
-                        give.forEach(r => tx.update(doc(db, 'material_master', r.it.id), { qty: increment(-r.q), updatedAt: now, updatedBy: currentUserName }));
-                        tx.set(txRef, mvDoc = Object.assign({
-                            group: 'bureau', type: 'issue', txId, toType, to, note, printLang,
-                            items: give.map(r => ({ sku: r.it.sku, name: r.it.name, unit: r.it.unit, delta: -r.q })),
-                            warehouse: currentWarehouse, actor: currentUserName || 'Неизвестно', timestamp: now
-                        }, listNo ? { listNo } : {}, skip.length ? { notIssued: skip.map(r => {
+                    const res = await burCommitIssue({
+                        give, mustBeZero: skipIn.map(r => r.it),
+                        notIssued: skip.map(r => {
                             const sku = r.it ? r.it.sku : (r.id.split('__').slice(1).join('__') || r.id), mm = !r.it && mmcByCode.get(normCode(sku));
                             return { sku, name: r.it ? r.it.name : (mm && mm.name) || '', unit: r.it ? r.it.unit : (mm && mm.unit) || 'шт.', qty: r.q };
-                        }) } : {}));
-                        return { ok: true, fresh };
+                        }),
+                        meta: Object.assign({ toType, to, note, printLang }, listNo ? { listNo } : {})
                     });
+                    const { txId, mvDoc } = res;
                     if (!res.ok) {   // остатки изменились (забрали товар или он появился): обновляем экран и блокируем выдачу
                         give.forEach((r, i) => { r.it.qty = res.fresh[i]; });
-                        skipIn.forEach((r, i) => { r.it.qty = res.freshSkip[i]; });
+                        skipIn.forEach((r, i) => { r.it.qty = res.freshZero[i]; });
                         drawLines(); burRedraw(); err.textContent = t('bur_cart_blocked'); busy = false; okBtn.disabled = okPrintBtn.disabled = false; return;
                     }
                     // остаток на экране = свежий остаток из транзакции − выданное (а не устаревшее значение на экране − выданное)
@@ -4378,6 +4450,723 @@
             burLoadedFor = currentWarehouse;
             drawChrome(); drawList(); burCartSync();
             if (burCartOpenPending) { burCartOpenPending = false; burOpenCart(); }
+        }
+
+        // =====================================================================
+        // ЗАЯВКИ ТИМЛИДОВ (Portal & Requests)
+        // Тимлид: идентификация (ФИО, ID, склад, процесс) → каталог бюро-материалов выбранного склада ТОЛЬКО со статусами
+        // наличия 🟢/🟡/🔴 (без чисел) → заявка → коллекция tl_requests { reqNo, status:'new'|'issued'|'rejected', fio, empId,
+        // warehouse, process, items:[{id,sku,name,unit,qty}], createdAt, createdBy, … }.
+        // Кладовщик: «Входящие заявки» текущего склада → выдача по заявке (общая транзакция burCommitIssue: списание + журнал +
+        // смена статуса заявки атомарно) → мультиязычный сборочный лист (mmPrintSheet).
+        // =====================================================================
+        Object.assign(TR.ru, {
+            grp_requests: 'Заявки тимлидов', nav_tl_portal: 'Портал заявок', nav_tl_requests: 'Входящие заявки',
+            tl_title: 'Портал заявок тимлида', tl_sub: 'Заполните данные о себе, выберите материалы и отправьте заявку на склад. Точные остатки не показываются — только статус наличия.',
+            tl_ident: 'Идентификация', tl_ident_ok: '✅ Данные заполнены', tl_ident_need: '⚠ Заполните все поля',
+            tl_f_fio: 'Имя и фамилия', tl_f_fio_ph: 'Например: Иван Петренко', tl_f_id: 'ID сотрудника', tl_f_id_ph: 'Например: 60127940',
+            tl_f_wh: 'Номер склада', tl_f_process: 'Процесс / отдел', tl_f_process_ph: 'Например: Inbound, Picking, Packing',
+            tl_e_req: 'Обязательное поле', tl_e_fio: 'Имя и фамилия: минимум 2 слова, только буквы (до 80 символов)',
+            tl_e_id: 'ID: 3–20 символов — цифры, латинские буквы, дефис', tl_e_wh: 'Выберите склад', tl_e_proc: 'Процесс: от 2 до 60 символов',
+            tl_catalog: 'Материалы склада {wh}', tl_pick_wh: 'Выберите склад в блоке «Идентификация», чтобы увидеть материалы',
+            tl_search_ph: 'Поиск по названию или Material Code', tl_empty: 'Ничего не найдено', tl_count: 'Позиций: {n}',
+            tl_load_err: 'Не удалось загрузить материалы (проверьте связь / правила Firestore)',
+            tl_st_ok: 'Есть в наличии', tl_st_low: 'Мало на складе', tl_st_out: 'Нет в наличии',
+            tl_add: '+ В заказ', tl_in_cart: 'В заказе: {n}', tl_out_blocked: 'Нет в наличии — добавить в заказ нельзя',
+            tl_cart: 'Моя заявка', tl_cart_empty: 'Корзина пуста — добавьте минимум 1 материал', tl_cart_lines: 'Позиций: {n}',
+            tl_cart_del: 'Убрать', tl_cart_clear: 'Очистить', tl_cart_per_wh: 'Своя корзина для каждого склада',
+            tl_send: 'Отправить заявку', tl_why: 'Отправка заблокирована:',
+            tl_h_ident: 'заполните идентификацию — {f}', tl_h_empty: 'добавьте минимум 1 материал (количество > 0)',
+            tl_h_qty: 'количество должно быть целым от 1 до {max}: {list}', tl_h_out: 'нет в наличии — уберите из заявки: {list}',
+            tl_h_missing: 'позиции больше нет на складе — уберите: {list}', tl_h_wait: 'материалы склада ещё загружаются',
+            tl_sent: 'Заявка {no} отправлена на склад {wh}', tl_e_changed: 'Наличие изменилось, пока собиралась заявка — проверьте отмеченные позиции',
+            tl_e_send: 'Не удалось отправить заявку (проверьте связь / правила Firestore)',
+            tl_mine: 'Мои заявки', tl_mine_empty: 'Заявок пока нет', tl_s_new: 'Новая', tl_s_issued: 'Выдана', tl_s_rejected: 'Отклонена',
+            tl_req_title: 'Входящие заявки тимлидов', tl_req_sub: 'Заявки на бюро-материалы склада {wh}. Выдача по заявке списывает остатки и формирует сборочный лист.',
+            tl_f_all: 'Все', tl_req_search_ph: 'Поиск: ФИО, ID, процесс, № заявки, материал',
+            tl_col_dt: 'Дата / время', tl_col_req: '№ заявки', tl_col_fio: 'ФИО', tl_col_id: 'ID', tl_col_wh: 'Склад',
+            tl_col_items: 'Состав заказа', tl_col_status: 'Статус', tl_col_act: 'Действие',
+            tl_req_empty: 'Заявок нет', tl_req_err: 'Не удалось загрузить заявки (проверьте связь / правила Firestore)',
+            tl_issue: '⚡ Оформить выдачу', tl_reject: '✕ Отклонить', tl_reprint: '🖨 Лист',
+            tl_issued_by: 'Выдал(а): {who}, {dt}', tl_rejected_by: 'Отклонил(а): {who}, {dt}', tl_reason: 'Причина: {r}',
+            tl_iss_title: 'Выдача по заявке {no}', tl_col_req_qty: 'Запрошено', tl_col_stock: 'На складе', tl_col_give: 'Выдать',
+            tl_l_ok: 'Полностью', tl_l_part: 'Частично: {n} {unit} → «Не выдано»', tl_l_out: 'Нет в наличии → «Не выдано»',
+            tl_iss_do: 'Выдать', tl_iss_do_print: '🖨 Выдать и напечатать', tl_iss_bad: '«{name}»: количество — целое от 1 до {max}',
+            tl_iss_none: 'Ничего нет в наличии: выдавать нечего — отклоните заявку или дождитесь прихода',
+            tl_iss_taken: 'Заявка уже обработана другим пользователем', tl_iss_done: 'Заявка {no} выдана: {id}',
+            tl_rej_title: 'Отклонить заявку {no}?', tl_rej_reason: 'Причина (необязательно)', tl_rej_done: 'Заявка {no} отклонена',
+            tl_print_missing: 'Операция выдачи не найдена в журнале'
+        });
+        Object.assign(TR.uk, {
+            grp_requests: 'Заявки тімлідів', nav_tl_portal: 'Портал заявок', nav_tl_requests: 'Вхідні заявки',
+            tl_title: 'Портал заявок тімліда', tl_sub: 'Заповніть дані про себе, виберіть матеріали й надішліть заявку на склад. Точні залишки не показуються — лише статус наявності.',
+            tl_ident: 'Ідентифікація', tl_ident_ok: '✅ Дані заповнено', tl_ident_need: '⚠ Заповніть усі поля',
+            tl_f_fio: 'Ім’я та прізвище', tl_f_fio_ph: 'Наприклад: Іван Петренко', tl_f_id: 'ID працівника', tl_f_id_ph: 'Наприклад: 60127940',
+            tl_f_wh: 'Номер складу', tl_f_process: 'Процес / відділ', tl_f_process_ph: 'Наприклад: Inbound, Picking, Packing',
+            tl_e_req: 'Обов’язкове поле', tl_e_fio: 'Ім’я та прізвище: мінімум 2 слова, лише літери (до 80 символів)',
+            tl_e_id: 'ID: 3–20 символів — цифри, латинські літери, дефіс', tl_e_wh: 'Виберіть склад', tl_e_proc: 'Процес: від 2 до 60 символів',
+            tl_catalog: 'Матеріали складу {wh}', tl_pick_wh: 'Виберіть склад у блоці «Ідентифікація», щоб побачити матеріали',
+            tl_search_ph: 'Пошук за назвою або Material Code', tl_empty: 'Нічого не знайдено', tl_count: 'Позицій: {n}',
+            tl_load_err: 'Не вдалося завантажити матеріали (перевірте зв’язок / правила Firestore)',
+            tl_st_ok: 'Є в наявності', tl_st_low: 'Мало на складі', tl_st_out: 'Немає в наявності',
+            tl_add: '+ До замовлення', tl_in_cart: 'У замовленні: {n}', tl_out_blocked: 'Немає в наявності — додати не можна',
+            tl_cart: 'Моя заявка', tl_cart_empty: 'Кошик порожній — додайте щонайменше 1 матеріал', tl_cart_lines: 'Позицій: {n}',
+            tl_cart_del: 'Прибрати', tl_cart_clear: 'Очистити', tl_cart_per_wh: 'Окремий кошик для кожного складу',
+            tl_send: 'Надіслати заявку', tl_why: 'Надсилання заблоковано:',
+            tl_h_ident: 'заповніть ідентифікацію — {f}', tl_h_empty: 'додайте щонайменше 1 матеріал (кількість > 0)',
+            tl_h_qty: 'кількість має бути цілою від 1 до {max}: {list}', tl_h_out: 'немає в наявності — приберіть із заявки: {list}',
+            tl_h_missing: 'позиції більше немає на складі — приберіть: {list}', tl_h_wait: 'матеріали складу ще завантажуються',
+            tl_sent: 'Заявку {no} надіслано на склад {wh}', tl_e_changed: 'Наявність змінилася, поки збиралася заявка — перевірте позначені позиції',
+            tl_e_send: 'Не вдалося надіслати заявку (перевірте зв’язок / правила Firestore)',
+            tl_mine: 'Мої заявки', tl_mine_empty: 'Заявок поки немає', tl_s_new: 'Нова', tl_s_issued: 'Видана', tl_s_rejected: 'Відхилена',
+            tl_req_title: 'Вхідні заявки тімлідів', tl_req_sub: 'Заявки на бюро-матеріали складу {wh}. Видача за заявкою списує залишки та формує збірний лист.',
+            tl_f_all: 'Усі', tl_req_search_ph: 'Пошук: ПІБ, ID, процес, № заявки, матеріал',
+            tl_col_dt: 'Дата / час', tl_col_req: '№ заявки', tl_col_fio: 'ПІБ', tl_col_id: 'ID', tl_col_wh: 'Склад',
+            tl_col_items: 'Склад замовлення', tl_col_status: 'Статус', tl_col_act: 'Дія',
+            tl_req_empty: 'Заявок немає', tl_req_err: 'Не вдалося завантажити заявки (перевірте зв’язок / правила Firestore)',
+            tl_issue: '⚡ Оформити видачу', tl_reject: '✕ Відхилити', tl_reprint: '🖨 Лист',
+            tl_issued_by: 'Видав(ла): {who}, {dt}', tl_rejected_by: 'Відхилив(ла): {who}, {dt}', tl_reason: 'Причина: {r}',
+            tl_iss_title: 'Видача за заявкою {no}', tl_col_req_qty: 'Запитано', tl_col_stock: 'На складі', tl_col_give: 'Видати',
+            tl_l_ok: 'Повністю', tl_l_part: 'Частково: {n} {unit} → «Не видано»', tl_l_out: 'Немає в наявності → «Не видано»',
+            tl_iss_do: 'Видати', tl_iss_do_print: '🖨 Видати й надрукувати', tl_iss_bad: '«{name}»: кількість — ціле від 1 до {max}',
+            tl_iss_none: 'Нічого немає в наявності: видавати нічого — відхиліть заявку або дочекайтеся приходу',
+            tl_iss_taken: 'Заявку вже опрацював інший користувач', tl_iss_done: 'Заявку {no} видано: {id}',
+            tl_rej_title: 'Відхилити заявку {no}?', tl_rej_reason: 'Причина (необов’язково)', tl_rej_done: 'Заявку {no} відхилено',
+            tl_print_missing: 'Операцію видачі не знайдено в журналі'
+        });
+        Object.assign(TR.pl, {
+            grp_requests: 'Zgłoszenia liderów', nav_tl_portal: 'Portal zgłoszeń', nav_tl_requests: 'Zgłoszenia przychodzące',
+            tl_title: 'Portal zgłoszeń lidera', tl_sub: 'Uzupełnij swoje dane, wybierz materiały i wyślij zgłoszenie do magazynu. Dokładne stany nie są pokazywane — tylko status dostępności.',
+            tl_ident: 'Identyfikacja', tl_ident_ok: '✅ Dane uzupełnione', tl_ident_need: '⚠ Uzupełnij wszystkie pola',
+            tl_f_fio: 'Imię i nazwisko', tl_f_fio_ph: 'Np.: Jan Kowalski', tl_f_id: 'ID pracownika', tl_f_id_ph: 'Np.: 60127940',
+            tl_f_wh: 'Numer magazynu', tl_f_process: 'Proces / dział', tl_f_process_ph: 'Np.: Inbound, Picking, Packing',
+            tl_e_req: 'Pole wymagane', tl_e_fio: 'Imię i nazwisko: min. 2 słowa, tylko litery (do 80 znaków)',
+            tl_e_id: 'ID: 3–20 znaków — cyfry, litery łacińskie, myślnik', tl_e_wh: 'Wybierz magazyn', tl_e_proc: 'Proces: od 2 do 60 znaków',
+            tl_catalog: 'Materiały magazynu {wh}', tl_pick_wh: 'Wybierz magazyn w sekcji „Identyfikacja”, aby zobaczyć materiały',
+            tl_search_ph: 'Szukaj po nazwie lub Material Code', tl_empty: 'Nic nie znaleziono', tl_count: 'Pozycji: {n}',
+            tl_load_err: 'Nie udało się wczytać materiałów (sprawdź połączenie / reguły Firestore)',
+            tl_st_ok: 'Dostępne', tl_st_low: 'Mało na stanie', tl_st_out: 'Brak na stanie',
+            tl_add: '+ Do zamówienia', tl_in_cart: 'W zamówieniu: {n}', tl_out_blocked: 'Brak na stanie — nie można dodać',
+            tl_cart: 'Moje zgłoszenie', tl_cart_empty: 'Koszyk jest pusty — dodaj co najmniej 1 materiał', tl_cart_lines: 'Pozycji: {n}',
+            tl_cart_del: 'Usuń', tl_cart_clear: 'Wyczyść', tl_cart_per_wh: 'Osobny koszyk dla każdego magazynu',
+            tl_send: 'Wyślij zgłoszenie', tl_why: 'Wysyłka zablokowana:',
+            tl_h_ident: 'uzupełnij identyfikację — {f}', tl_h_empty: 'dodaj co najmniej 1 materiał (ilość > 0)',
+            tl_h_qty: 'ilość musi być liczbą całkowitą od 1 do {max}: {list}', tl_h_out: 'brak na stanie — usuń ze zgłoszenia: {list}',
+            tl_h_missing: 'tej pozycji nie ma już w magazynie — usuń: {list}', tl_h_wait: 'materiały magazynu jeszcze się wczytują',
+            tl_sent: 'Zgłoszenie {no} wysłane do magazynu {wh}', tl_e_changed: 'Dostępność zmieniła się podczas kompletowania — sprawdź oznaczone pozycje',
+            tl_e_send: 'Nie udało się wysłać zgłoszenia (sprawdź połączenie / reguły Firestore)',
+            tl_mine: 'Moje zgłoszenia', tl_mine_empty: 'Brak zgłoszeń', tl_s_new: 'Nowe', tl_s_issued: 'Wydane', tl_s_rejected: 'Odrzucone',
+            tl_req_title: 'Zgłoszenia przychodzące od liderów', tl_req_sub: 'Zgłoszenia na materiały biurowe magazynu {wh}. Wydanie zdejmuje stany i tworzy listę kompletacji.',
+            tl_f_all: 'Wszystkie', tl_req_search_ph: 'Szukaj: imię i nazwisko, ID, proces, nr zgłoszenia, materiał',
+            tl_col_dt: 'Data / godzina', tl_col_req: 'Nr zgłoszenia', tl_col_fio: 'Imię i nazwisko', tl_col_id: 'ID', tl_col_wh: 'Magazyn',
+            tl_col_items: 'Skład zamówienia', tl_col_status: 'Status', tl_col_act: 'Akcja',
+            tl_req_empty: 'Brak zgłoszeń', tl_req_err: 'Nie udało się wczytać zgłoszeń (sprawdź połączenie / reguły Firestore)',
+            tl_issue: '⚡ Wydaj', tl_reject: '✕ Odrzuć', tl_reprint: '🖨 Lista',
+            tl_issued_by: 'Wydał(a): {who}, {dt}', tl_rejected_by: 'Odrzucił(a): {who}, {dt}', tl_reason: 'Powód: {r}',
+            tl_iss_title: 'Wydanie wg zgłoszenia {no}', tl_col_req_qty: 'Zamówiono', tl_col_stock: 'Na stanie', tl_col_give: 'Wydać',
+            tl_l_ok: 'W całości', tl_l_part: 'Częściowo: {n} {unit} → „Nie wydano”', tl_l_out: 'Brak na stanie → „Nie wydano”',
+            tl_iss_do: 'Wydaj', tl_iss_do_print: '🖨 Wydaj i drukuj', tl_iss_bad: '„{name}”: ilość — liczba całkowita od 1 do {max}',
+            tl_iss_none: 'Nic nie ma na stanie: nie ma czego wydać — odrzuć zgłoszenie lub poczekaj na dostawę',
+            tl_iss_taken: 'Zgłoszenie zostało już obsłużone przez innego użytkownika', tl_iss_done: 'Zgłoszenie {no} wydane: {id}',
+            tl_rej_title: 'Odrzucić zgłoszenie {no}?', tl_rej_reason: 'Powód (opcjonalnie)', tl_rej_done: 'Zgłoszenie {no} odrzucone',
+            tl_print_missing: 'Nie znaleziono operacji wydania w dzienniku'
+        });
+        Object.assign(TR.en, {
+            grp_requests: 'Team lead requests', nav_tl_portal: 'Request portal', nav_tl_requests: 'Incoming requests',
+            tl_title: 'Team lead request portal', tl_sub: 'Fill in your details, pick materials and send the request to the warehouse. Exact stock is not shown — only availability status.',
+            tl_ident: 'Identification', tl_ident_ok: '✅ Details complete', tl_ident_need: '⚠ Fill in all fields',
+            tl_f_fio: 'First and last name', tl_f_fio_ph: 'E.g. John Smith', tl_f_id: 'Employee ID', tl_f_id_ph: 'E.g. 60127940',
+            tl_f_wh: 'Warehouse', tl_f_process: 'Process / department', tl_f_process_ph: 'E.g. Inbound, Picking, Packing',
+            tl_e_req: 'Required field', tl_e_fio: 'First and last name: at least 2 words, letters only (up to 80 chars)',
+            tl_e_id: 'ID: 3–20 characters — digits, Latin letters, hyphen', tl_e_wh: 'Choose a warehouse', tl_e_proc: 'Process: 2 to 60 characters',
+            tl_catalog: 'Materials in {wh}', tl_pick_wh: 'Choose a warehouse in “Identification” to see materials',
+            tl_search_ph: 'Search by name or Material Code', tl_empty: 'Nothing found', tl_count: 'Items: {n}',
+            tl_load_err: 'Could not load materials (check connection / Firestore rules)',
+            tl_st_ok: 'In stock', tl_st_low: 'Low stock', tl_st_out: 'Out of stock',
+            tl_add: '+ Add to order', tl_in_cart: 'In order: {n}', tl_out_blocked: 'Out of stock — cannot be added',
+            tl_cart: 'My request', tl_cart_empty: 'Cart is empty — add at least 1 material', tl_cart_lines: 'Lines: {n}',
+            tl_cart_del: 'Remove', tl_cart_clear: 'Clear', tl_cart_per_wh: 'A separate cart for each warehouse',
+            tl_send: 'Send request', tl_why: 'Sending is blocked:',
+            tl_h_ident: 'complete identification — {f}', tl_h_empty: 'add at least 1 material (quantity > 0)',
+            tl_h_qty: 'quantity must be a whole number from 1 to {max}: {list}', tl_h_out: 'out of stock — remove from the request: {list}',
+            tl_h_missing: 'item no longer exists in the warehouse — remove: {list}', tl_h_wait: 'warehouse materials are still loading',
+            tl_sent: 'Request {no} sent to warehouse {wh}', tl_e_changed: 'Availability changed while you were building the request — check the marked lines',
+            tl_e_send: 'Could not send the request (check connection / Firestore rules)',
+            tl_mine: 'My requests', tl_mine_empty: 'No requests yet', tl_s_new: 'New', tl_s_issued: 'Issued', tl_s_rejected: 'Rejected',
+            tl_req_title: 'Incoming team lead requests', tl_req_sub: 'Office supply requests for warehouse {wh}. Issuing a request reduces stock and creates a picking list.',
+            tl_f_all: 'All', tl_req_search_ph: 'Search: name, ID, process, request no., material',
+            tl_col_dt: 'Date / time', tl_col_req: 'Request no.', tl_col_fio: 'Name', tl_col_id: 'ID', tl_col_wh: 'Warehouse',
+            tl_col_items: 'Order contents', tl_col_status: 'Status', tl_col_act: 'Action',
+            tl_req_empty: 'No requests', tl_req_err: 'Could not load requests (check connection / Firestore rules)',
+            tl_issue: '⚡ Issue', tl_reject: '✕ Reject', tl_reprint: '🖨 Sheet',
+            tl_issued_by: 'Issued by {who}, {dt}', tl_rejected_by: 'Rejected by {who}, {dt}', tl_reason: 'Reason: {r}',
+            tl_iss_title: 'Issue for request {no}', tl_col_req_qty: 'Requested', tl_col_stock: 'In stock', tl_col_give: 'Issue',
+            tl_l_ok: 'Full', tl_l_part: 'Partial: {n} {unit} → “Not issued”', tl_l_out: 'Out of stock → “Not issued”',
+            tl_iss_do: 'Issue', tl_iss_do_print: '🖨 Issue and print', tl_iss_bad: '“{name}”: quantity must be a whole number from 1 to {max}',
+            tl_iss_none: 'Nothing is in stock: nothing to issue — reject the request or wait for a delivery',
+            tl_iss_taken: 'This request has already been handled by another user', tl_iss_done: 'Request {no} issued: {id}',
+            tl_rej_title: 'Reject request {no}?', tl_rej_reason: 'Reason (optional)', tl_rej_done: 'Request {no} rejected',
+            tl_print_missing: 'Issue operation not found in the journal'
+        });
+
+        const TL_IDENT_KEY = 'kletka_tl_ident_v1', TL_CART_KEY = 'kletka_tl_cart_v1', TL_MAX_QTY = 999;
+        const tlWhs = () => [...document.querySelectorAll('#warehouse-row .warehouse-btn')].map(b => b.dataset.wh);
+        // Статус наличия для тимлида — тот же порог, что у плашек в «Бюро-материалах» (burTone: «мало» = остаток ≤ минимума):
+        //   qty ≤ 0 → 'out' 🔴 (добавить нельзя) · 0 < qty ≤ minQty → 'low' 🟡 · qty > minQty → 'ok' 🟢
+        const tlStatus = it => it.qty <= 0 ? 'out' : it.qty <= it.minQty ? 'low' : 'ok';
+        const TL_ST = {
+            ok: ['🟢', 'tl_st_ok', 'border-klt-emerald/50 bg-klt-emerald/15 text-klt-emerald-light'],
+            low: ['🟡', 'tl_st_low', 'border-klt-orange/60 bg-klt-orange/15 text-klt-orange-light'],
+            out: ['🔴', 'tl_st_out', 'border-red-500/60 bg-red-500/15 text-red-300']
+        };
+        const tlStBadge = st => `<span data-tl-st="${st}" class="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-solid px-2.5 py-1 text-[11px] font-bold ${TL_ST[st][2]}">${TL_ST[st][0]} ${t(TL_ST[st][1])}</span>`;
+        const TL_RS = { new: ['tl_s_new', 'bg-blue-500/15 text-blue-300'], issued: ['tl_s_issued', 'bg-klt-emerald/15 text-klt-emerald-light'], rejected: ['tl_s_rejected', 'bg-red-500/15 text-red-300'] };
+        const tlReqBadge = s => { const x = TL_RS[s] || TL_RS.new; return `<span data-req-st="${cmpAttr(s)}" class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${x[1]}">${t(x[0])}</span>`; };
+
+        // ---- Идентификация: проверка полей. Возвращает { поле: ключ ошибки }; пустой объект = всё заполнено верно ----
+        const tlNorm = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+        const TL_NAME_WORD = /^\p{L}[\p{L}'’ʼ.-]*$/u;
+        function tlIdentErrors(f) {
+            const e = {}, fio = tlNorm(f.fio), id = tlNorm(f.empId), proc = tlNorm(f.process), words = fio ? fio.split(' ') : [];
+            if (!fio) e.fio = 'tl_e_req';
+            else if (fio.length > 80 || words.length < 2 || words.some(w => w.length < 2 || !TL_NAME_WORD.test(w))) e.fio = 'tl_e_fio';
+            if (!id) e.empId = 'tl_e_req'; else if (!/^[A-Za-z0-9-]{3,20}$/.test(id)) e.empId = 'tl_e_id';
+            if (!f.wh || !tlWhs().includes(f.wh)) e.wh = 'tl_e_wh';
+            if (!proc) e.process = 'tl_e_req'; else if (proc.length < 2 || proc.length > 60) e.process = 'tl_e_proc';
+            return e;
+        }
+        // ---- Проверка состава заявки. lines: [{ id, q, it|null }] (it — позиция склада, null — записи уже нет) ----
+        // Отправка разрешена только если: есть ≥1 строка, у каждой строки q — целое 1…TL_MAX_QTY и позиция не «нет в наличии»
+        function tlLineState(l) {
+            if (!l.it) return 'missing';
+            if (tlStatus(l.it) === 'out') return 'out';
+            return Number.isInteger(l.q) && l.q >= 1 && l.q <= TL_MAX_QTY ? 'ok' : 'qty';
+        }
+        function tlSendBlockers(identErr, lines, loaded) {   // → список причин блокировки (пустой = можно отправлять)
+            const why = [], names = st => lines.filter(l => tlLineState(l) === st).map(l => l.it ? l.it.name : l.id.split('__').slice(1).join('__')).join(', ');
+            const missingF = Object.keys(identErr).map(k => t({ fio: 'tl_f_fio', empId: 'tl_f_id', wh: 'tl_f_wh', process: 'tl_f_process' }[k]));
+            if (missingF.length) why.push(fmt(t('tl_h_ident'), { f: missingF.join(', ') }));
+            if (!loaded && lines.length) { why.push(t('tl_h_wait')); return why; }
+            if (!lines.length) why.push(t('tl_h_empty'));
+            if (names('qty')) why.push(fmt(t('tl_h_qty'), { max: TL_MAX_QTY, list: names('qty') }));
+            if (names('out')) why.push(fmt(t('tl_h_out'), { list: names('out') }));
+            if (names('missing')) why.push(fmt(t('tl_h_missing'), { list: names('missing') }));
+            return why;
+        }
+
+        // ---- Хранилище тимлида (localStorage): идентификация по пользователю, корзина по пользователю+складу ----
+        const tlLsGet = k => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
+        const tlLsPut = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage недоступен */ } };
+        function tlIdentLoad() { return tlLsGet(TL_IDENT_KEY)[currentUid] || null; }
+        function tlIdentSave(f, addProc) {
+            const all = tlLsGet(TL_IDENT_KEY), prev = all[currentUid] || {};
+            let recent = Array.isArray(prev.recent) ? prev.recent : [];
+            if (addProc && f.process) recent = [f.process, ...recent.filter(p => p.toLowerCase() !== f.process.toLowerCase())].slice(0, 8);
+            all[currentUid] = { fio: f.fio, empId: f.empId, wh: f.wh, process: f.process, recent };
+            tlLsPut(TL_IDENT_KEY, all);
+        }
+        function tlCartLoad(wh) {
+            const raw = (wh && tlLsGet(TL_CART_KEY)[`${currentUid}|${wh}`]) || {};
+            return new Map(Object.entries(raw).filter(([, q]) => Number.isInteger(q) && q >= 0));
+        }
+        function tlCartSave(wh, cart) {
+            if (!wh) return;
+            const all = tlLsGet(TL_CART_KEY), key = `${currentUid}|${wh}`;
+            if (cart.size) all[key] = Object.fromEntries(cart); else delete all[key];
+            tlLsPut(TL_CART_KEY, all);
+        }
+
+        // =============================== ПОРТАЛ ТИМЛИДА ===============================
+        async function renderTlPortal(pv) {
+            const saved = tlIdentLoad();
+            // поля из прошлой заявки на этом устройстве; при первом входе ФИО и ID подставляются из учётной записи
+            const f = saved ? { fio: saved.fio || '', empId: saved.empId || '', wh: saved.wh || '', process: saved.process || '' }
+                : { fio: currentUserName || '', empId: currentEmpId || '', wh: '', process: '' };
+            if (f.wh && !tlWhs().includes(f.wh)) f.wh = '';
+            const recent = (saved && saved.recent) || [];
+            let items = [], loadedFor = '', loadErr = false, cart = tlCartLoad(f.wh), q = '', busy = false, touched = new Set(), seq = 0;
+
+            const wrap = document.createElement('div');
+            wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            const fld = (key, label, input) => `<div><label class="${CMP_LBL}" for="tl-${key}">${label} <span class="text-red-300">*</span></label>${input}<div data-err="${key}" class="mt-1 min-h-[16px] text-[11px] text-red-300"></div></div>`;
+            wrap.innerHTML = `
+                <div class="mb-5">
+                    <h2 class="text-xl font-bold text-klt-emerald-light">🧾 ${t('tl_title')}</h2>
+                    <p class="mt-1 text-[13px] text-klt-muted">${t('tl_sub')}</p>
+                </div>
+                <section id="tl-ident-box" class="mb-6 rounded-xl border border-solid border-klt-line bg-klt-bg p-4">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                        <h3 class="text-sm font-bold uppercase tracking-wider text-slate-50">🪪 ${t('tl_ident')}</h3>
+                        <span id="tl-ident-st" class="rounded-full px-2.5 py-0.5 text-[11px] font-bold"></span>
+                    </div>
+                    <div class="grid gap-x-4 gap-y-1" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
+                        ${fld('fio', t('tl_f_fio'), `<input id="tl-fio" type="text" autocomplete="name" maxlength="80" placeholder="${cmpAttr(t('tl_f_fio_ph'))}" value="${cmpAttr(f.fio)}" class="${CMP_FLD}">`)}
+                        ${fld('empId', t('tl_f_id'), `<input id="tl-empId" type="text" autocomplete="off" maxlength="20" placeholder="${cmpAttr(t('tl_f_id_ph'))}" value="${cmpAttr(f.empId)}" class="${CMP_FLD} font-mono">`)}
+                        ${fld('wh', t('tl_f_wh'), `<div id="tl-wh" role="radiogroup" aria-label="${cmpAttr(t('tl_f_wh'))}" class="flex flex-wrap gap-2"></div>`)}
+                        ${fld('process', t('tl_f_process'), `<input id="tl-process" type="text" autocomplete="off" maxlength="60" list="tl-proc-list" placeholder="${cmpAttr(t('tl_f_process_ph'))}" value="${cmpAttr(f.process)}" class="${CMP_FLD}">
+                            <datalist id="tl-proc-list">${recent.map(p => `<option value="${cmpAttr(p)}"></option>`).join('')}</datalist>`)}
+                    </div>
+                </section>
+                <div class="flex flex-wrap items-start gap-5">
+                    <section class="min-w-0" style="flex:3 1 460px">
+                        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                            <h3 id="tl-cat-title" class="text-sm font-bold uppercase tracking-wider text-slate-50"></h3>
+                            <div class="flex flex-wrap gap-1.5">${['ok', 'low', 'out'].map(tlStBadge).join('')}</div>
+                        </div>
+                        <input id="tl-q" type="text" autocomplete="off" placeholder="${cmpAttr(t('tl_search_ph'))}" class="mb-3 ${CMP_FLD}">
+                        <div id="tl-count" class="mb-2 text-xs text-klt-muted"></div>
+                        <div id="tl-list"></div>
+                    </section>
+                    <aside id="tl-cart" class="min-w-0 rounded-xl border border-solid border-klt-line bg-klt-bg p-4" style="flex:1 1 300px;position:sticky;top:16px">
+                        <div class="mb-1 flex items-center justify-between gap-2">
+                            <h3 class="text-sm font-bold uppercase tracking-wider text-slate-50">🛒 ${t('tl_cart')} <span id="tl-cart-wh" class="ml-1 rounded-full border border-solid border-klt-line px-2 py-0.5 text-[11px] text-klt-muted"></span></h3>
+                            <button type="button" id="tl-clear" class="${CMP_BTN} px-2.5 py-1 text-[12px]">${t('tl_cart_clear')}</button>
+                        </div>
+                        <div class="mb-3 text-[11px] text-klt-muted">${t('tl_cart_per_wh')}</div>
+                        <div id="tl-lines" class="mb-3 flex flex-col gap-2"></div>
+                        <div id="tl-why" class="mb-3 hidden rounded-lg border border-solid border-klt-orange/50 bg-klt-orange/10 px-3 py-2 text-xs text-klt-orange-light"></div>
+                        <div id="tl-err" class="mb-2 min-h-[16px] text-xs text-red-300"></div>
+                        <button type="button" id="tl-send" class="${CMP_BTN_MAIN} w-full py-3 text-[15px]">📨 ${t('tl_send')}</button>
+                    </aside>
+                </div>
+                <section class="mt-7">
+                    <h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-slate-50">📋 ${t('tl_mine')}</h3>
+                    <div id="tl-mine"><div class="py-6 text-center text-klt-muted">…</div></div>
+                </section>`;
+            pv.appendChild(wrap);
+            const $ = s => wrap.querySelector(s);
+
+            const readF = () => ({ fio: tlNorm($('#tl-fio').value), empId: tlNorm($('#tl-empId').value), wh: f.wh, process: tlNorm($('#tl-process').value) });
+            const lines = () => [...cart].map(([id, qq]) => ({ id, q: qq, it: items.find(x => x.id === id) || null }));
+            const loaded = () => !!f.wh && loadedFor === f.wh && !loadErr;
+
+            // Ошибки показываем у поля после того, как с ним поработали (или после попытки отправки), статус блока — всегда
+            function drawIdent() {
+                const e = tlIdentErrors(readF());
+                ['fio', 'empId', 'wh', 'process'].forEach(k => {
+                    const el = $(`[data-err="${k}"]`), show = touched.has(k) && e[k];
+                    el.textContent = show ? t(e[k]) : '';
+                    const inp = $(`#tl-${k}`); if (inp && inp.tagName === 'INPUT') inp.classList.toggle('!border-red-400', !!show);
+                });
+                const ok = !Object.keys(e).length, st = $('#tl-ident-st');
+                st.textContent = t(ok ? 'tl_ident_ok' : 'tl_ident_need');
+                st.className = `rounded-full px-2.5 py-0.5 text-[11px] font-bold ${ok ? 'bg-klt-emerald/15 text-klt-emerald-light' : 'bg-klt-orange/15 text-klt-orange-light'}`;
+                $('#tl-ident-box').classList.toggle('border-klt-orange/60', !ok);
+                return e;
+            }
+            function drawWh() {
+                $('#tl-wh').innerHTML = tlWhs().map(w => `<button type="button" role="radio" aria-checked="${f.wh === w}" data-wh="${cmpAttr(w)}" class="cursor-pointer rounded-lg border border-solid px-4 py-2.5 text-sm font-bold transition ${f.wh === w ? 'border-klt-emerald bg-klt-emerald/20 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${escapeHtml(w)}</button>`).join('');
+                $('#tl-cart-wh').textContent = f.wh || '—';
+                $('#tl-cat-title').textContent = f.wh ? fmt(t('tl_catalog'), { wh: f.wh }) : t('tl_f_wh');
+            }
+            function drawList() {
+                const box = $('#tl-list'), cnt = $('#tl-count');
+                if (!f.wh) { cnt.textContent = ''; box.innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-10 text-center text-sm text-klt-muted">🏬 ${t('tl_pick_wh')}</div>`; return; }
+                if (loadErr) { cnt.textContent = ''; box.innerHTML = `<div class="rounded-xl border border-solid border-red-400/40 bg-red-500/10 px-4 py-6 text-center text-sm text-red-300">${t('tl_load_err')}</div>`; return; }
+                if (loadedFor !== f.wh) { cnt.textContent = ''; box.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
+                const s = q.trim().toLowerCase();
+                // сначала доступные, «нет в наличии» — в конце списка
+                const rank = { ok: 0, low: 1, out: 2 };
+                const list = items.filter(x => !s || x.name.toLowerCase().includes(s) || x.sku.toLowerCase().includes(s))
+                    .sort((a, b) => rank[tlStatus(a)] - rank[tlStatus(b)] || a.name.localeCompare(b.name, 'ru'));
+                cnt.textContent = fmt(t('tl_count'), { n: list.length });
+                if (!list.length) { box.innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-10 text-center text-sm text-klt-muted">${t('tl_empty')}</div>`; return; }
+                // ВАЖНО: в карточке тимлида нет ни остатка, ни минимума — только статус
+                box.innerHTML = `<div class="grid gap-3" style="grid-template-columns:repeat(auto-fill,minmax(210px,1fr))">${list.map(it => {
+                    const st = tlStatus(it), n = cart.get(it.id) || 0, out = st === 'out';
+                    return `<article data-tl-item="${cmpAttr(it.id)}" class="flex flex-col overflow-hidden rounded-xl border border-solid bg-klt-bg ${out ? 'border-red-500/50 opacity-70' : st === 'low' ? 'border-klt-orange/60' : 'border-klt-line'}">
+                        <div class="relative aspect-[4/3] bg-klt-card">${burPhoto(it, 'text-4xl')}<span class="absolute left-2 top-2">${tlStBadge(st)}</span></div>
+                        <div class="flex flex-1 flex-col p-3">
+                            <div class="text-sm font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
+                            <div class="mt-0.5 text-[11px] text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))} · ${escapeHtml(it.unit)}</div>
+                            <button type="button" data-tl-add="${cmpAttr(it.id)}" ${out ? 'disabled' : ''} title="${cmpAttr(out ? t('tl_out_blocked') : t('tl_add'))}" class="${CMP_BTN_MAIN} mt-auto w-full" style="margin-top:10px">${out ? '⛔ ' + t('tl_st_out') : n ? fmt(t('tl_in_cart'), { n }) + ' · +1' : t('tl_add')}</button>
+                        </div></article>`;
+                }).join('')}</div>`;
+            }
+            function drawLines() {
+                const ls = lines(), box = $('#tl-lines');
+                $('#tl-clear').disabled = !ls.length;
+                if (!ls.length) { box.innerHTML = `<div class="rounded-lg border border-dashed border-klt-line px-3 py-6 text-center text-xs text-klt-muted">${t('tl_cart_empty')}</div>`; return; }
+                box.innerHTML = ls.map(l => {
+                    const id = cmpAttr(l.id), st = tlLineState(l);
+                    const name = l.it ? escapeHtml(l.it.name) : `<span class="font-mono">${escapeHtml(l.id.split('__').slice(1).join('__'))}</span>`;
+                    return `<div data-tl-line="${id}" class="rounded-lg border border-solid p-2.5 ${st === 'ok' ? 'border-klt-line' : 'border-red-500/60'}">
+                        <div class="flex items-start gap-2"><div class="min-w-0 flex-1 text-[13px] font-semibold leading-snug text-slate-50" style="overflow-wrap:anywhere">${name}</div>
+                            <button type="button" data-tl-del="${id}" title="${cmpAttr(t('tl_cart_del'))}" aria-label="${cmpAttr(t('tl_cart_del'))}" class="${CMP_ICO} px-2 py-1 text-xs">✕</button></div>
+                        <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                            ${l.it ? tlStBadge(tlStatus(l.it)) : ''}
+                            <span class="ml-auto inline-flex items-center gap-1">
+                                <button type="button" data-tl-step="-1" data-id="${id}" aria-label="−1" class="${CMP_ICO} px-2.5 py-1">−</button>
+                                <input type="number" data-tl-qty="${id}" min="1" max="${TL_MAX_QTY}" step="1" inputmode="numeric" value="${l.q}" aria-label="${cmpAttr(t('tl_col_req_qty'))}" style="width:4.2rem" class="${CMP_FLD} px-2 py-1 text-center ${st === 'qty' ? '!border-red-400' : ''}">
+                                <button type="button" data-tl-step="1" data-id="${id}" aria-label="+1" class="${CMP_ICO} px-2.5 py-1">+</button>
+                                <span class="text-xs text-klt-muted">${l.it ? escapeHtml(l.it.unit) : ''}</span>
+                            </span></div></div>`;
+                }).join('');
+            }
+            // Кнопка «Отправить» активна только если идентификация полная И в заявке ≥1 корректная строка без «нет в наличии»
+            function drawSend() {
+                const e = drawIdent(), why = tlSendBlockers(e, lines(), loaded()), box = $('#tl-why');
+                $('#tl-send').disabled = busy || why.length > 0;
+                box.classList.toggle('hidden', !why.length);
+                box.innerHTML = why.length ? `<div class="mb-1 font-bold">🔒 ${t('tl_why')}</div><ul class="m-0 list-disc pl-4">${why.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : '';
+                return why;
+            }
+            const drawAll = () => { drawWh(); drawList(); drawLines(); drawSend(); };
+            const saveCart = () => tlCartSave(f.wh, cart);
+
+            async function loadWh(wh) {
+                const my = ++seq; loadErr = false; drawList();
+                try {
+                    await burEnsureCats(); await mmcLoad();
+                    const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', wh), where('group', '==', 'bureau')));
+                    if (my !== seq || !wrap.isConnected) return;
+                    items = snap.docs.map(burFromDoc); loadedFor = wh;
+                } catch (err) { console.error(err); if (my !== seq) return; loadErr = true; }
+                if (wrap.isConnected) { drawList(); drawLines(); drawSend(); }
+            }
+            async function loadMine() {
+                const box = $('#tl-mine');
+                try {
+                    const snap = await getDocs(query(collection(db, 'tl_requests'), where('createdBy', '==', currentUid)));
+                    const rows = snap.docs.map(d => d.data()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 20);
+                    if (!wrap.isConnected) return;
+                    if (!rows.length) { box.innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-6 text-center text-sm text-klt-muted">${t('tl_mine_empty')}</div>`; return; }
+                    box.innerHTML = `<div class="flex flex-col gap-2">${rows.map(r => `<div class="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-solid border-klt-line bg-klt-bg px-3 py-2.5 text-[13px]">
+                        <span class="font-mono text-klt-emerald-light">${escapeHtml(r.reqNo || '—')}</span><span class="text-klt-muted">${escapeHtml(mmFmtDate(r.createdAt || 0))}</span>
+                        <span class="font-bold">${escapeHtml(r.warehouse || '')}</span><span class="text-klt-muted">${escapeHtml(r.process || '')}</span>
+                        <span class="text-klt-muted">${fmt(t('tl_cart_lines'), { n: (r.items || []).length })}</span>
+                        <span class="ml-auto">${tlReqBadge(r.status)}</span>
+                        ${r.status === 'rejected' && r.rejectReason ? `<div class="w-full text-xs text-red-300">${escapeHtml(fmt(t('tl_reason'), { r: r.rejectReason }))}</div>` : ''}</div>`).join('')}</div>`;
+                } catch (err) { console.error(err); if (wrap.isConnected) box.innerHTML = `<div class="text-sm text-red-300">${t('tl_req_err')}</div>`; }
+            }
+
+            // ---- события ----
+            ['fio', 'empId', 'process'].forEach(k => {
+                const inp = $(`#tl-${k}`);
+                inp.addEventListener('input', () => { $('#tl-err').textContent = ''; tlIdentSave(readF(), false); drawSend(); });
+                inp.addEventListener('blur', () => { touched.add(k); drawSend(); });
+            });
+            $('#tl-wh').addEventListener('click', e => {
+                const b = e.target.closest('[data-wh]'); if (!b || b.dataset.wh === f.wh) return;
+                f.wh = b.dataset.wh; touched.add('wh'); tlIdentSave(readF(), false);
+                cart = tlCartLoad(f.wh); items = []; loadedFor = '';
+                $('#tl-err').textContent = ''; drawAll(); loadWh(f.wh);
+            });
+            $('#tl-q').addEventListener('input', e => { q = e.target.value; drawList(); });
+            $('#tl-list').addEventListener('click', e => {
+                const b = e.target.closest('[data-tl-add]'); if (!b || b.disabled) return;
+                const it = items.find(x => x.id === b.dataset.tlAdd);
+                if (!it || tlStatus(it) === 'out') { cmpToast(t('tl_out_blocked'), 'err'); return; }   // 🔴 — добавить нельзя
+                const cur = cart.get(it.id) || 0;
+                if (cur >= TL_MAX_QTY) return;
+                cart.set(it.id, Math.max(1, cur + 1)); saveCart();
+                $('#tl-err').textContent = ''; drawList(); drawLines(); drawSend();
+            });
+            $('#tl-lines').addEventListener('click', e => {
+                const d = e.target.closest('[data-tl-del]');
+                if (d) { cart.delete(d.dataset.tlDel); saveCart(); drawList(); drawLines(); drawSend(); return; }
+                const s = e.target.closest('[data-tl-step]'); if (!s) return;
+                const id = s.dataset.id, cur = cart.get(id) || 0, next = Math.min(TL_MAX_QTY, Math.max(1, cur + Number(s.dataset.tlStep)));
+                cart.set(id, next); saveCart(); drawList(); drawLines(); drawSend();
+            });
+            // ввод количества: не перерисовываем строки (чтобы не терять фокус), только проверку и кнопку
+            $('#tl-lines').addEventListener('input', e => {
+                const inp = e.target.closest('[data-tl-qty]'); if (!inp) return;
+                const v = inp.value.trim(), n = /^\d+$/.test(v) ? parseInt(v, 10) : 0;
+                cart.set(inp.dataset.tlQty, n); saveCart();
+                const bad = !(n >= 1 && n <= TL_MAX_QTY);
+                inp.classList.toggle('!border-red-400', bad); inp.closest('[data-tl-line]').classList.toggle('border-red-500/60', bad);
+                drawSend();
+            });
+            $('#tl-lines').addEventListener('change', () => { drawList(); drawLines(); drawSend(); });
+            $('#tl-clear').onclick = () => { cart.clear(); saveCart(); drawList(); drawLines(); drawSend(); };
+
+            $('#tl-send').onclick = async () => {
+                ['fio', 'empId', 'wh', 'process'].forEach(k => touched.add(k));
+                if (busy || drawSend().length) return;   // повторная проверка в момент нажатия
+                const ff = readF(), ls = lines(), err = $('#tl-err');
+                busy = true; $('#tl-send').disabled = true; err.textContent = '';
+                try {
+                    // свежая проверка наличия прямо перед отправкой: позиция могла закончиться, пока собиралась заявка
+                    const snaps = await Promise.all(ls.map(l => getDoc(doc(db, 'material_master', l.id))));
+                    let changed = false;
+                    snaps.forEach((sn, i) => {
+                        const it = ls[i].it;
+                        if (!sn.exists()) { items = items.filter(x => x.id !== it.id); changed = true; return; }
+                        it.qty = Math.max(0, Number(sn.data().qty) || 0); it.minQty = Math.max(0, Number(sn.data().minQty) || 0);
+                        if (tlStatus(it) === 'out') changed = true;
+                    });
+                    if (changed) { err.textContent = t('tl_e_changed'); busy = false; drawList(); drawLines(); drawSend(); return; }
+                    const reqNo = mmTxId('REQ');
+                    await addDoc(collection(db, 'tl_requests'), {
+                        reqNo, status: 'new', fio: ff.fio, empId: ff.empId, warehouse: ff.wh, process: ff.process,
+                        items: ls.map(l => ({ id: l.id, sku: l.it.sku, name: l.it.name, unit: l.it.unit, qty: l.q })),
+                        createdAt: Date.now(), createdBy: currentUid, createdByName: currentUserName || ''
+                    });
+                    tlIdentSave(ff, true);
+                    cart.clear(); saveCart(); busy = false;
+                    cmpToast(fmt(t('tl_sent'), { no: reqNo, wh: ff.wh }), 'ok');
+                    logActivity('tl_request', `Заявка тимлида ${reqNo}: ${ff.fio} (ID ${ff.empId}), склад ${ff.wh}, процесс «${ff.process}», позиций ${ls.length}`);
+                    drawList(); drawLines(); drawSend(); loadMine();
+                } catch (x) { console.error(x); err.textContent = t('tl_e_send'); busy = false; drawSend(); }
+            };
+
+            drawAll();
+            if (f.wh) loadWh(f.wh);
+            loadMine();
+        }
+
+        // ============================ ВХОДЯЩИЕ ЗАЯВКИ (кладовщик) ============================
+        // Живая подписка на заявки текущего склада: питает и реестр, и счётчик «новых» на шторке
+        let tlReqs = [], tlReqsWh = '', tlReqsUnsub = null, tlReqsState = 'loading', tlReqsRedraw = () => {};
+        function tlBadgeSync() {
+            const b = document.getElementById('tl-req-badge'); if (!b) return;
+            const n = tlReqs.filter(r => r.status === 'new').length;
+            b.hidden = !n; b.textContent = String(n);
+        }
+        function tlWatchStop() {
+            if (tlReqsUnsub) { try { tlReqsUnsub(); } catch (e) { /* ignore */ } }
+            tlReqsUnsub = null; tlReqs = []; tlReqsWh = ''; tlReqsState = 'loading'; tlBadgeSync();
+        }
+        function tlWatchStart() {
+            if (!currentUid || isTeamlead()) { tlWatchStop(); return; }
+            if (tlReqsUnsub && tlReqsWh === currentWarehouse) return;
+            tlWatchStop();
+            const wh = tlReqsWh = currentWarehouse;
+            tlReqsUnsub = onSnapshot(query(collection(db, 'tl_requests'), where('warehouse', '==', wh)), snap => {
+                if (wh !== tlReqsWh) return;
+                tlReqs = snap.docs.map(d => Object.assign({}, d.data(), { _id: d.id })).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                tlReqsState = 'ok'; tlBadgeSync(); tlReqsRedraw();
+            }, e => { console.error(e); if (wh !== tlReqsWh) return; tlReqsState = 'err'; tlReqsRedraw(); });
+        }
+
+        function renderTlRequests(pv) {
+            let filter = 'new', q = '';
+            const wrap = document.createElement('div');
+            wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            wrap.innerHTML = `
+                <div class="mb-5">
+                    <h2 class="flex items-center gap-2.5 text-xl font-bold text-klt-emerald-light">📨 ${t('tl_req_title')}
+                        <span class="rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                    <p class="mt-1 text-[13px] text-klt-muted">${fmt(t('tl_req_sub'), { wh: escapeHtml(currentWarehouse) })}</p>
+                </div>
+                <div class="mb-3 flex flex-wrap items-center gap-2">
+                    <input id="tlr-q" type="text" autocomplete="off" placeholder="${cmpAttr(t('tl_req_search_ph'))}" class="min-w-[220px] flex-1 ${CMP_FLD}">
+                    <div id="tlr-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
+                </div>
+                <div id="tlr-body" class="overflow-x-auto rounded-xl border border-solid border-klt-line"></div>`;
+            pv.appendChild(wrap);
+            const $ = s => wrap.querySelector(s);
+            const th = 'whitespace-nowrap border-b border-solid border-klt-line bg-klt-card px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+            const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-top text-slate-50';
+
+            function drawSeg() {
+                const n = s => tlReqs.filter(r => s === 'all' || r.status === s).length;
+                $('#tlr-seg').innerHTML = [['new', 'tl_s_new'], ['issued', 'tl_s_issued'], ['rejected', 'tl_s_rejected'], ['all', 'tl_f_all']].map(([k, l]) =>
+                    `<button type="button" data-f="${k}" aria-pressed="${filter === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${filter === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${t(l)} <span class="opacity-70">${n(k)}</span></button>`).join('');
+            }
+            function drawBody() {
+                const body = $('#tlr-body');
+                if (tlReqsState === 'loading') { body.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
+                if (tlReqsState === 'err') { body.innerHTML = `<div class="px-4 py-8 text-center text-sm text-red-300">${t('tl_req_err')}</div>`; return; }
+                const s = q.trim().toLowerCase();
+                const list = tlReqs.filter(r => (filter === 'all' || r.status === filter) && (!s || [r.reqNo, r.fio, r.empId, r.process, ...(r.items || []).flatMap(i => [i.sku, i.name])]
+                    .some(v => String(v || '').toLowerCase().includes(s))));
+                if (!list.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('tl_req_empty')}</div>`; return; }
+                body.innerHTML = `<table class="w-full min-w-[1000px] border-collapse text-[13px]"><thead><tr>
+                    ${['dt', 'req', 'fio', 'id', 'wh'].map(c => `<th class="${th}">${t('tl_col_' + c)}</th>`).join('')}<th class="${th}">${t('tl_f_process')}</th>
+                    ${['items', 'status', 'act'].map(c => `<th class="${th}">${t('tl_col_' + c)}</th>`).join('')}</tr></thead>
+                    <tbody>${list.map(r => {
+                        const id = cmpAttr(r._id), its = r.items || [];
+                        const act = r.status === 'new'
+                            ? `<div class="flex flex-col gap-1.5"><button type="button" data-tlr-issue="${id}" class="${CMP_BTN_MAIN} whitespace-nowrap text-[13px]">${t('tl_issue')}</button>
+                                <button type="button" data-tlr-reject="${id}" class="${CMP_BTN} whitespace-nowrap text-[12px] hover:!border-red-400 hover:!text-red-300">${t('tl_reject')}</button></div>`
+                            : r.status === 'issued'
+                                ? `<div class="text-xs text-klt-muted">${escapeHtml(fmt(t('tl_issued_by'), { who: r.issuedBy || '—', dt: r.issuedAt ? mmFmtDate(r.issuedAt) : '—' }))}</div>
+                                   ${r.issuedTxId ? `<div class="mt-0.5 font-mono text-[11px] text-klt-muted">${escapeHtml(r.issuedTxId)}</div><button type="button" data-tlr-print="${id}" class="${CMP_BTN} mt-1.5 text-[12px]">${t('tl_reprint')}</button>` : ''}`
+                                : `<div class="text-xs text-klt-muted">${escapeHtml(fmt(t('tl_rejected_by'), { who: r.rejectedBy || '—', dt: r.rejectedAt ? mmFmtDate(r.rejectedAt) : '—' }))}</div>
+                                   ${r.rejectReason ? `<div class="mt-0.5 text-xs text-red-300">${escapeHtml(fmt(t('tl_reason'), { r: r.rejectReason }))}</div>` : ''}`;
+                        return `<tr data-tlr-row="${id}" class="transition hover:bg-klt-hover">
+                            <td class="${td} whitespace-nowrap">${escapeHtml(mmFmtDate(r.createdAt || 0))}</td>
+                            <td class="${td} whitespace-nowrap font-mono text-klt-emerald-light">${escapeHtml(r.reqNo || '—')}</td>
+                            <td class="${td} font-semibold">${escapeHtml(r.fio || '—')}</td>
+                            <td class="${td} font-mono">${escapeHtml(r.empId || '—')}</td>
+                            <td class="${td} font-bold">${escapeHtml(r.warehouse || '—')}</td>
+                            <td class="${td}">${escapeHtml(r.process || '—')}</td>
+                            <td class="${td}"><ol class="m-0 pl-4">${its.map(i => `<li><span style="overflow-wrap:anywhere">${escapeHtml(i.name || i.sku)}</span> <span class="font-mono text-[11px] text-klt-muted">${escapeHtml(i.sku || '')}</span> — <b>${Number(i.qty) || 0} ${escapeHtml(i.unit || 'шт.')}</b></li>`).join('')}</ol>
+                                <div class="mt-1 text-[11px] text-klt-muted">${fmt(t('tl_cart_lines'), { n: its.length })}</div></td>
+                            <td class="${td}">${tlReqBadge(r.status)}</td>
+                            <td class="${td}">${act}</td></tr>`;
+                    }).join('')}</tbody></table>`;
+            }
+            tlReqsRedraw = () => { if (!wrap.isConnected) return; drawSeg(); drawBody(); };
+            $('#tlr-seg').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; drawSeg(); drawBody(); } };
+            $('#tlr-q').addEventListener('input', e => { q = e.target.value; drawBody(); });
+            $('#tlr-body').addEventListener('click', e => {
+                const b = e.target.closest('[data-tlr-issue],[data-tlr-reject],[data-tlr-print]'); if (!b) return;
+                const r = tlReqs.find(x => x._id === (b.dataset.tlrIssue || b.dataset.tlrReject || b.dataset.tlrPrint)); if (!r) return;
+                if (b.dataset.tlrIssue) tlOpenIssue(r); else if (b.dataset.tlrReject) tlOpenReject(r); else tlReprint(r);
+            });
+            tlWatchStart();
+            tlReqsRedraw();
+        }
+
+        // Выдача по заявке: кладовщик видит точные остатки; «Выдать» по умолчанию = min(запрошено, остаток).
+        // Остаток 0 / позиции нет → строка целиком в «Не выдано»; выдано меньше запрошенного → разница в «Не выдано».
+        async function tlOpenIssue(req) {
+            let busy = false, printLang = burPrintLangGet(), rows = [];
+            const m = cmpModal(`
+                <div class="mb-4 flex items-center justify-between gap-3">
+                    <h2 class="text-lg font-bold text-klt-emerald-light">⚡ ${escapeHtml(fmt(t('tl_iss_title'), { no: req.reqNo || '' }))}</h2>
+                    ${tlReqBadge(req.status)}
+                </div>
+                <div class="mb-4 grid gap-3 rounded-xl border border-solid border-klt-line bg-klt-bg p-3" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
+                    ${[['tl_col_fio', req.fio], ['tl_col_id', req.empId], ['tl_col_wh', req.warehouse], ['tl_f_process', req.process], ['tl_col_dt', mmFmtDate(req.createdAt || 0)]].map(([l, v]) =>
+                        `<div><div class="text-[11px] font-bold uppercase tracking-wider text-klt-muted">${t(l)}</div><div class="mt-0.5 text-sm font-semibold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(v || '—')}</div></div>`).join('')}
+                </div>
+                <div id="tli-lines" class="mb-4 overflow-x-auto"><div class="py-8 text-center text-klt-muted">…</div></div>
+                <div class="mb-3.5 flex flex-wrap gap-4">
+                    <div><label class="${CMP_LBL}" for="tli-no">${t('bur_cart_listno')}</label><input id="tli-no" type="number" min="1" max="500" step="1" inputmode="numeric" autocomplete="off" style="width:8rem" class="${CMP_FLD} text-center"></div>
+                    <div><div class="${CMP_LBL}">🖨 ${t('bur_print_lang')}</div><div class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line" id="tli-lang" role="radiogroup" aria-label="${cmpAttr(t('bur_print_lang'))}"></div></div>
+                </div>
+                <div class="mb-1"><label class="${CMP_LBL}" for="tli-note">${t('cmp_issue_note')}</label><input id="tli-note" type="text" autocomplete="off" class="${CMP_FLD}"></div>
+                <div id="tli-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex flex-wrap justify-end gap-2.5"><button type="button" id="tli-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button>
+                    <button type="button" id="tli-ok" class="${CMP_BTN}" disabled>${t('tl_iss_do')}</button><button type="button" id="tli-okp" class="${CMP_BTN_MAIN}" disabled>${t('tl_iss_do_print')}</button></div>`, 'xl');
+            const $ = m.$, err = $('#tli-err');
+            $('#tli-cancel').onclick = m.close;
+            const drawLang = () => {
+                $('#tli-lang').innerHTML = PRINT_LANGS.map(([k, fl, c]) =>
+                    `<button type="button" data-lang="${k}" role="radio" aria-checked="${printLang === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${printLang === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${fl} ${c}</button>`).join('');
+            };
+            drawLang();
+            $('#tli-lang').onclick = e => { const b = e.target.closest('[data-lang]'); if (b) { printLang = printLangOk(b.dataset.lang); burPrintLangSet(printLang); drawLang(); } };
+
+            // max «Выдать» = min(запрошено, остаток); строка: req, stock, give
+            const maxOf = r => Math.min(r.req, r.stock);
+            const lineMsg = r => r.stock <= 0 ? ['out', t('tl_l_out')] : r.give < r.req ? ['part', fmt(t('tl_l_part'), { n: r.req - r.give, unit: r.unit })] : ['ok', t('tl_l_ok')];
+            const badQty = r => r.stock > 0 && !(Number.isInteger(r.give) && r.give >= 1 && r.give <= maxOf(r));
+            function drawLines() {
+                const th = 'border-b border-solid border-klt-line px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
+                const td = 'border-b border-solid border-klt-line px-3 py-2 align-middle text-slate-50';
+                $('#tli-lines').innerHTML = `<table class="w-full min-w-[760px] border-collapse text-[13px]"><thead><tr><th class="${th} w-8">№</th><th class="${th}">${t('mm_col_name')}</th><th class="${th}">Material Code</th>
+                    <th class="${th} text-right">${t('tl_col_req_qty')}</th><th class="${th} text-right">${t('tl_col_stock')}</th><th class="${th}">${t('tl_col_give')}</th><th class="${th}"></th></tr></thead>
+                    <tbody>${rows.map((r, k) => { const [st, msg] = lineMsg(r); return `<tr data-tli-row="${k}">
+                        <td class="${td} text-klt-muted">${k + 1}</td><td class="${td} font-semibold" style="overflow-wrap:anywhere">${escapeHtml(r.name || '—')}</td>
+                        <td class="${td} font-mono text-klt-muted">${escapeHtml(r.sku)}</td>
+                        <td class="${td} text-right font-bold">${r.req} ${escapeHtml(r.unit)}</td>
+                        <td class="${td} text-right font-bold ${r.stock <= 0 ? 'text-red-400' : r.stock < r.req ? 'text-klt-orange-light' : 'text-klt-emerald-light'}">${r.stock}</td>
+                        <td class="${td}">${r.stock > 0 ? `<input type="number" data-tli-give="${k}" min="1" max="${maxOf(r)}" step="1" inputmode="numeric" value="${r.give}" style="width:5rem" class="${CMP_FLD} px-2 py-1 text-center ${badQty(r) ? '!border-red-400' : ''}">` : '<span class="text-klt-muted">0</span>'}</td>
+                        <td class="${td}"><span data-tli-msg class="text-xs font-semibold ${st === 'ok' ? 'text-klt-emerald-light' : st === 'part' ? 'text-klt-orange-light' : 'text-red-300'}">${escapeHtml(msg)}</span></td></tr>`; }).join('')}</tbody></table>`;
+            }
+            const canIssue = () => rows.length && !rows.some(badQty) && rows.some(r => r.stock > 0 && r.give > 0);
+            const syncBtns = () => { $('#tli-ok').disabled = $('#tli-okp').disabled = busy || !canIssue(); };
+
+            // актуальные остатки склада для строк заявки: по id складской записи, запасной вариант — по Material Code
+            async function loadStock() {
+                await mmcLoad();
+                const snap = await getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')));
+                const stock = snap.docs.map(burFromDoc);
+                rows = (req.items || []).map(i => {
+                    const it = stock.find(x => x.id === i.id) || stock.find(x => normCode(x.sku) === normCode(i.sku)) || null;
+                    const reqQ = Math.max(0, Math.floor(Number(i.qty) || 0)), st = it ? it.qty : 0;
+                    return { it, id: it ? it.id : (i.id || `${currentWarehouse}__${String(i.sku || '').replace(/\//g, '_')}`), sku: i.sku || '', name: (it && it.name) || i.name || '',
+                        unit: (it && it.unit) || burResolveUnit(i.unit), req: reqQ, stock: st, give: Math.min(reqQ, st) };
+                });
+            }
+            try { await loadStock(); } catch (e) { console.error(e); $('#tli-lines').innerHTML = `<div class="py-6 text-center text-sm text-red-300">${t('bur_load_err')}</div>`; return; }
+            if (!m.ov.isConnected) return;
+            drawLines(); syncBtns();
+            if (!rows.some(r => r.stock > 0)) err.textContent = t('tl_iss_none');
+
+            $('#tli-lines').addEventListener('input', e => {
+                const inp = e.target.closest('[data-tli-give]'); if (!inp) return;
+                const r = rows[+inp.dataset.tliGive], v = inp.value.trim();
+                r.give = /^\d+$/.test(v) ? parseInt(v, 10) : 0;
+                inp.classList.toggle('!border-red-400', badQty(r));
+                const [st, msg] = lineMsg(r), el = inp.closest('tr').querySelector('[data-tli-msg]');
+                el.textContent = msg; el.className = `text-xs font-semibold ${st === 'ok' ? 'text-klt-emerald-light' : st === 'part' ? 'text-klt-orange-light' : 'text-red-300'}`;
+                err.textContent = ''; syncBtns();
+            });
+
+            const go = async print => {
+                if (busy) return;
+                const bad = rows.filter(badQty);
+                if (bad.length) { err.innerHTML = bad.map(r => escapeHtml(fmt(t('tl_iss_bad'), { name: r.name || r.sku, max: maxOf(r) }))).join('<br>'); return; }
+                if (!canIssue()) { err.textContent = t('tl_iss_none'); return; }
+                const noRaw = $('#tli-no').value.trim();
+                if (noRaw && !(/^\d+$/.test(noRaw) && +noRaw >= 1 && +noRaw <= 500)) { err.textContent = t('bur_cart_listno_err'); $('#tli-no').focus(); return; }
+                const listNo = noRaw ? parseInt(noRaw, 10) : null, note = $('#tli-note').value.trim();
+                const give = rows.filter(r => r.stock > 0 && r.give > 0).map(r => ({ it: r.it, q: r.give }));
+                const notIssued = rows.filter(r => r.req - (r.stock > 0 ? r.give : 0) > 0).map(r => ({ sku: r.sku, name: r.name, unit: r.unit, qty: r.req - (r.stock > 0 ? r.give : 0) }));
+                // строки с остатком 0 (в т.ч. без складской записи) должны остаться с нулём — иначе товар есть, а в листе «отсутствует»
+                const mustBeZero = rows.filter(r => r.stock <= 0).map(r => ({ id: r.id }));
+                const reqRef = doc(db, 'tl_requests', req._id);
+                busy = true; syncBtns(); err.textContent = '';
+                try {
+                    const res = await burCommitIssue({
+                        give, notIssued, mustBeZero,
+                        meta: Object.assign({ toType: 'emp', to: `${req.fio} (ID ${req.empId})`, note, printLang, reqId: req._id, reqNo: req.reqNo || '', process: req.process || '', empId: req.empId || '', fio: req.fio || '' }, listNo ? { listNo } : {}),
+                        // заявка должна быть всё ещё «новой» — защита от двойной выдачи с двух устройств
+                        before: async tx => { const sn = await tx.get(reqRef); return !sn.exists() || sn.data().status !== 'new' ? 'taken' : null; },
+                        after: (tx, mv) => tx.update(reqRef, {
+                            status: 'issued', issuedTxId: mv.txId, issuedAt: mv.timestamp, issuedBy: currentUserName || 'Неизвестно',
+                            issuedItems: mv.items.map(i => ({ sku: i.sku, qty: -i.delta })), notIssued: notIssued.map(i => ({ sku: i.sku, qty: i.qty }))
+                        })
+                    });
+                    if (!res.ok) {
+                        busy = false;
+                        if (res.why === 'taken') { err.textContent = t('tl_iss_taken'); syncBtns(); return; }
+                        // остатки изменились: показываем свежие и пересчитываем «Выдать»
+                        const fz = res.freshZero || [];
+                        give.forEach((g, i) => { const r = rows.find(x => x.it === g.it); r.stock = res.fresh[i]; r.give = Math.min(r.req, r.stock); });
+                        mustBeZero.forEach((z, i) => { const r = rows.find(x => x.id === z.id); if (r && fz[i] > 0) { r.stock = fz[i]; r.give = Math.min(r.req, r.stock); } });
+                        drawLines(); syncBtns(); err.textContent = t('bur_cart_blocked'); return;
+                    }
+                    m.close();
+                    cmpToast(fmt(t('tl_iss_done'), { no: req.reqNo || '', id: res.txId }), 'ok');
+                    burLog('issue', `выдача по заявке ${req.reqNo} (${req.fio}, ID ${req.empId}, ${req.process}) → ${res.txId}`);
+                    if (print) mmPrintSheet('bureau', { key: res.txId, r: res.mvDoc, items: res.mvDoc.items, notIssued: res.mvDoc.notIssued || [] }, printLang);
+                } catch (x) { console.error(x); busy = false; syncBtns(); err.textContent = t('cmp_err_save'); }
+            };
+            $('#tli-ok').onclick = () => go(false);
+            $('#tli-okp').onclick = () => go(true);
+        }
+
+        function tlOpenReject(req) {
+            let busy = false;
+            const m = cmpModal(`
+                <h2 class="mb-3 text-lg font-bold text-red-300">✕ ${escapeHtml(fmt(t('tl_rej_title'), { no: req.reqNo || '' }))}</h2>
+                <div class="mb-3 text-sm text-slate-50">${escapeHtml(req.fio || '')} · ID ${escapeHtml(req.empId || '')} · ${escapeHtml(req.process || '')}</div>
+                <label class="${CMP_LBL}" for="tlj-r">${t('tl_rej_reason')}</label><input id="tlj-r" type="text" maxlength="200" autocomplete="off" class="${CMP_FLD}">
+                <div id="tlj-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
+                <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="tlj-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button>
+                    <button type="button" id="tlj-ok" class="${CMP_BTN} !border-red-400 !text-red-300">${t('tl_reject')}</button></div>`);
+            m.$('#tlj-cancel').onclick = m.close;
+            m.$('#tlj-ok').onclick = async () => {
+                if (busy) return; busy = true;
+                const reason = m.$('#tlj-r').value.trim(), ref = doc(db, 'tl_requests', req._id);
+                try {
+                    const ok = await runTransaction(db, async tx => {
+                        const sn = await tx.get(ref);
+                        if (!sn.exists() || sn.data().status !== 'new') return false;
+                        tx.update(ref, { status: 'rejected', rejectedBy: currentUserName || 'Неизвестно', rejectedAt: Date.now(), rejectReason: reason });
+                        return true;
+                    });
+                    if (!ok) { m.$('#tlj-err').textContent = t('tl_iss_taken'); busy = false; return; }
+                    m.close(); cmpToast(fmt(t('tl_rej_done'), { no: req.reqNo || '' }), 'ok');
+                } catch (x) { console.error(x); m.$('#tlj-err').textContent = t('cmp_err_save'); busy = false; }
+            };
+        }
+
+        // Повторная печать листа выданной заявки: берём операцию из журнала по txId (язык — сохранённый в операции)
+        async function tlReprint(req) {
+            try {
+                const snap = await getDocs(query(collection(db, 'material_movements'), where('txId', '==', req.issuedTxId)));
+                const d = snap.docs.map(x => x.data()).find(x => x.type === 'issue');
+                if (!d) { cmpToast(t('tl_print_missing'), 'err'); return; }
+                mmPrintSheet('bureau', { key: d.txId, r: d, items: d.items || [], notIssued: d.notIssued || [] }, d.printLang);
+            } catch (x) { console.error(x); cmpToast(t('tl_print_missing'), 'err'); }
         }
 
         // =====================================================================
