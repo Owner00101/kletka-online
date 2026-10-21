@@ -147,6 +147,7 @@
 
         /* ===== Каркас приложения: шторка + основная область ===== */
         #app-content { display: none; }
+        body.portal-mode #app-content { display: block; }   /* форма тимлидов видна сразу, без ожидания Firebase */
         .app-shell { display: flex; min-height: 100vh; }
 
         .sidebar {
@@ -370,13 +371,18 @@
     </style>
 </head>
 <body>
-    <div class="boot-splash" id="boot-splash"><div class="boot-spinner"></div><div>Kletka Online…</div></div>
     <script>
-        // Страховка: если модуль Firebase не загрузился (нет сети), через 10 с показываем экран входа вместо вечной заставки
-        setTimeout(function () {
-            var sp = document.getElementById('boot-splash');
-            if (sp && !sp.classList.contains('hidden')) { sp.classList.add('hidden'); if (!/[?&]portal\b/.test(location.search)) document.getElementById('login-screen').classList.remove('hidden'); }
-        }, 10000);
+        // Форма для тимлидов (?portal) открывается сразу — без заставки. Заставка нужна только основному приложению
+        // (чтобы не мигал экран входа, пока Firebase восстанавливает сессию).
+        (function () {
+            if (/[?&]portal\b/.test(location.search)) { document.body.classList.add('portal-mode'); return; }
+            document.body.insertAdjacentHTML('afterbegin', '<div class="boot-splash" id="boot-splash"><div class="boot-spinner"></div><div>Kletka Online…</div></div>');
+            // Страховка: если модуль Firebase не загрузился (нет сети), через 10 с показываем экран входа вместо вечной заставки
+            setTimeout(function () {
+                var sp = document.getElementById('boot-splash');
+                if (sp && !sp.classList.contains('hidden')) { sp.classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
+            }, 10000);
+        })();
     </script>
 
     <!-- Экран входа -->
@@ -843,7 +849,6 @@
         async function startPortalMode(user) {
             if (portalStarted) return;
             portalStarted = true;
-            if (!user) { try { await signInAnonymously(auth); } catch (e) { console.warn('Anonymous auth off:', e.code || e); } }
             document.body.classList.add('portal-mode');
             const ui = readUiState();
             if (ui.lang && TR[ui.lang]) { currentLang = ui.lang; const ls = document.getElementById('lang-select'); if (ls) ls.value = ui.lang; }
@@ -852,6 +857,7 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-content').style.display = 'block';
             document.querySelectorAll('[data-i18n]').forEach(el => { el.innerText = t(el.dataset.i18n); });
+            if (!user) { try { await signInAnonymously(auth); } catch (e) { console.warn('Anonymous auth off:', e.code || e); } }
             openPage('tl-portal');
         }
 
@@ -4684,6 +4690,11 @@
             tl_rej_title: 'Reject request {no}?', tl_rej_reason: 'Reason (optional)', tl_rej_done: 'Request {no} rejected',
             tl_print_missing: 'Issue operation not found in the journal'
         });
+        // Тексты email-сповіщень (доработка): общие ключи для всех языков
+        Object.assign(TR.uk, { tl_n_resend: 'Надіслати сповіщення', tl_n_sent: '🟢 Сповіщення надіслано', tl_n_sent_to: 'Надіслано на {to}', tl_n_noemail: 'Email не вказано', tl_n_failed: '⚠️ Сповіщення не надіслано', tl_n_nocfg: 'налаштуйте відправку у «✉️ Сповіщення»' });
+        Object.assign(TR.ru, { tl_n_btn: '✉️ Уведомления', tl_n_title: 'Email-уведомления тимлидам', tl_n_resend: 'Отправить уведомление', tl_n_sent: '🟢 Уведомление отправлено', tl_n_sent_to: 'Отправлено на {to}', tl_n_noemail: 'Email не указан', tl_n_failed: '⚠️ Уведомление не отправлено', tl_n_nocfg: 'настройте отправку в «✉️ Уведомления»', tl_n_done_toast: 'Уведомление о готовности отправлено на {to}', tl_n_fail_toast: 'Выдача оформлена, но письмо не отправлено: {e}', tl_n_err: 'Не удалось отправить: {e}' });
+        Object.assign(TR.pl, { tl_n_resend: 'Wyślij powiadomienie', tl_n_sent: '🟢 Powiadomienie wysłane', tl_n_sent_to: 'Wysłano na {to}', tl_n_noemail: 'Nie podano adresu e-mail', tl_n_failed: '⚠️ Powiadomienie nie zostało wysłane', tl_n_nocfg: 'skonfiguruj wysyłkę w „✉️ Powiadomienia”', tl_n_done_toast: 'Powiadomienie o gotowości wysłano na {to}', tl_n_fail_toast: 'Wydanie zrealizowane, ale e-mail nie został wysłany: {e}', tl_n_err: 'Nie udało się wysłać: {e}' });
+        Object.assign(TR.en, { tl_n_resend: 'Send notification', tl_n_sent: '🟢 Notification sent', tl_n_sent_to: 'Sent to {to}', tl_n_noemail: 'No email provided', tl_n_failed: '⚠️ Notification not sent', tl_n_nocfg: 'set up sending in “✉️ Notifications”', tl_n_done_toast: 'Ready-notification sent to {to}', tl_n_fail_toast: 'Issued, but the email was not sent: {e}', tl_n_err: 'Could not send: {e}' });
 
         const TL_IDENT_KEY = 'kletka_tl_ident_v1', TL_CART_KEY = 'kletka_tl_cart_v1', TL_MAX_QTY = 999;
         // Владелец данных портала: по ссылке (?portal) входа нет — используем постоянный id этого браузера/устройства,
@@ -4709,12 +4720,36 @@
         const tlStBadge = st => `<span data-tl-st="${st}" class="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold" style="${TL_ST[st][2]};border:1.5px solid rgba(255,255,255,.9);box-shadow:0 2px 6px rgba(0,0,0,.35)">${TL_ST[st][0]} ${t(TL_ST[st][1])}</span>`;
         // Флажки языка формы (EN / PL / UA) и плавающие кнопки «вверх / вниз»
         const TL_LANGS = [['en', '🇬🇧', 'EN'], ['pl', '🇵🇱', 'PL'], ['uk', '🇺🇦', 'UA']];
+        // Плавная прокрутка (easeInOutCubic): разгон в начале, мягкое торможение в конце.
+        // Собственная анимация через requestAnimationFrame вместо нативного behavior:'smooth' — без рывков и «чёрного экрана» на длинной странице.
+        let tlScrollRaf = 0;
+        const tlEaseInOut = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+        function tlSmoothScroll(target) {
+            const root = document.scrollingElement || document.documentElement;
+            const maxTop = () => Math.max(0, root.scrollHeight - window.innerHeight);
+            const from = root.scrollTop, to = Math.min(target == null ? maxTop() : target, maxTop()), dist = to - from;
+            cancelAnimationFrame(tlScrollRaf);
+            if (!dist) return;
+            if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) { root.scrollTop = to; return; }
+            const dur = Math.min(1100, Math.max(450, Math.abs(dist) * 0.35));   // длиннее путь — дольше анимация (450–1100 мс)
+            let t0 = 0, stopped = false;
+            const stop = () => { stopped = true; cancelAnimationFrame(tlScrollRaf); ['wheel', 'touchstart', 'keydown'].forEach(ev => window.removeEventListener(ev, stop)); };
+            ['wheel', 'touchstart', 'keydown'].forEach(ev => window.addEventListener(ev, stop, { passive: true, once: true }));   // пользователь взял управление — отпускаем
+            const step = now => {
+                if (stopped) return;
+                if (!t0) t0 = now;
+                const k = Math.min(1, (now - t0) / dur);
+                root.scrollTop = from + dist * tlEaseInOut(k);
+                if (k < 1) tlScrollRaf = requestAnimationFrame(step); else stop();
+            };
+            tlScrollRaf = requestAnimationFrame(step);
+        }
         function tlScrollShow(on) {
             let w = document.getElementById('tl-scroll');
             if (!w && on) {
                 w = document.createElement('div'); w.id = 'tl-scroll';
                 w.innerHTML = `<button type="button" data-dir="up">↑</button><button type="button" data-dir="down">↓</button>`;
-                w.onclick = e => { const b = e.target.closest('[data-dir]'); if (b) window.scrollTo({ top: b.dataset.dir === 'up' ? 0 : document.documentElement.scrollHeight, behavior: 'smooth' }); };
+                w.onclick = e => { const b = e.target.closest('[data-dir]'); if (b) tlSmoothScroll(b.dataset.dir === 'up' ? 0 : null); };
                 document.body.appendChild(w);
             }
             if (!w) return;
@@ -5145,7 +5180,7 @@
                 if (b.dataset.tlrIssue) tlOpenIssue(r); else if (b.dataset.tlrReject) tlOpenReject(r);
                 else if (b.dataset.tlrNotify) {   // повторная отправка письма о готовности
                     b.disabled = true;
-                    tlFetchMv(r).then(mv => tlNotifyReady(r, mv)).then(n => cmpToast(n.status === 'sent' ? fmt(t('tl_n_done_toast'), { to: n.to }) : n.status === 'off' ? t('tl_n_offst') : fmt(t('tl_n_err'), { e: n.error || '' }), n.status === 'sent' ? 'ok' : 'err'))
+                    tlFetchMv(r).then(mv => tlNotifyReady(r, mv)).then(n => cmpToast(n.status === 'sent' ? fmt(t('tl_n_done_toast'), { to: n.to }) : n.status === 'noemail' ? t('tl_n_noemail') : fmt(t('tl_n_err'), { e: tlNotifyErrText(n.error) }), n.status === 'sent' ? 'ok' : 'err'))
                         .finally(() => { b.disabled = false; });
                 } else tlReprint(r);
             });
@@ -5272,7 +5307,7 @@
                     // заказ укомплектован и выдан → письмо «Ваш заказ готов» на email тимлида (в фоне, выдачу не задерживает)
                     tlNotifyReady(req, res.mvDoc).then(n => {
                         if (n.status === 'sent') cmpToast(fmt(t('tl_n_done_toast'), { to: n.to }), 'ok');
-                        else if (n.status === 'failed') cmpToast(fmt(t('tl_n_fail_toast'), { e: n.error || '' }), 'err');
+                        else if (n.status === 'failed') cmpToast(fmt(t('tl_n_fail_toast'), { e: tlNotifyErrText(n.error) }), 'err');
                     });
                 } catch (x) { console.error(x); busy = false; syncBtns(); err.textContent = t('cmp_err_save'); }
             };
@@ -5359,24 +5394,29 @@
             }
             throw new Error('off');
         }
+        const tlNotifyErrText = e => e === 'settings incomplete' ? t('tl_n_nocfg') : (e || '');
         const tlNotifyCfgOk = c => c && (c.mode === 'emailjs' ? !!(c.serviceId && c.templateId && c.publicKey) : c.mode === 'webhook' ? /^https:\/\//i.test(c.webhookUrl || '') : false);
-        async function tlNotifyReady(req, mv) {   // → { status, to, error }
-            const cfg = await tlNotifyLoad(), to = req.email || '';
+        // Отправка письма «Заказ готов». Вызывается автоматически при переводе заявки в «Видано» и вручную кнопкой «Надіслати сповіщення».
+        // → { status: 'sent' | 'failed' | 'noemail', to, error }. Статуса «вимкнено» больше нет: нет настроек отправки = ошибка с подсказкой.
+        async function tlNotifyReady(req, mv) {
+            const to = tlNorm(req.email);
+            if (!to) return { status: 'noemail', to: '' };          // Email не указан — ничего не отправляем и не пишем в заявку
+            const cfg = await tlNotifyLoad();
             let res;
-            if (!cfg || !cfg.mode || cfg.mode === 'off') res = { status: 'off' };
-            else if (!to) res = { status: 'failed', error: 'no email' };
-            else if (!tlNotifyCfgOk(cfg)) res = { status: 'failed', error: 'settings incomplete' };
+            if (!tlNotifyCfgOk(cfg)) res = { status: 'failed', error: 'settings incomplete' };
             else { try { await tlNotifySend(cfg, tlNotifyParams(req, mv)); res = { status: 'sent' }; } catch (e) { console.error(e); res = { status: 'failed', error: String(e.message || e).slice(0, 300) }; } }
-            try { await updateDoc(doc(db, 'tl_requests', req._id), { notify: Object.assign({ to, at: Date.now(), mode: (cfg && cfg.mode) || 'off' }, res) }); } catch (e) { console.error(e); }
+            try { await updateDoc(doc(db, 'tl_requests', req._id), { notify: { to, at: Date.now(), mode: (cfg && cfg.mode) || 'off', status: res.status, error: res.error || '' } }); } catch (e) { console.error(e); }
             return Object.assign({ to }, res);
         }
+        // Блок статуса + кнопка ручной (повторной) отправки. Кнопка активна всегда, пока у заявки есть Email.
         function tlNotifyHtml(r) {
             const n = r.notify;
-            const resend = `<button type="button" data-tlr-notify="${cmpAttr(r._id)}" class="${CMP_BTN} mt-1.5 text-[12px]">${t('tl_n_resend')}</button>`;
-            if (!n) return r.email ? resend : '';
-            if (n.status === 'sent') return `<div class="mt-1.5 text-[11px] font-semibold text-klt-emerald-light" title="${cmpAttr(mmFmtDate(n.at || 0))}">${escapeHtml(fmt(t('tl_n_sent'), { to: n.to || '' }))}</div>`;
-            if (n.status === 'off') return `<div class="mt-1.5 text-[11px] text-klt-muted">${t('tl_n_offst')}</div>${resend}`;
-            return `<div class="mt-1.5 text-[11px] font-semibold text-red-300" title="${cmpAttr(n.error || '')}">${t('tl_n_failed')}</div>${resend}`;
+            if (!tlNorm(r.email)) return `<div class="mt-1.5 text-[11px] text-klt-muted">${t('tl_n_noemail')}</div>`;
+            const btn = `<button type="button" data-tlr-notify="${cmpAttr(r._id)}" class="${CMP_BTN} mt-1.5 text-[12px]">${t('tl_n_resend')}</button>`;
+            let st = '';
+            if (n && n.status === 'sent') st = `<div class="mt-1.5 text-[11px] font-semibold text-klt-emerald-light" title="${cmpAttr(fmt(t('tl_n_sent_to'), { to: n.to || r.email }) + ' · ' + mmFmtDate(n.at || 0))}">${t('tl_n_sent')}</div>`;
+            else if (n && n.status === 'failed') st = `<div class="mt-1.5 text-[11px] font-semibold text-red-300" title="${cmpAttr(n.error || '')}">${t('tl_n_failed')}</div>`;
+            return st + btn;
         }
         async function tlFetchMv(req) {
             if (!req.issuedTxId) return null;
