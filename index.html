@@ -5405,7 +5405,7 @@
         const tlNotifyCfgOk = c => c && (c.mode === 'emailjs' ? !!(c.serviceId && c.templateId && c.publicKey) : c.mode === 'webhook' ? /^https:\/\//i.test(c.webhookUrl || '') : false);
         // Отправитель письма (строго фиксированное значение) и лимит размера картинки в Base64 (под лимиты EmailJS)
         const TL_MAIL_FROM = 'Material.warehouse.DC3';
-        const TL_SHEET_MAX_B64 = 400 * 1024;
+        const TL_SHEET_MAX_B64 = 38 * 1024;   // EmailJS: все переменные письма ≤ 50 КБ (ошибка 413 «Variables size limit»); оставляем запас под остальные поля
         // Лоадер поверх экрана (счётчик — на случай нескольких одновременных отправок)
         let tlBusyN = 0;
         function tlBusyShow(text) {
@@ -5453,18 +5453,22 @@
                 await Promise.race([tlInlineImgs(d), new Promise(res => setTimeout(res, 8000))]);
                 const body = d.body, h = Math.max(body.scrollHeight, 300);
                 f.style.height = h + 'px';
-                let canvas = await html2canvas(body, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true, logging: false, width: 794, height: h, windowWidth: 794, windowHeight: h });
-                let q = 0.85, url = canvas.toDataURL('image/jpeg', q);
-                // не влезло в лимит: сначала снижаем качество, затем уменьшаем размер
-                for (let i = 0; url.length > TL_SHEET_MAX_B64 && i < 8; i++) {
-                    if (q > 0.55) q -= 0.1;
-                    else {
-                        const c = document.createElement('canvas'); c.width = Math.round(canvas.width * 0.8); c.height = Math.round(canvas.height * 0.8);
+                const shot = () => html2canvas(body, { scale: 1, backgroundColor: '#ffffff', useCORS: true, logging: false, width: 794, height: h, windowWidth: 794, windowHeight: h });
+                // подгоняем под лимит: сначала качество JPEG, затем размер; '' — не влезло
+                const fit = canvas => {
+                    for (let k = 0; k < 3; k++) {
+                        for (let q = 0.7; q >= 0.39; q -= 0.1) { const u = canvas.toDataURL('image/jpeg', q); if (u.length <= TL_SHEET_MAX_B64) return u; }
+                        const c = document.createElement('canvas'); c.width = Math.round(canvas.width * 0.85); c.height = Math.round(canvas.height * 0.85);
                         const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0, c.width, c.height); canvas = c;
                     }
-                    url = canvas.toDataURL('image/jpeg', q);
+                    return '';
+                };
+                let url = fit(await shot());
+                if (!url && d.images.length) {          // фото товаров — главный «вес»: убираем их и снимаем лист ещё раз
+                    [...d.images].forEach(im => im.remove());
+                    url = fit(await shot());
                 }
-                if (url.length > TL_SHEET_MAX_B64) throw new Error('sheet image too large');
+                if (!url) throw new Error('sheet image too large');
                 return url;
             } finally { f.remove(); }
         }
