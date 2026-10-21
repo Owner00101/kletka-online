@@ -653,6 +653,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script type="module">
         import { initializeApp, deleteApp } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-app.js";
         import {
@@ -2820,7 +2821,7 @@
         }
         // Печать накладной как сборочного листа: светлая страница, колонка «✓» для отметки при комплектации.
         // lang — язык бланка выдачи бюро (uk/pl/en); если не передан — сохранённый в операции, иначе UA.
-        function mmPrintSheet(group, op, lang) {
+        function mmSheetPrintHtml(group, op, lang) {
             const r = op.r, e = escapeHtml, L = mmPrintLabels(group, r, lang || r.printLang);
             const qty = i => e(String(Math.abs(Number(i.delta) || 0)) + ' ' + L.unit(i.unit));
             const totals = mmTotals(op.items).map(([u, d]) => e(Math.abs(d) + ' ' + L.unit(u))).join(', ');
@@ -2854,6 +2855,10 @@
                     <td>${e(i.name || '—')}</td><td class="code">${e(i.sku || '—')}</td><td class="n"><b>${e((Number(i.qty) || 0) + ' ' + L.unit(i.unit))}</b></td>
                     <td><span class="badge">${e(L.badge(i.unit))}</span></td></tr>`; }).join('')}</tbody></table>` : ''}
             </body></html>`;
+            return html;
+        }
+        function mmPrintSheet(group, op, lang) {
+            const html = mmSheetPrintHtml(group, op, lang);
             const f = document.createElement('iframe');
             f.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0';
             document.body.appendChild(f);
@@ -4691,8 +4696,10 @@
             tl_print_missing: 'Issue operation not found in the journal'
         });
         // Тексты email-сповіщень (доработка): общие ключи для всех языков
-        Object.assign(TR.uk, { tl_n_resend: 'Надіслати сповіщення', tl_n_sent: '🟢 Сповіщення надіслано', tl_n_sent_to: 'Надіслано на {to}', tl_n_noemail: 'Email не вказано', tl_n_failed: '⚠️ Сповіщення не надіслано', tl_n_nocfg: 'налаштуйте відправку у «✉️ Сповіщення»' });
-        Object.assign(TR.ru, { tl_n_btn: '✉️ Уведомления', tl_n_title: 'Email-уведомления тимлидам', tl_n_resend: 'Отправить уведомление', tl_n_sent: '🟢 Уведомление отправлено', tl_n_sent_to: 'Отправлено на {to}', tl_n_noemail: 'Email не указан', tl_n_failed: '⚠️ Уведомление не отправлено', tl_n_nocfg: 'настройте отправку в «✉️ Уведомления»', tl_n_done_toast: 'Уведомление о готовности отправлено на {to}', tl_n_fail_toast: 'Выдача оформлена, но письмо не отправлено: {e}', tl_n_err: 'Не удалось отправить: {e}' });
+        Object.assign(TR.uk, { tl_n_sending: 'Формування збірного листа та надсилання email...', tl_n_noimg: '(без зображення листа)', tl_n_resend: 'Надіслати сповіщення', tl_n_sent: '🟢 Сповіщення надіслано', tl_n_sent_to: 'Надіслано на {to}', tl_n_noemail: 'Email не вказано', tl_n_failed: '⚠️ Сповіщення не надіслано', tl_n_nocfg: 'налаштуйте відправку у «✉️ Сповіщення»' });
+        Object.assign(TR.pl, { tl_n_sending: 'Generowanie arkusza kompletacji i wysyłanie e-mail...', tl_n_noimg: '(bez obrazu arkusza)' });
+        Object.assign(TR.en, { tl_n_sending: 'Generating the picking sheet and sending email...', tl_n_noimg: '(without sheet image)' });
+        Object.assign(TR.ru, { tl_n_sending: 'Формирование сборочного листа и отправка email...', tl_n_noimg: '(без изображения листа)', tl_n_btn: '✉️ Уведомления', tl_n_title: 'Email-уведомления тимлидам', tl_n_resend: 'Отправить уведомление', tl_n_sent: '🟢 Уведомление отправлено', tl_n_sent_to: 'Отправлено на {to}', tl_n_noemail: 'Email не указан', tl_n_failed: '⚠️ Уведомление не отправлено', tl_n_nocfg: 'настройте отправку в «✉️ Уведомления»', tl_n_done_toast: 'Уведомление о готовности отправлено на {to}', tl_n_fail_toast: 'Выдача оформлена, но письмо не отправлено: {e}', tl_n_err: 'Не удалось отправить: {e}' });
         Object.assign(TR.pl, { tl_n_resend: 'Wyślij powiadomienie', tl_n_sent: '🟢 Powiadomienie wysłane', tl_n_sent_to: 'Wysłano na {to}', tl_n_noemail: 'Nie podano adresu e-mail', tl_n_failed: '⚠️ Powiadomienie nie zostało wysłane', tl_n_nocfg: 'skonfiguruj wysyłkę w „✉️ Powiadomienia”', tl_n_done_toast: 'Powiadomienie o gotowości wysłano na {to}', tl_n_fail_toast: 'Wydanie zrealizowane, ale e-mail nie został wysłany: {e}', tl_n_err: 'Nie udało się wysłać: {e}' });
         Object.assign(TR.en, { tl_n_resend: 'Send notification', tl_n_sent: '🟢 Notification sent', tl_n_sent_to: 'Sent to {to}', tl_n_noemail: 'No email provided', tl_n_failed: '⚠️ Notification not sent', tl_n_nocfg: 'set up sending in “✉️ Notifications”', tl_n_done_toast: 'Ready-notification sent to {to}', tl_n_fail_toast: 'Issued, but the email was not sent: {e}', tl_n_err: 'Could not send: {e}' });
 
@@ -5180,7 +5187,7 @@
                 if (b.dataset.tlrIssue) tlOpenIssue(r); else if (b.dataset.tlrReject) tlOpenReject(r);
                 else if (b.dataset.tlrNotify) {   // повторная отправка письма о готовности
                     b.disabled = true;
-                    tlFetchMv(r).then(mv => tlNotifyReady(r, mv)).then(n => cmpToast(n.status === 'sent' ? fmt(t('tl_n_done_toast'), { to: n.to }) : n.status === 'noemail' ? t('tl_n_noemail') : fmt(t('tl_n_err'), { e: tlNotifyErrText(n.error) }), n.status === 'sent' ? 'ok' : 'err'))
+                    tlFetchMv(r).then(mv => tlNotifyReady(r, mv)).then(n => cmpToast(n.status === 'sent' ? fmt(t('tl_n_done_toast'), { to: n.to }) + (n.noImage ? ' ' + t('tl_n_noimg') : '') : n.status === 'noemail' ? t('tl_n_noemail') : fmt(t('tl_n_err'), { e: tlNotifyErrText(n.error) }), n.status === 'sent' ? 'ok' : 'err'))
                         .finally(() => { b.disabled = false; });
                 } else tlReprint(r);
             });
@@ -5306,7 +5313,7 @@
                     if (print) mmPrintSheet('bureau', { key: res.txId, r: res.mvDoc, items: res.mvDoc.items, notIssued: res.mvDoc.notIssued || [] }, printLang);
                     // заказ укомплектован и выдан → письмо «Ваш заказ готов» на email тимлида (в фоне, выдачу не задерживает)
                     tlNotifyReady(req, res.mvDoc).then(n => {
-                        if (n.status === 'sent') cmpToast(fmt(t('tl_n_done_toast'), { to: n.to }), 'ok');
+                        if (n.status === 'sent') cmpToast(fmt(t('tl_n_done_toast'), { to: n.to }) + (n.noImage ? ' ' + t('tl_n_noimg') : ''), 'ok');
                         else if (n.status === 'failed') cmpToast(fmt(t('tl_n_fail_toast'), { e: tlNotifyErrText(n.error) }), 'err');
                     });
                 } catch (x) { console.error(x); busy = false; syncBtns(); err.textContent = t('cmp_err_save'); }
@@ -5373,7 +5380,7 @@
                 : (req.items || []).map(i => line(i.name, i.sku, Number(i.qty) || 0, i.unit));
             const out = mv ? (mv.notIssued || []).map(i => line(i.name, i.sku, Number(i.qty) || 0, i.unit)) : [];
             return {
-                to_email: req.email || '', to_name: req.fio || '', emp_id: req.empId || '', req_no: req.reqNo || '', warehouse: req.warehouse || '',
+                to_email: req.email || '', email: req.email || '', to_name: req.fio || '', from_name: TL_MAIL_FROM, order_id: String((mv && mv.listNo) || req.listNo || req.reqNo || ''), attachment_image: '', emp_id: req.empId || '', req_no: req.reqNo || '', warehouse: req.warehouse || '',
                 process: req.process || '', items: items.join('\n'), not_issued: out.length ? out.join('\n') : '—', items_count: items.length,
                 ready_at: mmFmtDate(mv && mv.timestamp ? mv.timestamp : Date.now()), tx_id: (mv && mv.txId) || '', issued_by: currentUserName || ''
             };
@@ -5396,17 +5403,99 @@
         }
         const tlNotifyErrText = e => e === 'settings incomplete' ? t('tl_n_nocfg') : (e || '');
         const tlNotifyCfgOk = c => c && (c.mode === 'emailjs' ? !!(c.serviceId && c.templateId && c.publicKey) : c.mode === 'webhook' ? /^https:\/\//i.test(c.webhookUrl || '') : false);
+        // Отправитель письма (строго фиксированное значение) и лимит размера картинки в Base64 (под лимиты EmailJS)
+        const TL_MAIL_FROM = 'Material.warehouse.DC3';
+        const TL_SHEET_MAX_B64 = 400 * 1024;
+        // Лоадер поверх экрана (счётчик — на случай нескольких одновременных отправок)
+        let tlBusyN = 0;
+        function tlBusyShow(text) {
+            tlBusyN++;
+            let el = document.getElementById('tl-busy');
+            if (!el) {
+                el = document.createElement('div'); el.id = 'tl-busy';
+                el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+                el.className = 'fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm';
+                document.body.appendChild(el);
+            }
+            el.innerHTML = `<div class="flex max-w-[90vw] items-center gap-3 rounded-xl border border-solid border-klt-line bg-klt-card px-5 py-4 text-sm font-semibold text-slate-50 shadow-2xl">
+                <span class="inline-block h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-solid border-klt-emerald-light border-t-transparent"></span>${escapeHtml(text)}</div>`;
+            el.style.display = 'flex';
+        }
+        function tlBusyHide() {
+            tlBusyN = Math.max(0, tlBusyN - 1);
+            const el = document.getElementById('tl-busy'); if (el && !tlBusyN) el.style.display = 'none';
+        }
+        // Фото товаров → data URL (иначе внешние картинки «портят» canvas); не загрузилось — убираем <img>, лист всё равно соберётся
+        async function tlInlineImgs(d) {
+            await Promise.all([...d.images].map(async im => {
+                const src = im.getAttribute('src') || '';
+                if (!src || /^data:/i.test(src)) return;
+                try {
+                    const ac = new AbortController(), tm = setTimeout(() => ac.abort(), 5000);
+                    const r = await fetch(src, { mode: 'cors', signal: ac.signal }); clearTimeout(tm);
+                    if (!r.ok) throw new Error('img ' + r.status);
+                    const b = await r.blob();
+                    im.src = await new Promise((res, rej) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = rej; fr.readAsDataURL(b); });
+                } catch (e) { im.remove(); }
+            }));
+            await Promise.all([...d.images].map(im => im.complete ? null : new Promise(res => { im.onload = im.onerror = res; })));
+        }
+        // Печатная форма сборочного листа (тот же HTML, что идёт на печать) → скриншот html2canvas → JPEG Data URL (Base64).
+        // JPEG вместо PNG: лист с таблицей в PNG весит в разы больше, а у EmailJS жёсткие лимиты на размер.
+        async function mmSheetToDataUrl(group, op, lang) {
+            if (typeof html2canvas !== 'function') throw new Error('html2canvas not loaded');
+            const f = document.createElement('iframe');
+            f.setAttribute('aria-hidden', 'true');
+            f.style.cssText = 'position:fixed;left:-10000px;top:0;width:794px;height:1123px;border:0;opacity:0;pointer-events:none';   // 794px = A4 при 96 dpi
+            document.body.appendChild(f);
+            try {
+                const d = f.contentDocument; d.open(); d.write(mmSheetPrintHtml(group, op, lang)); d.close();
+                await Promise.race([tlInlineImgs(d), new Promise(res => setTimeout(res, 8000))]);
+                const body = d.body, h = Math.max(body.scrollHeight, 300);
+                f.style.height = h + 'px';
+                let canvas = await html2canvas(body, { scale: 1.5, backgroundColor: '#ffffff', useCORS: true, logging: false, width: 794, height: h, windowWidth: 794, windowHeight: h });
+                let q = 0.85, url = canvas.toDataURL('image/jpeg', q);
+                // не влезло в лимит: сначала снижаем качество, затем уменьшаем размер
+                for (let i = 0; url.length > TL_SHEET_MAX_B64 && i < 8; i++) {
+                    if (q > 0.55) q -= 0.1;
+                    else {
+                        const c = document.createElement('canvas'); c.width = Math.round(canvas.width * 0.8); c.height = Math.round(canvas.height * 0.8);
+                        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(canvas, 0, 0, c.width, c.height); canvas = c;
+                    }
+                    url = canvas.toDataURL('image/jpeg', q);
+                }
+                if (url.length > TL_SHEET_MAX_B64) throw new Error('sheet image too large');
+                return url;
+            } finally { f.remove(); }
+        }
         // Отправка письма «Заказ готов». Вызывается автоматически при переводе заявки в «Видано» и вручную кнопкой «Надіслати сповіщення».
-        // → { status: 'sent' | 'failed' | 'noemail', to, error }. Статуса «вимкнено» больше нет: нет настроек отправки = ошибка с подсказкой.
+        // Порядок: лоадер → скриншот сборочного листа (Base64 → params.attachment_image) → отправка → статус в заявке и в списке.
+        // → { status: 'sent' | 'failed' | 'noemail', to, error, noImage }. Не удалось сделать картинку — письмо уходит без неё (noImage: true).
         async function tlNotifyReady(req, mv) {
             const to = tlNorm(req.email);
             if (!to) return { status: 'noemail', to: '' };          // Email не указан — ничего не отправляем и не пишем в заявку
-            const cfg = await tlNotifyLoad();
-            let res;
-            if (!tlNotifyCfgOk(cfg)) res = { status: 'failed', error: 'settings incomplete' };
-            else { try { await tlNotifySend(cfg, tlNotifyParams(req, mv)); res = { status: 'sent' }; } catch (e) { console.error(e); res = { status: 'failed', error: String(e.message || e).slice(0, 300) }; } }
-            try { await updateDoc(doc(db, 'tl_requests', req._id), { notify: { to, at: Date.now(), mode: (cfg && cfg.mode) || 'off', status: res.status, error: res.error || '' } }); } catch (e) { console.error(e); }
-            return Object.assign({ to }, res);
+            tlBusyShow(t('tl_n_sending'));
+            let cfg, res, noImage = false;
+            try {
+                cfg = await tlNotifyLoad();
+                if (!tlNotifyCfgOk(cfg)) res = { status: 'failed', error: 'settings incomplete' };
+                else {
+                    try {
+                        const params = tlNotifyParams(req, mv);
+                        if (mv) {
+                            try { params.attachment_image = await mmSheetToDataUrl('bureau', { key: mv.txId, r: mv, items: mv.items || [], notIssued: mv.notIssued || [] }, mv.printLang); }
+                            catch (e) { console.error(e); params.attachment_image = ''; noImage = true; }
+                        } else noImage = true;
+                        await tlNotifySend(cfg, params);
+                        res = { status: 'sent' };
+                    } catch (e) { console.error(e); res = { status: 'failed', error: String(e.message || e).slice(0, 300) }; }
+                }
+                const notify = { to, at: Date.now(), mode: (cfg && cfg.mode) || 'off', status: res.status, error: res.error || '' };
+                try { await updateDoc(doc(db, 'tl_requests', req._id), { notify }); } catch (e) { console.error(e); }
+                // сразу показываем «🟢 Сповіщення надіслано» в списке, не дожидаясь снапшота Firestore
+                const row = tlReqs.find(x => x._id === req._id); if (row) { row.notify = notify; tlReqsRedraw(); }
+            } finally { tlBusyHide(); }
+            return Object.assign({ to, noImage }, res);
         }
         // Блок статуса + кнопка ручной (повторной) отправки. Кнопка активна всегда, пока у заявки есть Email.
         function tlNotifyHtml(r) {
