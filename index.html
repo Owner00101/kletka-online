@@ -5380,12 +5380,16 @@
                 : (req.items || []).map(i => line(i.name, i.sku, Number(i.qty) || 0, i.unit));
             const out = mv ? (mv.notIssued || []).map(i => line(i.name, i.sku, Number(i.qty) || 0, i.unit)) : [];
             return {
-                to_email: req.email || '', email: req.email || '', to_name: req.fio || '', from_name: TL_MAIL_FROM, order_id: String((mv && mv.listNo) || req.listNo || req.reqNo || ''), attachment_image: '', emp_id: req.empId || '', req_no: req.reqNo || '', warehouse: req.warehouse || '',
+                to_email: tlNorm(req.email).toLowerCase(), email: tlNorm(req.email).toLowerCase(), reply_to: tlNorm(req.email).toLowerCase(), to_name: req.fio || '', from_name: TL_MAIL_FROM, order_id: String((mv && mv.listNo) || req.listNo || req.reqNo || ''), attachment_image: '', emp_id: req.empId || '', req_no: req.reqNo || '', warehouse: req.warehouse || '',
                 process: req.process || '', items: items.join('\n'), not_issued: out.length ? out.join('\n') : '—', items_count: items.length,
                 ready_at: mmFmtDate(mv && mv.timestamp ? mv.timestamp : Date.now()), tx_id: (mv && mv.txId) || '', issued_by: currentUserName || ''
             };
         }
         async function tlNotifySend(cfg, params) {
+            // Адресат — только email из заявки тимлида (в тесте — адрес из окна настроек). Пустой/некорректный адрес → не отправляем вообще.
+            const rcpt = tlNorm(params.to_email).toLowerCase();
+            if (!TL_EMAIL.test(rcpt)) throw new Error('invalid recipient');
+            params = Object.assign({}, params, { to_email: rcpt, email: rcpt, reply_to: rcpt });
             if (cfg.mode === 'emailjs') {
                 const r = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -5563,7 +5567,7 @@
                 try {
                     await setDoc(tlNotifyRef(), Object.assign(c, { updatedAt: Date.now(), updatedBy: currentUserName || '' }));
                     tlNotifyCfg = c; m.close(); cmpToast(t('tl_n_saved'), 'ok');
-                } catch (x) { console.error(x); err.textContent = t('cmp_err_save'); busy = false; }
+                } catch (x) { console.error(x); err.textContent = t('cmp_err_save') + ' [' + (x && (x.code || x.message) || 'error') + ']'; busy = false; }
             };
         }
 
