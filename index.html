@@ -189,6 +189,9 @@
         /* Режим тимлида: доступен только «Портал заявок» (остальные разделы, склад в шторке и корзина выдачи скрыты) */
         body.tl-mode .sidebar-nav .nav-group:not(#nav-grp-req), body.tl-mode .sidebar-nav .nav-item:not([data-key="tl-portal"]),
         body.tl-mode .sidebar-warehouses, body.tl-mode #bur-cart-fab { display: none !important; }
+        /* Публичная ссылка для тимлидов (index.html?portal): без входа, без шторки и служебных кнопок — только портал заявок */
+        body.portal-mode .sidebar, body.portal-mode #logout-btn, body.portal-mode #add-emp-nav-btn, body.portal-mode #bur-cart-fab,
+        body.portal-mode #sync-indicator, body.portal-mode #login-screen { display: none !important; }
 
         .sidebar-warehouses { padding: 14px 12px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
         .warehouse-row { display: flex; gap: 6px; }
@@ -338,7 +341,7 @@
         // Страховка: если модуль Firebase не загрузился (нет сети), через 10 с показываем экран входа вместо вечной заставки
         setTimeout(function () {
             var sp = document.getElementById('boot-splash');
-            if (sp && !sp.classList.contains('hidden')) { sp.classList.add('hidden'); document.getElementById('login-screen').classList.remove('hidden'); }
+            if (sp && !sp.classList.contains('hidden')) { sp.classList.add('hidden'); if (!/[?&]portal\b/.test(location.search)) document.getElementById('login-screen').classList.remove('hidden'); }
         }, 10000);
     </script>
 
@@ -619,7 +622,7 @@
         } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
         import {
             getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-            createUserWithEmailAndPassword, signOut,
+            createUserWithEmailAndPassword, signOut, signInAnonymously,
             setPersistence, browserLocalPersistence, browserSessionPersistence
         } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
@@ -645,6 +648,9 @@
         let currentRole = '';
         let currentEmpId = '';
         const isTeamlead = () => currentRole === 'teamlead';
+        // Публичная ссылка для тимлидов: index.html?portal — портал заявок открывается без ID/PIN
+        const PORTAL_MODE = new URLSearchParams(location.search).has('portal');
+        let portalStarted = false;
         let currentWarehouse = 'DC1';
         let currentLang = 'ru';
 
@@ -756,6 +762,7 @@
         }
 
         onAuthStateChanged(auth, async (user) => {
+            if (PORTAL_MODE) { startPortalMode(user); return; }   // по ссылке для тимлидов: без экрана входа и без данных учётки
             const btn = document.getElementById('login-btn');
             if (user) {
                 let name = '';
@@ -796,6 +803,22 @@
         });
 
         if (getLockRemainingMs() > 0) startLockCountdown();
+
+        // Режим ссылки для тимлидов. Пробуем анонимный вход Firebase (если провайдер Anonymous включён — правила с
+        // request.auth != null продолжают работать); если он выключен — работаем без входа (тогда нужны публичные правила).
+        async function startPortalMode(user) {
+            if (portalStarted) return;
+            portalStarted = true;
+            if (!user) { try { await signInAnonymously(auth); } catch (e) { console.warn('Anonymous auth off:', e.code || e); } }
+            document.body.classList.add('portal-mode');
+            const ui = readUiState();
+            if (ui.lang && TR[ui.lang]) { currentLang = ui.lang; const ls = document.getElementById('lang-select'); if (ls) ls.value = ui.lang; }
+            hideBootSplash();
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('app-content').style.display = 'block';
+            document.querySelectorAll('[data-i18n]').forEach(el => { el.innerText = t(el.dataset.i18n); });
+            openPage('tl-portal');
+        }
 
         document.getElementById('login-btn').addEventListener('click', attemptLogin);
         document.getElementById('login-pin').addEventListener('keydown', (e) => { if (e.key === 'Enter') attemptLogin(); });
@@ -1060,7 +1083,7 @@
         }
 
         function showHome() {
-            if (isTeamlead()) { openPage('tl-portal'); return; }
+            if (isTeamlead() || PORTAL_MODE) { openPage('tl-portal'); return; }
             currentPageKey = null;
             saveUiState({ page: null });
             document.getElementById('page-view').style.display = 'none';
@@ -1072,7 +1095,7 @@
         }
 
         function openPage(key) {
-            if (isTeamlead()) key = 'tl-portal';   // у тимлида нет доступа к остальным разделам
+            if (isTeamlead() || PORTAL_MODE) key = 'tl-portal';   // у тимлида / по ссылке нет доступа к остальным разделам
             const p = PAGES[key];
             if (!p) return;
             currentPageKey = key;
@@ -1099,7 +1122,7 @@
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderCodeAudit(pv);
             } else if (key === 'tl-portal') {
-                pv.innerHTML = isTeamlead() ? '' : `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                pv.innerHTML = isTeamlead() || PORTAL_MODE ? '' : `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderTlPortal(pv);
             } else if (key === 'tl-requests') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
@@ -3163,7 +3186,7 @@
                 document.body.appendChild(fab);
             }
             const appVisible = document.getElementById('app-content').style.display === 'block';
-            fab.style.display = currentUid && appVisible && burCart.size && !isTeamlead() ? 'inline-flex' : 'none';
+            fab.style.display = currentUid && appVisible && burCart.size && !isTeamlead() && !PORTAL_MODE ? 'inline-flex' : 'none';
             fab.textContent = fmt(t('bur_cart_fab'), { n: burCart.size });
         }
         function burCartFabClick() {
@@ -4482,6 +4505,7 @@
             tl_sent: 'Заявка {no} отправлена на склад {wh}', tl_e_changed: 'Наличие изменилось, пока собиралась заявка — проверьте отмеченные позиции',
             tl_e_send: 'Не удалось отправить заявку (проверьте связь / правила Firestore)',
             tl_mine: 'Мои заявки', tl_mine_empty: 'Заявок пока нет', tl_s_new: 'Новая', tl_s_issued: 'Выдана', tl_s_rejected: 'Отклонена',
+            tl_f_email: 'Email', tl_f_email_ph: 'name@company.com', tl_e_email: 'Укажите корректный email (например, name@company.com)', tl_col_email: 'Email', tl_link: '🔗 Ссылка для тимлидов', tl_link_copied: 'Ссылка скопирована: {url}', tl_link_hint: 'Тимлиды открывают эту ссылку без входа по ID/PIN',
             tl_req_title: 'Входящие заявки тимлидов', tl_req_sub: 'Заявки на бюро-материалы склада {wh}. Выдача по заявке списывает остатки и формирует сборочный лист.',
             tl_f_all: 'Все', tl_req_search_ph: 'Поиск: ФИО, ID, процесс, № заявки, материал',
             tl_col_dt: 'Дата / время', tl_col_req: '№ заявки', tl_col_fio: 'ФИО', tl_col_id: 'ID', tl_col_wh: 'Склад',
@@ -4519,6 +4543,7 @@
             tl_sent: 'Заявку {no} надіслано на склад {wh}', tl_e_changed: 'Наявність змінилася, поки збиралася заявка — перевірте позначені позиції',
             tl_e_send: 'Не вдалося надіслати заявку (перевірте зв’язок / правила Firestore)',
             tl_mine: 'Мої заявки', tl_mine_empty: 'Заявок поки немає', tl_s_new: 'Нова', tl_s_issued: 'Видана', tl_s_rejected: 'Відхилена',
+            tl_f_email: 'Email', tl_f_email_ph: 'name@company.com', tl_e_email: 'Вкажіть коректний email (наприклад, name@company.com)', tl_col_email: 'Email', tl_link: '🔗 Посилання для тімлідів', tl_link_copied: 'Посилання скопійовано: {url}', tl_link_hint: 'Тімліди відкривають це посилання без входу за ID/PIN',
             tl_req_title: 'Вхідні заявки тімлідів', tl_req_sub: 'Заявки на бюро-матеріали складу {wh}. Видача за заявкою списує залишки та формує збірний лист.',
             tl_f_all: 'Усі', tl_req_search_ph: 'Пошук: ПІБ, ID, процес, № заявки, матеріал',
             tl_col_dt: 'Дата / час', tl_col_req: '№ заявки', tl_col_fio: 'ПІБ', tl_col_id: 'ID', tl_col_wh: 'Склад',
@@ -4556,6 +4581,7 @@
             tl_sent: 'Zgłoszenie {no} wysłane do magazynu {wh}', tl_e_changed: 'Dostępność zmieniła się podczas kompletowania — sprawdź oznaczone pozycje',
             tl_e_send: 'Nie udało się wysłać zgłoszenia (sprawdź połączenie / reguły Firestore)',
             tl_mine: 'Moje zgłoszenia', tl_mine_empty: 'Brak zgłoszeń', tl_s_new: 'Nowe', tl_s_issued: 'Wydane', tl_s_rejected: 'Odrzucone',
+            tl_f_email: 'E-mail', tl_f_email_ph: 'name@company.com', tl_e_email: 'Podaj poprawny e-mail (np. name@company.com)', tl_col_email: 'E-mail', tl_link: '🔗 Link dla liderów', tl_link_copied: 'Link skopiowany: {url}', tl_link_hint: 'Liderzy otwierają ten link bez logowania ID/PIN',
             tl_req_title: 'Zgłoszenia przychodzące od liderów', tl_req_sub: 'Zgłoszenia na materiały biurowe magazynu {wh}. Wydanie zdejmuje stany i tworzy listę kompletacji.',
             tl_f_all: 'Wszystkie', tl_req_search_ph: 'Szukaj: imię i nazwisko, ID, proces, nr zgłoszenia, materiał',
             tl_col_dt: 'Data / godzina', tl_col_req: 'Nr zgłoszenia', tl_col_fio: 'Imię i nazwisko', tl_col_id: 'ID', tl_col_wh: 'Magazyn',
@@ -4593,6 +4619,7 @@
             tl_sent: 'Request {no} sent to warehouse {wh}', tl_e_changed: 'Availability changed while you were building the request — check the marked lines',
             tl_e_send: 'Could not send the request (check connection / Firestore rules)',
             tl_mine: 'My requests', tl_mine_empty: 'No requests yet', tl_s_new: 'New', tl_s_issued: 'Issued', tl_s_rejected: 'Rejected',
+            tl_f_email: 'Email', tl_f_email_ph: 'name@company.com', tl_e_email: 'Enter a valid email (e.g. name@company.com)', tl_col_email: 'Email', tl_link: '🔗 Link for team leads', tl_link_copied: 'Link copied: {url}', tl_link_hint: 'Team leads open this link without ID/PIN login',
             tl_req_title: 'Incoming team lead requests', tl_req_sub: 'Office supply requests for warehouse {wh}. Issuing a request reduces stock and creates a picking list.',
             tl_f_all: 'All', tl_req_search_ph: 'Search: name, ID, process, request no., material',
             tl_col_dt: 'Date / time', tl_col_req: 'Request no.', tl_col_fio: 'Name', tl_col_id: 'ID', tl_col_wh: 'Warehouse',
@@ -4610,6 +4637,16 @@
         });
 
         const TL_IDENT_KEY = 'kletka_tl_ident_v1', TL_CART_KEY = 'kletka_tl_cart_v1', TL_MAX_QTY = 999;
+        // Владелец данных портала: по ссылке (?portal) входа нет — используем постоянный id этого браузера/устройства,
+        // для вошедшего тимлида — его uid. По нему хранятся корзина/идентификация и ищутся «Мои заявки».
+        function tlOwner() {
+            if (!PORTAL_MODE) return currentUid;
+            try {
+                let id = localStorage.getItem('kletka_tl_device_v1');
+                if (!id) { id = 'dev-' + Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join(''); localStorage.setItem('kletka_tl_device_v1', id); }
+                return id;
+            } catch (e) { return tlOwner.mem || (tlOwner.mem = 'dev-' + Date.now().toString(36)); }
+        }
         const tlWhs = () => [...document.querySelectorAll('#warehouse-row .warehouse-btn')].map(b => b.dataset.wh);
         // Статус наличия для тимлида — тот же порог, что у плашек в «Бюро-материалах» (burTone: «мало» = остаток ≤ минимума):
         //   qty ≤ 0 → 'out' 🔴 (добавить нельзя) · 0 < qty ≤ minQty → 'low' 🟡 · qty > minQty → 'ok' 🟢
@@ -4626,11 +4663,15 @@
         // ---- Идентификация: проверка полей. Возвращает { поле: ключ ошибки }; пустой объект = всё заполнено верно ----
         const tlNorm = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
         const TL_NAME_WORD = /^\p{L}[\p{L}'’ʼ.-]*$/u;
+        // email: локальная часть@домен.зона (зона ≥ 2 букв), без пробелов
+        const TL_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
         function tlIdentErrors(f) {
             const e = {}, fio = tlNorm(f.fio), id = tlNorm(f.empId), proc = tlNorm(f.process), words = fio ? fio.split(' ') : [];
             if (!fio) e.fio = 'tl_e_req';
             else if (fio.length > 80 || words.length < 2 || words.some(w => w.length < 2 || !TL_NAME_WORD.test(w))) e.fio = 'tl_e_fio';
             if (!id) e.empId = 'tl_e_req'; else if (!/^[A-Za-z0-9-]{3,20}$/.test(id)) e.empId = 'tl_e_id';
+            const em = tlNorm(f.email);
+            if (!em) e.email = 'tl_e_req'; else if (em.length > 100 || !TL_EMAIL.test(em)) e.email = 'tl_e_email';
             if (!f.wh || !tlWhs().includes(f.wh)) e.wh = 'tl_e_wh';
             if (!proc) e.process = 'tl_e_req'; else if (proc.length < 2 || proc.length > 60) e.process = 'tl_e_proc';
             return e;
@@ -4644,7 +4685,7 @@
         }
         function tlSendBlockers(identErr, lines, loaded) {   // → список причин блокировки (пустой = можно отправлять)
             const why = [], names = st => lines.filter(l => tlLineState(l) === st).map(l => l.it ? l.it.name : l.id.split('__').slice(1).join('__')).join(', ');
-            const missingF = Object.keys(identErr).map(k => t({ fio: 'tl_f_fio', empId: 'tl_f_id', wh: 'tl_f_wh', process: 'tl_f_process' }[k]));
+            const missingF = Object.keys(identErr).map(k => t({ fio: 'tl_f_fio', empId: 'tl_f_id', email: 'tl_f_email', wh: 'tl_f_wh', process: 'tl_f_process' }[k]));
             if (missingF.length) why.push(fmt(t('tl_h_ident'), { f: missingF.join(', ') }));
             if (!loaded && lines.length) { why.push(t('tl_h_wait')); return why; }
             if (!lines.length) why.push(t('tl_h_empty'));
@@ -4657,21 +4698,21 @@
         // ---- Хранилище тимлида (localStorage): идентификация по пользователю, корзина по пользователю+складу ----
         const tlLsGet = k => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
         const tlLsPut = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage недоступен */ } };
-        function tlIdentLoad() { return tlLsGet(TL_IDENT_KEY)[currentUid] || null; }
+        function tlIdentLoad() { return tlLsGet(TL_IDENT_KEY)[tlOwner()] || null; }
         function tlIdentSave(f, addProc) {
-            const all = tlLsGet(TL_IDENT_KEY), prev = all[currentUid] || {};
+            const all = tlLsGet(TL_IDENT_KEY), prev = all[tlOwner()] || {};
             let recent = Array.isArray(prev.recent) ? prev.recent : [];
             if (addProc && f.process) recent = [f.process, ...recent.filter(p => p.toLowerCase() !== f.process.toLowerCase())].slice(0, 8);
-            all[currentUid] = { fio: f.fio, empId: f.empId, wh: f.wh, process: f.process, recent };
+            all[tlOwner()] = { fio: f.fio, empId: f.empId, email: f.email, wh: f.wh, process: f.process, recent };
             tlLsPut(TL_IDENT_KEY, all);
         }
         function tlCartLoad(wh) {
-            const raw = (wh && tlLsGet(TL_CART_KEY)[`${currentUid}|${wh}`]) || {};
+            const raw = (wh && tlLsGet(TL_CART_KEY)[`${tlOwner()}|${wh}`]) || {};
             return new Map(Object.entries(raw).filter(([, q]) => Number.isInteger(q) && q >= 0));
         }
         function tlCartSave(wh, cart) {
             if (!wh) return;
-            const all = tlLsGet(TL_CART_KEY), key = `${currentUid}|${wh}`;
+            const all = tlLsGet(TL_CART_KEY), key = `${tlOwner()}|${wh}`;
             if (cart.size) all[key] = Object.fromEntries(cart); else delete all[key];
             tlLsPut(TL_CART_KEY, all);
         }
@@ -4680,8 +4721,8 @@
         async function renderTlPortal(pv) {
             const saved = tlIdentLoad();
             // поля из прошлой заявки на этом устройстве; при первом входе ФИО и ID подставляются из учётной записи
-            const f = saved ? { fio: saved.fio || '', empId: saved.empId || '', wh: saved.wh || '', process: saved.process || '' }
-                : { fio: currentUserName || '', empId: currentEmpId || '', wh: '', process: '' };
+            const f = saved ? { fio: saved.fio || '', empId: saved.empId || '', email: saved.email || '', wh: saved.wh || '', process: saved.process || '' }
+                : { fio: currentUserName || '', empId: currentEmpId || '', email: '', wh: '', process: '' };
             if (f.wh && !tlWhs().includes(f.wh)) f.wh = '';
             const recent = (saved && saved.recent) || [];
             let items = [], loadedFor = '', loadErr = false, cart = tlCartLoad(f.wh), q = '', busy = false, touched = new Set(), seq = 0;
@@ -4702,6 +4743,7 @@
                     <div class="grid gap-x-4 gap-y-1" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))">
                         ${fld('fio', t('tl_f_fio'), `<input id="tl-fio" type="text" autocomplete="name" maxlength="80" placeholder="${cmpAttr(t('tl_f_fio_ph'))}" value="${cmpAttr(f.fio)}" class="${CMP_FLD}">`)}
                         ${fld('empId', t('tl_f_id'), `<input id="tl-empId" type="text" autocomplete="off" maxlength="20" placeholder="${cmpAttr(t('tl_f_id_ph'))}" value="${cmpAttr(f.empId)}" class="${CMP_FLD} font-mono">`)}
+                        ${fld('email', t('tl_f_email'), `<input id="tl-email" type="email" autocomplete="email" maxlength="100" placeholder="${cmpAttr(t('tl_f_email_ph'))}" value="${cmpAttr(f.email)}" class="${CMP_FLD}">`)}
                         ${fld('wh', t('tl_f_wh'), `<div id="tl-wh" role="radiogroup" aria-label="${cmpAttr(t('tl_f_wh'))}" class="flex flex-wrap gap-2"></div>`)}
                         ${fld('process', t('tl_f_process'), `<input id="tl-process" type="text" autocomplete="off" maxlength="60" list="tl-proc-list" placeholder="${cmpAttr(t('tl_f_process_ph'))}" value="${cmpAttr(f.process)}" class="${CMP_FLD}">
                             <datalist id="tl-proc-list">${recent.map(p => `<option value="${cmpAttr(p)}"></option>`).join('')}</datalist>`)}
@@ -4736,14 +4778,14 @@
             pv.appendChild(wrap);
             const $ = s => wrap.querySelector(s);
 
-            const readF = () => ({ fio: tlNorm($('#tl-fio').value), empId: tlNorm($('#tl-empId').value), wh: f.wh, process: tlNorm($('#tl-process').value) });
+            const readF = () => ({ fio: tlNorm($('#tl-fio').value), empId: tlNorm($('#tl-empId').value), email: tlNorm($('#tl-email').value).toLowerCase(), wh: f.wh, process: tlNorm($('#tl-process').value) });
             const lines = () => [...cart].map(([id, qq]) => ({ id, q: qq, it: items.find(x => x.id === id) || null }));
             const loaded = () => !!f.wh && loadedFor === f.wh && !loadErr;
 
             // Ошибки показываем у поля после того, как с ним поработали (или после попытки отправки), статус блока — всегда
             function drawIdent() {
                 const e = tlIdentErrors(readF());
-                ['fio', 'empId', 'wh', 'process'].forEach(k => {
+                ['fio', 'empId', 'email', 'wh', 'process'].forEach(k => {
                     const el = $(`[data-err="${k}"]`), show = touched.has(k) && e[k];
                     el.textContent = show ? t(e[k]) : '';
                     const inp = $(`#tl-${k}`); if (inp && inp.tagName === 'INPUT') inp.classList.toggle('!border-red-400', !!show);
@@ -4827,7 +4869,7 @@
             async function loadMine() {
                 const box = $('#tl-mine');
                 try {
-                    const snap = await getDocs(query(collection(db, 'tl_requests'), where('createdBy', '==', currentUid)));
+                    const snap = await getDocs(query(collection(db, 'tl_requests'), where('createdBy', '==', tlOwner())));
                     const rows = snap.docs.map(d => d.data()).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 20);
                     if (!wrap.isConnected) return;
                     if (!rows.length) { box.innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-6 text-center text-sm text-klt-muted">${t('tl_mine_empty')}</div>`; return; }
@@ -4841,7 +4883,7 @@
             }
 
             // ---- события ----
-            ['fio', 'empId', 'process'].forEach(k => {
+            ['fio', 'empId', 'email', 'process'].forEach(k => {
                 const inp = $(`#tl-${k}`);
                 inp.addEventListener('input', () => { $('#tl-err').textContent = ''; tlIdentSave(readF(), false); drawSend(); });
                 inp.addEventListener('blur', () => { touched.add(k); drawSend(); });
@@ -4882,7 +4924,7 @@
             $('#tl-clear').onclick = () => { cart.clear(); saveCart(); drawList(); drawLines(); drawSend(); };
 
             $('#tl-send').onclick = async () => {
-                ['fio', 'empId', 'wh', 'process'].forEach(k => touched.add(k));
+                ['fio', 'empId', 'email', 'wh', 'process'].forEach(k => touched.add(k));
                 if (busy || drawSend().length) return;   // повторная проверка в момент нажатия
                 const ff = readF(), ls = lines(), err = $('#tl-err');
                 busy = true; $('#tl-send').disabled = true; err.textContent = '';
@@ -4899,14 +4941,14 @@
                     if (changed) { err.textContent = t('tl_e_changed'); busy = false; drawList(); drawLines(); drawSend(); return; }
                     const reqNo = mmTxId('REQ');
                     await addDoc(collection(db, 'tl_requests'), {
-                        reqNo, status: 'new', fio: ff.fio, empId: ff.empId, warehouse: ff.wh, process: ff.process,
+                        reqNo, status: 'new', fio: ff.fio, empId: ff.empId, email: ff.email, warehouse: ff.wh, process: ff.process,
                         items: ls.map(l => ({ id: l.id, sku: l.it.sku, name: l.it.name, unit: l.it.unit, qty: l.q })),
-                        createdAt: Date.now(), createdBy: currentUid, createdByName: currentUserName || ''
+                        createdAt: Date.now(), createdBy: tlOwner(), createdByName: currentUserName || '', viaLink: PORTAL_MODE
                     });
                     tlIdentSave(ff, true);
                     cart.clear(); saveCart(); busy = false;
                     cmpToast(fmt(t('tl_sent'), { no: reqNo, wh: ff.wh }), 'ok');
-                    logActivity('tl_request', `Заявка тимлида ${reqNo}: ${ff.fio} (ID ${ff.empId}), склад ${ff.wh}, процесс «${ff.process}», позиций ${ls.length}`);
+                    logActivity('tl_request', `Заявка тимлида ${reqNo}: ${ff.fio} (ID ${ff.empId}, ${ff.email}), склад ${ff.wh}, процесс «${ff.process}», позиций ${ls.length}`);
                     drawList(); drawLines(); drawSend(); loadMine();
                 } catch (x) { console.error(x); err.textContent = t('tl_e_send'); busy = false; drawSend(); }
             };
@@ -4949,6 +4991,11 @@
                     <h2 class="flex items-center gap-2.5 text-xl font-bold text-klt-emerald-light">📨 ${t('tl_req_title')}
                         <span class="rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
                     <p class="mt-1 text-[13px] text-klt-muted">${fmt(t('tl_req_sub'), { wh: escapeHtml(currentWarehouse) })}</p>
+                    <div class="mt-3 flex flex-wrap items-center gap-2">
+                        <button type="button" id="tlr-link" class="${CMP_BTN} text-[13px]">${t('tl_link')}</button>
+                        <input id="tlr-link-url" type="text" readonly aria-label="${cmpAttr(t('tl_link'))}" class="${CMP_FLD} max-w-[460px] font-mono text-xs">
+                        <span class="text-[11px] text-klt-muted">${t('tl_link_hint')}</span>
+                    </div>
                 </div>
                 <div class="mb-3 flex flex-wrap items-center gap-2">
                     <input id="tlr-q" type="text" autocomplete="off" placeholder="${cmpAttr(t('tl_req_search_ph'))}" class="min-w-[220px] flex-1 ${CMP_FLD}">
@@ -4970,7 +5017,7 @@
                 if (tlReqsState === 'loading') { body.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
                 if (tlReqsState === 'err') { body.innerHTML = `<div class="px-4 py-8 text-center text-sm text-red-300">${t('tl_req_err')}</div>`; return; }
                 const s = q.trim().toLowerCase();
-                const list = tlReqs.filter(r => (filter === 'all' || r.status === filter) && (!s || [r.reqNo, r.fio, r.empId, r.process, ...(r.items || []).flatMap(i => [i.sku, i.name])]
+                const list = tlReqs.filter(r => (filter === 'all' || r.status === filter) && (!s || [r.reqNo, r.fio, r.empId, r.email, r.process, ...(r.items || []).flatMap(i => [i.sku, i.name])]
                     .some(v => String(v || '').toLowerCase().includes(s))));
                 if (!list.length) { body.innerHTML = `<div class="px-4 py-10 text-center text-sm text-klt-muted">${t('tl_req_empty')}</div>`; return; }
                 body.innerHTML = `<table class="w-full min-w-[1000px] border-collapse text-[13px]"><thead><tr>
@@ -4989,7 +5036,7 @@
                         return `<tr data-tlr-row="${id}" class="transition hover:bg-klt-hover">
                             <td class="${td} whitespace-nowrap">${escapeHtml(mmFmtDate(r.createdAt || 0))}</td>
                             <td class="${td} whitespace-nowrap font-mono text-klt-emerald-light">${escapeHtml(r.reqNo || '—')}</td>
-                            <td class="${td} font-semibold">${escapeHtml(r.fio || '—')}</td>
+                            <td class="${td} font-semibold">${escapeHtml(r.fio || '—')}${r.email ? `<div class="mt-0.5 text-[11px] font-normal"><a href="mailto:${cmpAttr(r.email)}" class="text-blue-300 no-underline hover:underline" style="overflow-wrap:anywhere">${escapeHtml(r.email)}</a></div>` : ''}</td>
                             <td class="${td} font-mono">${escapeHtml(r.empId || '—')}</td>
                             <td class="${td} font-bold">${escapeHtml(r.warehouse || '—')}</td>
                             <td class="${td}">${escapeHtml(r.process || '—')}</td>
@@ -5000,6 +5047,14 @@
                     }).join('')}</tbody></table>`;
             }
             tlReqsRedraw = () => { if (!wrap.isConnected) return; drawSeg(); drawBody(); };
+            // Публичная ссылка на портал: тот же файл с параметром ?portal
+            const portalUrl = location.origin + location.pathname + '?portal';
+            $('#tlr-link-url').value = portalUrl;
+            $('#tlr-link-url').onclick = e => e.target.select();
+            $('#tlr-link').onclick = async () => {
+                try { await navigator.clipboard.writeText(portalUrl); } catch (e) { $('#tlr-link-url').select(); try { document.execCommand('copy'); } catch (x) { /* ignore */ } }
+                cmpToast(fmt(t('tl_link_copied'), { url: portalUrl }), 'ok');
+            };
             $('#tlr-seg').onclick = e => { const b = e.target.closest('[data-f]'); if (b) { filter = b.dataset.f; drawSeg(); drawBody(); } };
             $('#tlr-q').addEventListener('input', e => { q = e.target.value; drawBody(); });
             $('#tlr-body').addEventListener('click', e => {
@@ -5021,7 +5076,7 @@
                     ${tlReqBadge(req.status)}
                 </div>
                 <div class="mb-4 grid gap-3 rounded-xl border border-solid border-klt-line bg-klt-bg p-3" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))">
-                    ${[['tl_col_fio', req.fio], ['tl_col_id', req.empId], ['tl_col_wh', req.warehouse], ['tl_f_process', req.process], ['tl_col_dt', mmFmtDate(req.createdAt || 0)]].map(([l, v]) =>
+                    ${[['tl_col_fio', req.fio], ['tl_col_id', req.empId], ['tl_col_email', req.email], ['tl_col_wh', req.warehouse], ['tl_f_process', req.process], ['tl_col_dt', mmFmtDate(req.createdAt || 0)]].map(([l, v]) =>
                         `<div><div class="text-[11px] font-bold uppercase tracking-wider text-klt-muted">${t(l)}</div><div class="mt-0.5 text-sm font-semibold text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(v || '—')}</div></div>`).join('')}
                 </div>
                 <div id="tli-lines" class="mb-4 overflow-x-auto"><div class="py-8 text-center text-klt-muted">…</div></div>
@@ -5106,7 +5161,7 @@
                 try {
                     const res = await burCommitIssue({
                         give, notIssued, mustBeZero,
-                        meta: Object.assign({ toType: 'emp', to: `${req.fio} (ID ${req.empId})`, note, printLang, reqId: req._id, reqNo: req.reqNo || '', process: req.process || '', empId: req.empId || '', fio: req.fio || '' }, listNo ? { listNo } : {}),
+                        meta: Object.assign({ toType: 'emp', to: `${req.fio} (ID ${req.empId})`, note, printLang, reqId: req._id, reqNo: req.reqNo || '', process: req.process || '', empId: req.empId || '', fio: req.fio || '', email: req.email || '' }, listNo ? { listNo } : {}),
                         // заявка должна быть всё ещё «новой» — защита от двойной выдачи с двух устройств
                         before: async tx => { const sn = await tx.get(reqRef); return !sn.exists() || sn.data().status !== 'new' ? 'taken' : null; },
                         after: (tx, mv) => tx.update(reqRef, {
