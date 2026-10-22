@@ -55,6 +55,30 @@
         .boot-splash.hidden { display: none; }
         .boot-spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(52, 211, 153, 0.2); border-top-color: var(--emerald-light); animation: boot-spin .8s linear infinite; }
         @keyframes boot-spin { to { transform: rotate(360deg); } }
+        /* <PortalLoader />: тёмная заставка поверх всего, пока портал определяет режим и поднимает Firebase.
+           Главное меню (#home-view) в режиме портала / тимлида не показывается вообще — мигать нечему. */
+        .portal-loader { transition: opacity .25s ease; }
+        .portal-loader.leaving { opacity: 0; pointer-events: none; }
+        body.portal-mode #home-view, body.tl-mode #home-view { display: none !important; }
+        body.portal-loading #app-content { visibility: hidden; }
+        /* Кнопки изменения количества (− / +) */
+        .qty-btn { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex: none; padding: 0;
+            border-radius: 8px; border: 1px solid var(--border-color); background: rgba(16, 185, 129, 0.08); color: var(--emerald-light);
+            cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+            transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .1s; }
+        .qty-btn svg { width: 16px; height: 16px; pointer-events: none; }
+        .qty-btn:hover:not(:disabled) { background: rgba(16, 185, 129, 0.22); border-color: var(--emerald); box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12); }
+        .qty-btn:active:not(:disabled) { transform: scale(.92); }
+        .qty-btn:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
+        .qty-btn:disabled { cursor: not-allowed; opacity: .35; background: transparent; border-style: dashed; color: var(--text-muted); box-shadow: none; }
+        .tl-light .qty-btn { border-color: #cfe5da; background: #ecf7f1; color: #047857; }
+        .tl-light .qty-btn:hover:not(:disabled) { background: #d5efe2; border-color: #10b981; }
+        .tl-light .qty-btn:disabled { background: transparent; color: #7c9a8b; }
+        /* убираем нативные ▲▼ у number-полей количества */
+        .qty-input { -moz-appearance: textfield; appearance: textfield; }
+        .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        /* Переключатель языка печати: только код, без дублей */
+        .lang-flag { font-size: 16px; line-height: 1; }
         .login-screen::before {
             content: ""; position: absolute; width: 600px; height: 600px; border-radius: 50%;
             background: radial-gradient(circle, rgba(52, 211, 153, 0.18), transparent 70%);
@@ -375,7 +399,17 @@
         // Форма для тимлидов (?portal) открывается сразу — без заставки. Заставка нужна только основному приложению
         // (чтобы не мигал экран входа, пока Firebase восстанавливает сессию).
         (function () {
-            if (/[?&]portal\b/.test(location.search)) { document.body.classList.add('portal-mode'); return; }
+            if (/[?&]portal\b/.test(location.search)) {
+                // режим портала определяем ДО первого рендера: сразу тёмная заставка, главное меню скрыто CSS-ом
+                document.body.classList.add('portal-mode', 'portal-loading');
+                document.body.insertAdjacentHTML('afterbegin', '<div class="boot-splash portal-loader" id="portal-loader" role="status" aria-live="polite"><div class="boot-spinner"></div><div>Kletka Online…</div></div>');
+                // Страховка: если Firebase не ответил, через 12 с всё равно показываем форму (она работает и без входа)
+                setTimeout(function () {
+                    document.body.classList.remove('portal-loading');
+                    var l = document.getElementById('portal-loader'); if (l) l.remove();
+                }, 12000);
+                return;
+            }
             document.body.insertAdjacentHTML('afterbegin', '<div class="boot-splash" id="boot-splash"><div class="boot-spinner"></div><div>Kletka Online…</div></div>');
             // Страховка: если модуль Firebase не загрузился (нет сети), через 10 с показываем экран входа вместо вечной заставки
             setTimeout(function () {
@@ -726,6 +760,11 @@
         function readUiState() { try { return JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}') || {}; } catch (e) { return {}; } }
         function saveUiState(patch) { try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(Object.assign(readUiState(), patch))); } catch (e) { /* storage недоступен */ } }
         function hideBootSplash() { const sp = document.getElementById('boot-splash'); if (sp) sp.classList.add('hidden'); }
+        function hidePortalLoader() {
+            document.body.classList.remove('portal-loading');
+            const l = document.getElementById('portal-loader'); if (!l) return;
+            l.classList.add('leaving'); setTimeout(() => l.remove(), 260);
+        }
 
         function showApp(userName) {
             hideBootSplash();
@@ -858,8 +897,13 @@
             document.getElementById('login-screen').classList.add('hidden');
             document.getElementById('app-content').style.display = 'block';
             document.querySelectorAll('[data-i18n]').forEach(el => { el.innerText = t(el.dataset.i18n); });
-            if (!user) { try { await signInAnonymously(auth); } catch (e) { console.warn('Anonymous auth off:', e.code || e); } }
-            openPage('tl-portal');
+            try {
+                if (!user) { try { await signInAnonymously(auth); } catch (e) { console.warn('Anonymous auth off:', e.code || e); } }
+                openPage('tl-portal');
+            } finally {
+                // убираем заставку только после того, как форма портала уже в DOM (два кадра — чтобы она успела отрисоваться)
+                requestAnimationFrame(() => requestAnimationFrame(hidePortalLoader));
+            }
         }
 
         document.getElementById('login-btn').addEventListener('click', attemptLogin);
@@ -2032,6 +2076,9 @@
         const CMP_BTN = 'cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-3 py-2 text-sm font-bold text-slate-50 transition hover:border-klt-emerald hover:text-klt-emerald-light disabled:cursor-not-allowed disabled:opacity-40';
         const CMP_BTN_MAIN = 'cursor-pointer rounded-lg border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark px-4 py-2 text-sm font-bold text-[#052e21] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
 
+        // Кнопки − / + для изменения количества (SVG в стиле Lucide Minus / Plus). Общий хелпер для корзины тимлидов, бюро и карточек.
+        const QTY_SVG = { '-1': '<path d="M5 12h14"/>', '1': '<path d="M5 12h14"/><path d="M12 5v14"/>' };
+        const qtyBtn = (step, attrs, disabled) => `<button type="button" ${attrs} aria-label="${step < 0 ? '−1' : '+1'}" class="qty-btn"${disabled ? ' disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${QTY_SVG[step < 0 ? '-1' : '1']}</svg></button>`;
         const CMP_ICO = 'cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-2.5 py-2 text-sm leading-none text-slate-50 transition hover:border-klt-emerald disabled:cursor-not-allowed disabled:opacity-40';
 
         function cmpQtyTone(it) {
@@ -2056,8 +2103,8 @@
             const id = cmpAttr(it.id), pos = compact ? 'justify-end' : 'mt-4';
             if (it.archived) return `<div class="flex gap-2 ${pos}"><button type="button" data-cmp-act="restore" data-id="${id}" class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">♻️ ${t('cmp_restore')}</button></div>`;
             return `<div class="flex flex-wrap gap-2 ${pos}">
-                <button type="button" data-cmp-act="dec" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} aria-label="−1" class="${CMP_BTN}">− 1</button>
-                <button type="button" data-cmp-act="inc" data-id="${id}" aria-label="+1" class="${CMP_BTN}">+ 1</button>
+                ${qtyBtn(-1, `data-cmp-act="dec" data-id="${id}"`, it.qty <= 0)}
+                ${qtyBtn(1, `data-cmp-act="inc" data-id="${id}"`, false)}
                 <button type="button" data-cmp-act="receive" data-id="${id}" class="${CMP_BTN}">${t('cmp_receive')}</button>
                 <button type="button" data-cmp-act="issue" data-id="${id}" ${it.qty <= 0 ? 'disabled' : ''} class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">${t('cmp_issue')}</button>
                 ${compact ? cmpIcons(it) : ''}
@@ -2734,7 +2781,7 @@
                         ${r.txId ? `<div class="mt-0.5 font-mono text-[11px] text-klt-muted">${escapeHtml(r.txId)}</div>` : ''}</div>
                     <div class="flex flex-wrap items-center gap-2">
                         ${mmIsBurIssue(group, r) ? `<select data-op-lang aria-label="${cmpAttr(t('bur_print_lang'))}" title="${cmpAttr(t('bur_print_lang'))}" class="cursor-pointer rounded-lg border border-solid border-klt-line bg-klt-bg px-2.5 py-2 text-[13px] font-semibold text-slate-50 outline-none focus:border-klt-emerald">
-                            ${PRINT_LANGS.map(([k, fl, c]) => `<option value="${k}"${printLangOk(r.printLang) === k ? ' selected' : ''}>${fl} ${c}</option>`).join('')}</select>` : ''}
+                            ${PRINT_LANGS.map(([k, fl, c]) => `<option value="${k}"${printLangOk(r.printLang) === k ? ' selected' : ''}>${c}</option>`).join('')}</select>` : ''}
                         <button type="button" data-op-print="${cmpAttr(op.key)}" class="${CMP_BTN} text-[13px]">🖨 ${t('mm_sheet_print')}</button>
                     </div>
                 </div>
@@ -2764,6 +2811,8 @@
         // Язык печатного бланка «Выдача бюро материалов» не зависит от языка интерфейса: выбирается в корзине (по умолчанию UA),
         // сохраняется в операции (printLang) и может быть изменён перед повторной печатью из журнала.
         const PRINT_LANGS = [['uk', '🇺🇦', 'UA'], ['pl', '🇵🇱', 'PL'], ['en', '🇬🇧', 'EN']];
+        // Подпись языка = ТОЛЬКО код (UA / PL / EN). Флаг-эмодзи на Windows рисуется буквами («🇺🇦» → «UA»), из-за чего выходило «UA UA».
+        const PRINT_LANG_NAMES = { uk: 'Українська', pl: 'Polski', en: 'English' };
         const PRINT_LANG_DEF = 'uk';
         const PRINT_TR = {
             uk: {
@@ -3343,9 +3392,9 @@
                 ${out ? `<div class="mb-3 rounded-lg border border-solid border-klt-orange/60 bg-klt-orange/10 px-3 py-2 text-xs font-semibold text-klt-orange-light">⚠ ${t('bur_q_out_note')}</div>` : ''}
                 <label class="${CMP_LBL}" for="bur-q-n">${t('bur_rc_qty')}</label>
                 <div class="flex flex-wrap items-center gap-2">
-                    <button type="button" data-q-step="-1" aria-label="−1" class="${CMP_ICO} px-3.5">−</button>
-                    <input id="bur-q-n" type="number" min="1" step="1" inputmode="numeric" value="1" style="width:6rem" class="${CMP_FLD} text-center text-base font-bold">
-                    <button type="button" data-q-step="1" aria-label="+1" class="${CMP_ICO} px-3.5">+</button>
+                    ${qtyBtn(-1, 'data-q-step="-1"', false)}
+                    <input id="bur-q-n" type="number" min="1" step="1" inputmode="numeric" value="1" style="width:6rem" class="qty-input ${CMP_FLD} text-center text-base font-bold">
+                    ${qtyBtn(1, 'data-q-step="1"', false)}
                     <span class="text-sm text-klt-muted">${unit}</span>
                     <button type="button" id="bur-q-max" class="${CMP_BTN} ml-auto text-[13px]" ${out ? 'hidden' : ''}></button>
                 </div>
@@ -3372,9 +3421,15 @@
             m.ov.addEventListener('click', e => {
                 const b = e.target.closest('[data-q-step]'); if (!b) return;
                 const q = read(), next = (Number.isInteger(q) ? q : 0) + Number(b.dataset.qStep);
-                inp.value = String(Math.min(Math.max(1, room()), Math.max(1, next))); err.textContent = '';
+                inp.value = String(Math.min(Math.max(1, room()), Math.max(1, next))); err.textContent = ''; syncQ();
             });
-            $('#bur-q-max').onclick = () => { inp.value = String(Math.max(1, room())); err.textContent = ''; inp.focus(); };
+            const syncQ = () => {   // disabled на границах: минимум 1, максимум — доступный остаток
+                const v = read(), lo = m.ov.querySelector('[data-q-step="-1"]'), hi = m.ov.querySelector('[data-q-step="1"]');
+                if (lo) lo.disabled = !(Number.isInteger(v) && v > 1);
+                if (hi) hi.disabled = Number.isInteger(v) && v >= Math.max(1, room());
+            };
+            inp.addEventListener('input', syncQ); syncQ();
+            $('#bur-q-max').onclick = () => { inp.value = String(Math.max(1, room())); err.textContent = ''; syncQ(); inp.focus(); };
             $('#bur-q-cancel').onclick = m.close;
             const go = () => {
                 burCartEnsure(); drawRoom();   // корзину могли изменить в другой вкладке — считаем по свежему значению
@@ -3618,7 +3673,7 @@
                             <div class="text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))} · ${fmt(t('bur_cart_avail'), { n: it.qty, unit: escapeHtml(it.unit) })}</div>
                             <div data-msg class="text-xs font-semibold ${msgCls(st)}">${escapeHtml(msgOf(it, st))}</div>
                         </div>
-                        <input type="number" data-k-qty="${id}" min="1" ${it.qty > 0 ? `max="${it.qty}"` : ''} step="1" inputmode="numeric" value="${q}" aria-label="${cmpAttr(t('cmp_issue_qty'))}" style="width:5rem" class="${CMP_FLD} text-center">
+                        <input type="number" data-k-qty="${id}" min="1" ${it.qty > 0 ? `max="${it.qty}"` : ''} step="1" inputmode="numeric" value="${q}" aria-label="${cmpAttr(t('cmp_issue_qty'))}" style="width:5rem" class="qty-input ${CMP_FLD} text-center">
                         <span class="text-sm text-klt-muted">${escapeHtml(it.unit)}</span>
                         <button type="button" data-k-del="${id}" title="${cmpAttr(t('bur_cart_del'))}" aria-label="${cmpAttr(t('bur_cart_del'))}" class="${CMP_ICO}">✕</button></div>`;
                 }).join('');
@@ -3640,7 +3695,7 @@
             };
             const drawLang = () => {
                 $('#bur-k-lang').innerHTML = PRINT_LANGS.map(([k, fl, c]) =>
-                    `<button type="button" data-lang="${k}" role="radio" aria-checked="${printLang === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${printLang === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${fl} ${c}</button>`).join('');
+                    `<button type="button" data-lang="${k}" role="radio" aria-checked="${printLang === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${printLang === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}" title="${PRINT_LANG_NAMES[k]}">${c}</button>`).join('');
             };
             drawSeg(); drawLines(); drawLang();
             $('#bur-k-lang').onclick = e => { const b = e.target.closest('[data-lang]'); if (b) { printLang = printLangOk(b.dataset.lang); burPrintLangSet(printLang); drawLang(); } };
@@ -4849,7 +4904,7 @@
                         <p class="mt-1.5 max-w-[760px] text-sm leading-relaxed text-klt-muted">${t('tl_sub')}</p>
                     </div>
                     <div id="tl-lang" role="radiogroup" aria-label="Language" class="flex shrink-0 gap-1.5">${TL_LANGS.map(([k, fl, c]) =>
-                        `<button type="button" data-tl-lang="${k}" role="radio" aria-checked="${currentLang === k}" title="${c}" class="flex cursor-pointer items-center gap-1 rounded-lg border border-solid px-2.5 py-1.5 text-[13px] font-bold transition ${currentLang === k ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald'}"><span class="text-lg leading-none">${fl}</span>${c}</button>`).join('')}</div>
+                        `<button type="button" data-tl-lang="${k}" role="radio" aria-checked="${currentLang === k}" title="${c}" class="flex cursor-pointer items-center gap-1 rounded-lg border border-solid px-2.5 py-1.5 text-[13px] font-bold transition ${currentLang === k ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald'}">${c}</button>`).join('')}</div>
                 </div>
                 <section id="tl-ident-box" class="mb-6 rounded-xl border border-solid border-klt-line bg-klt-bg p-4 sm:p-5">
                     <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -4955,9 +5010,9 @@
                         <div class="mt-1.5 flex flex-wrap items-center gap-2">
                             ${l.it ? tlStBadge(tlStatus(l.it)) : ''}
                             <span class="ml-auto inline-flex items-center gap-1">
-                                <button type="button" data-tl-step="-1" data-id="${id}" aria-label="−1" class="${CMP_ICO} px-2.5 py-1">−</button>
-                                <input type="number" data-tl-qty="${id}" min="1" max="${TL_MAX_QTY}" step="1" inputmode="numeric" value="${l.q}" aria-label="${cmpAttr(t('tl_col_req_qty'))}" style="width:4.2rem" class="${CMP_FLD} px-2 py-1 text-center ${st === 'qty' ? '!border-red-400' : ''}">
-                                <button type="button" data-tl-step="1" data-id="${id}" aria-label="+1" class="${CMP_ICO} px-2.5 py-1">+</button>
+                                ${qtyBtn(-1, `data-tl-step="-1" data-id="${id}"`, l.q <= 1)}
+                                <input type="number" data-tl-qty="${id}" min="1" max="${TL_MAX_QTY}" step="1" inputmode="numeric" value="${l.q}" aria-label="${cmpAttr(t('tl_col_req_qty'))}" style="width:4.2rem" class="qty-input ${CMP_FLD} px-2 py-1 text-center ${st === 'qty' ? '!border-red-400' : ''}">
+                                ${qtyBtn(1, `data-tl-step="1" data-id="${id}"`, l.q >= TL_MAX_QTY)}
                                 <span class="text-xs text-klt-muted">${l.it ? escapeHtml(l.it.unit) : ''}</span>
                             </span></div></div>`;
                 }).join('');
@@ -5221,7 +5276,7 @@
             $('#tli-cancel').onclick = m.close;
             const drawLang = () => {
                 $('#tli-lang').innerHTML = PRINT_LANGS.map(([k, fl, c]) =>
-                    `<button type="button" data-lang="${k}" role="radio" aria-checked="${printLang === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${printLang === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${fl} ${c}</button>`).join('');
+                    `<button type="button" data-lang="${k}" role="radio" aria-checked="${printLang === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${printLang === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}" title="${PRINT_LANG_NAMES[k]}">${c}</button>`).join('');
             };
             drawLang();
             $('#tli-lang').onclick = e => { const b = e.target.closest('[data-lang]'); if (b) { printLang = printLangOk(b.dataset.lang); burPrintLangSet(printLang); drawLang(); } };
