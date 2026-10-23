@@ -212,7 +212,7 @@
         .nav-badge[hidden] { display: none; }
         .sidebar.collapsed .nav-badge { position: absolute; margin: -18px 0 0 14px; padding: 0 5px; min-width: 0; }
         /* Режим тимлида: доступен только «Портал заявок» (остальные разделы, склад в шторке и корзина выдачи скрыты) */
-        body.tl-mode .sidebar-nav .nav-group:not(#nav-grp-req), body.tl-mode .sidebar-nav .nav-item:not([data-key="tl-portal"]),
+        body.tl-mode .sidebar-nav,
         body.tl-mode .sidebar-warehouses, body.tl-mode #bur-cart-fab { display: none !important; }
         /* Публичная ссылка для тимлидов (index.html?portal): без входа, без шторки и служебных кнопок — только портал заявок */
         body.portal-mode .sidebar, body.portal-mode .topbar, body.portal-mode #bur-cart-fab, body.portal-mode #login-screen { display: none !important; }
@@ -283,6 +283,9 @@
         .home-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 
         /* ===== Метрики: 2 ряда по 4 карточки, с цветовой индикацией по типу учёта ===== */
+        .stat-row.stat-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        @media (max-width: 760px) { .stat-row.stat-row-3 { grid-template-columns: 1fr; } }
+        .nav-item span.nav-cat { text-transform: uppercase; letter-spacing: .9px; font-size: 12px; font-weight: 700; }
         .stat-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); margin: 0 0 10px; }
         .stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
         @media (max-width: 900px) { .stat-row { grid-template-columns: repeat(2, minmax(0,1fr)); } }
@@ -460,66 +463,57 @@
 
                 <nav class="sidebar-nav">
                     <div class="nav-group">
-                        <div class="nav-group-title" data-i18n="grp_main">Главное</div>
                         <button class="nav-item active" data-key="home" onclick="window.showHome()">
-                            <span class="nav-icon">🏠</span><span class="nav-label" data-i18n="nav_home">Главная страница</span>
-                        </button>
-                        <button class="nav-item" data-key="material-master" onclick="window.openPage('material-master')">
-                            <span class="nav-icon">📦</span><span class="nav-label" data-i18n="nav_material">Material Master</span>
-                        </button>
-                        <button class="nav-item" data-key="asset-ledger" onclick="window.openPage('asset-ledger')">
-                            <span class="nav-icon">📒</span><span class="nav-label" data-i18n="nav_ledger">Asset Ledger</span>
-                        </button>
-                        <button class="nav-item" data-key="components" onclick="window.openPage('components')">
-                            <span class="nav-icon">🔌</span><span class="nav-label" data-i18n="nav_components">Комплектующие</span>
-                        </button>
-                        <button class="nav-item" data-key="bureau-materials" onclick="window.openPage('bureau-materials')">
-                            <span class="nav-icon">🗂️</span><span class="nav-label" data-i18n="nav_bureau">Бюро-материалы</span>
-                        </button>
-                        <button class="nav-item" data-key="code-audit" onclick="window.openPage('code-audit')">
-                            <span class="nav-icon">🔍</span><span class="nav-label" data-i18n="nav_audit">Аудит кодов</span>
-                        </button>
-                        <button class="nav-item" data-key="regions" onclick="window.openPage('regions')">
-                            <span class="nav-icon">🗺️</span><span class="nav-label" data-i18n="nav_regions">Регионы и склады</span>
-                        </button>
-                        <button class="nav-item" data-key="search" onclick="window.openPage('search')">
-                            <span class="nav-icon">🔍</span><span class="nav-label" data-i18n="nav_search">Поиск товара</span>
+                            <span class="nav-icon">🏠</span><span class="nav-label nav-cat">Главная панель</span>
                         </button>
                     </div>
 
-                    <div class="nav-group" id="nav-grp-req">
-                        <div class="nav-group-title" data-i18n="grp_requests">Заявки тимлидов</div>
-                        <button class="nav-item" data-key="tl-portal" onclick="window.openPage('tl-portal')">
-                            <span class="nav-icon">🧾</span><span class="nav-label" data-i18n="nav_tl_portal">Портал заявок</span>
+                    <div class="nav-group">
+                        <div class="nav-group-title">📦 Бюро материалов</div>
+                        <button class="nav-item" data-key="bureau-materials" onclick="window.openPage('bureau-materials')">
+                            <span class="nav-icon">📋</span><span class="nav-label">Каталог и остатки</span>
+                        </button>
+                        <button class="nav-item" data-key="bureau-issue" onclick="window.openPage('bureau-issue')">
+                            <span class="nav-icon">📤</span><span class="nav-label">Выдача материалов</span>
+                        </button>
+                        <button class="nav-item" data-key="bureau-receive" onclick="window.navBureauReceive()">
+                            <span class="nav-icon">📥</span><span class="nav-label">Приход и пополнение</span>
                         </button>
                         <button class="nav-item" data-key="tl-requests" onclick="window.openPage('tl-requests')" style="position:relative">
-                            <span class="nav-icon">📨</span><span class="nav-label" data-i18n="nav_tl_requests">Входящие заявки</span><span class="nav-badge" id="tl-req-badge" hidden></span>
+                            <span class="nav-icon">📨</span><span class="nav-label">Заявки Тимлидов</span><span class="nav-badge" id="tl-req-badge" hidden></span>
                         </button>
                     </div>
 
                     <div class="nav-group">
-                        <div class="nav-group-title" data-i18n="grp_delivery">Delivery</div>
-                        <button class="nav-item" data-key="delivery-calendar" onclick="window.openPage('delivery-calendar')">
-                            <span class="nav-icon">📅</span><span class="nav-label" data-i18n="nav_calendar">Календарь</span>
+                        <div class="nav-group-title">💻 IT-техника</div>
+                        <button class="nav-item" data-key="asset-ledger" onclick="window.openPage('asset-ledger')">
+                            <span class="nav-icon">🖥️</span><span class="nav-label">Учет оборудования</span>
                         </button>
-                        <button class="nav-item" data-key="delivery-receive" onclick="window.openPage('delivery-receive')">
-                            <span class="nav-icon">📥</span><span class="nav-label" data-i18n="nav_receive">Прием</span>
+                        <button class="nav-item" onclick="window.openQuickIssue()">
+                            <span class="nav-icon">⚡</span><span class="nav-label">Быстрая выдача</span>
                         </button>
-                        <button class="nav-item" data-key="delivery-issue" onclick="window.openPage('delivery-issue')">
-                            <span class="nav-icon">📤</span><span class="nav-label" data-i18n="nav_issue">Выдача</span>
-                        </button>
-                        <button class="nav-item" data-key="po-pr" onclick="window.openPage('po-pr')">
-                            <span class="nav-icon">📄</span><span class="nav-label" data-i18n="nav_popr">PO/PR</span>
+                        <button class="nav-item" data-key="search" onclick="window.openPage('search')">
+                            <span class="nav-icon">🔍</span><span class="nav-label">Поиск по S/N / Asset</span>
                         </button>
                     </div>
 
                     <div class="nav-group">
-                        <div class="nav-group-title" data-i18n="grp_outbound">Pending outbound</div>
-                        <button class="nav-item" data-key="transfer-in" onclick="window.openPage('transfer-in')">
-                            <span class="nav-icon">⬇️</span><span class="nav-label" data-i18n="nav_transfer_in">Трансфер прием</span>
+                        <div class="nav-group-title">📈 Аналитика и отчеты</div>
+                        <button class="nav-item" data-key="analytics" onclick="window.openPage('analytics')">
+                            <span class="nav-icon">📊</span><span class="nav-label">Движение и спрос</span>
                         </button>
-                        <button class="nav-item" data-key="transfer-out" onclick="window.openPage('transfer-out')">
-                            <span class="nav-icon">⬆️</span><span class="nav-label" data-i18n="nav_transfer_out">Трансфер отправка</span>
+                        <button class="nav-item" onclick="window.openHistoryModal()">
+                            <span class="nav-icon">🕓</span><span class="nav-label">История транзакций</span>
+                        </button>
+                    </div>
+
+                    <div class="nav-group">
+                        <div class="nav-group-title">⚙️ Настройки</div>
+                        <button class="nav-item" onclick="window.tlOpenNotifySettings()">
+                            <span class="nav-icon">✉️</span><span class="nav-label">EmailJS и Печать</span>
+                        </button>
+                        <button class="nav-item" onclick="window.copyPortalLink()">
+                            <span class="nav-icon">🔗</span><span class="nav-label">Ссылка на Портал</span>
                         </button>
                     </div>
                 </nav>
@@ -559,31 +553,30 @@
                     </div>
                     <div class="home-sub" data-i18n="home_sub">Импорт из Excel, поставки, перемещения и заказы — всё в одном месте</div>
 
-                    <!-- Строка 1: IT-техника (штучный учёт по S/N и Asset Code) -->
-                    <div class="stat-group-title" data-i18n="stat_group_tech">IT-техника и оборудование</div>
-                    <div class="stat-row stat-row-5" id="stat-row-tech"></div>
+                    <!-- KPI: 3 карточки в ряд -->
+                    <div class="stat-row stat-row-3" id="kpi-row"></div>
 
-                    <!-- Строка 2: Бюро-материалы и логистика (количественный учёт по SKU) -->
-                    <div class="stat-group-title" data-i18n="stat_group_office">Бюро-материалы и логистика</div>
-                    <div class="stat-row" id="stat-row-office"></div>
-
-                    <!-- Панель быстрых действий -->
-                    <div class="quick-actions">
-                        <button class="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-[10px] border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark px-5 py-3.5 text-sm font-bold text-[#052e21] transition hover:brightness-110" onclick="window.openQuickIssue()">
-                            <span>⚡</span><span data-i18n="qa_issue_tech">Быстрая выдача техники</span>
-                        </button>
-                        <button class="qa-btn qa-blue" onclick="window.openPage('bureau-issue')">
-                            <span>🔵</span><span data-i18n="qa_issue_office">+ Выдать бюро-материалы</span>
-                        </button>
-                        <div class="qa-search">
-                            <span>🔍</span>
-                            <input type="text" id="qa-search-input" data-i18n-placeholder="qa_search_placeholder" placeholder="Быстрый поиск по S/N или Asset Code">
-                            <button onclick="window.runQuickSearch()" data-i18n="qa_search_btn">Поиск</button>
-                        </div>
+                    <!-- Плитки действий: две секции -->
+                    <div class="grid gap-4 md:grid-cols-2">
+                        <section class="rounded-2xl border border-solid border-klt-line bg-klt-card p-5">
+                            <div class="stat-group-title">💻 IT-техника и оборудование</div>
+                            <div class="flex flex-col gap-3">
+                                <button class="qa-btn qa-primary" onclick="window.openQuickIssue()"><span>⚡</span><span>Быстрая выдача</span></button>
+                                <div class="qa-search">
+                                    <span>🔍</span>
+                                    <input type="text" id="qa-search-input" placeholder="Поиск по S/N или Asset Code" onkeydown="if(event.key==='Enter')window.runQuickSearch()">
+                                    <button onclick="window.runQuickSearch()">Поиск S/N</button>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="rounded-2xl border border-solid border-klt-line bg-klt-card p-5">
+                            <div class="stat-group-title">📦 Бюро материалов</div>
+                            <div class="flex flex-col gap-3 sm:flex-row">
+                                <button class="qa-btn qa-blue" onclick="window.openPage('bureau-issue')"><span>📤</span><span>Выдача</span></button>
+                                <button class="qa-btn qa-blue" onclick="window.navBureauReceive()"><span>📥</span><span>Приход</span></button>
+                            </div>
+                        </section>
                     </div>
-
-                    <div class="section-title" data-i18n="modules_title">Модули системы</div>
-                    <div class="module-grid" id="module-grid"></div>
                 </div>
 
                 <!-- СТРАНИЦЫ-ЗАГЛУШКИ -->
@@ -756,7 +749,7 @@
         // Сам вход хранит Firebase Auth (browserLocalPersistence — localStorage, «Запомнить меня»; иначе sessionStorage вкладки).
         // Здесь дополнительно запоминаем, где был пользователь: страница, склад, язык — и возвращаем его туда после F5.
         const UI_STATE_KEY = 'kletka_ui_state';
-        const RESTORABLE_PAGES = ['material-master', 'asset-ledger', 'components', 'bureau-materials', 'code-audit', 'excel-import-export', 'po-pr', 'delivery-receive', 'tl-portal', 'tl-requests'];
+        const RESTORABLE_PAGES = ['material-master', 'asset-ledger', 'components', 'bureau-materials', 'code-audit', 'excel-import-export', 'po-pr', 'delivery-receive', 'tl-portal', 'tl-requests', 'analytics'];
         function readUiState() { try { return JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}') || {}; } catch (e) { return {}; } }
         function saveUiState(patch) { try { localStorage.setItem(UI_STATE_KEY, JSON.stringify(Object.assign(readUiState(), patch))); } catch (e) { /* storage недоступен */ } }
         function hideBootSplash() { const sp = document.getElementById('boot-splash'); if (sp) sp.classList.add('hidden'); }
@@ -1159,6 +1152,7 @@
             'code-audit': { iconKey: '🔍', labelKey: 'nav_audit' },
             'tl-portal': { iconKey: '🧾', labelKey: 'nav_tl_portal' },
             'tl-requests': { iconKey: '📨', labelKey: 'nav_tl_requests' },
+            'analytics': { iconKey: '📊', labelKey: 'nav_analytics' },
             'rma-cage': { iconKey: '🚫', labelKey: 'stat_tech_cage' },
             'write-off': { iconKey: '📝', labelKey: 'stat_tech_written_off' }
         };
@@ -1215,6 +1209,9 @@
             } else if (key === 'tl-requests') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderTlRequests(pv);
+            } else if (key === 'analytics') {
+                pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
+                renderAnalytics(pv);
             } else if (key === 'excel-import-export') {
                 pv.innerHTML = `<button class="back-link" onclick="window.showHome()">${t('back_home')}</button>`;
                 renderImportExport(pv);
@@ -1331,38 +1328,27 @@
             `).join('');
         }
 
+        // ===== KPI главного дашборда =====
+        const KPI = { low: 0, out: 0 };
+        function kpiNewCount() { try { return tlReqs.filter(r => r.status === 'new').length; } catch (e) { return 0; } }
+        function renderKpi() {
+            const el = document.getElementById('kpi-row'); if (!el) return;
+            const card = (acc, icon, num, lbl, page, link) => `
+                <div class="stat-card ${acc}">
+                    <div class="stat-card-top"><span class="stat-icon">${icon}</span></div>
+                    <div class="num">${num}</div>
+                    <div class="lbl">${lbl}</div>
+                    <button class="stat-link" onclick="window.openPage('${page}')">${link} →</button>
+                </div>`;
+            el.innerHTML =
+                card('accent-neutral', '📨', kpiNewCount(), 'Заявки Тимлидов', 'tl-requests', 'Перейти к сборке') +
+                card('accent-warning', '🟡', KPI.low, 'Мало на складе (1–4 шт.)', 'bureau-materials', 'Посмотреть') +
+                card('accent-danger', '🔴', KPI.out, 'Нет в наличии (0 шт.)', 'bureau-materials', 'Посмотреть');
+        }
+
         function renderHome() {
             document.getElementById('home-warehouse-title').innerText = `${currentLang === 'en' ? 'Warehouse' : 'Склад'} ${currentWarehouse}`;
-
-            renderStatRow('stat-row-tech', TECH_STATS);
-            renderStatRow('stat-row-office', OFFICE_STATS);
-
-            const searchInput = document.getElementById('qa-search-input');
-            if (searchInput) searchInput.placeholder = t('qa_search_placeholder');
-
-            const grid = document.getElementById('module-grid');
-            if (grid) {
-                // Порядок плиток = порядок на главной. [страница, иконка, префикс ключей i18n, «новое»]
-                // «Delivery» (delivery-calendar) по-прежнему временно скрыта.
-                const tiles = [
-                    ['material-master', '📦', 'm_material'],
-                    ['asset-ledger', '📒', 'm_ledger'],
-                    ['components', '🔌', 'm_components', true],
-                    ['bureau-materials', '🗂️', 'm_bureau'],
-                    ['receive-issue', '📥', 'm_receive_issue'],
-                    ['transfer', '🔁', 'm_transfer'],
-                    ['po-pr', '📄', 'm_popr'],
-                    ['excel-import-export', '📊', 'm_excel'],
-                    [null, '🕓', 'm_history']
-                ];
-                grid.innerHTML = tiles.map(([page, icon, k, isNew]) => `
-                    <button class="module-tile" style="position:relative;" onclick="${page ? `window.openPage('${page}')` : 'window.openHistoryModal()'}">
-                        ${isNew ? `<span class="absolute right-3.5 top-3.5 rounded-full bg-klt-emerald/20 px-2 py-0.5 text-[10px] font-bold text-klt-emerald-light">${t('m_new_badge')}</span>` : ''}
-                        <span class="icon">${icon}</span>
-                        <div class="label">${t(k + '_label')}</div>
-                        <div class="desc">${t(k + '_desc')}</div>
-                    </button>`).join('');
-            }
+            renderKpi();
         }
 
         // Быстрый поиск по S/N или Asset Code из панели быстрых действий
@@ -4992,7 +4978,7 @@
                         <div class="relative aspect-[4/3] bg-klt-card">${burPhoto(it, 'text-4xl')}<span class="absolute left-2 top-2">${tlStBadge(st)}</span></div>
                         <div class="flex flex-1 flex-col p-3">
                             <div class="text-sm font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
-                            <div class="mt-0.5 text-[11px] text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))} · ${escapeHtml(it.unit)}</div>
+                            <div class="mt-0.5 text-[11px] text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${escapeHtml(it.unit)}</div>
                             <button type="button" data-tl-add="${cmpAttr(it.id)}" ${out ? 'disabled' : ''} title="${cmpAttr(out ? t('tl_out_blocked') : t('tl_add'))}" class="${CMP_BTN_MAIN} mt-auto w-full" style="margin-top:10px">${out ? '⛔ ' + t('tl_st_out') : n ? fmt(t('tl_in_cart'), { n }) + ' · +1' : t('tl_add')}</button>
                         </div></article>`;
                 }).join('')}</div>`;
@@ -5141,6 +5127,7 @@
             const b = document.getElementById('tl-req-badge'); if (!b) return;
             const n = tlReqs.filter(r => r.status === 'new').length;
             b.hidden = !n; b.textContent = String(n);
+            renderKpi();
         }
         function tlWatchStop() {
             if (tlReqsUnsub) { try { tlReqsUnsub(); } catch (e) { /* ignore */ } }
@@ -6031,6 +6018,10 @@
                 const list = snap.docs.map(d => d.data());
                 updateStat('office_total', list.length);
                 updateStat('office_low_stock', list.filter(x => (Number(x.qty) || 0) <= (Number(x.minQty) || 0)).length);
+                const live = list.filter(x => !x.archived), qn = x => Math.max(0, Number(x.qty) || 0);
+                KPI.low = live.filter(x => qn(x) >= 1 && qn(x) <= 4).length;
+                KPI.out = live.filter(x => qn(x) === 0).length;
+                renderKpi();
             } catch (e) { console.error('Bureau stats error:', e); }
         }
 
@@ -6484,7 +6475,128 @@
         }
 
         window.setLanguage = setLanguage;
+
+        // =====================================================================
+        // АНАЛИТИКА И ДВИЖЕНИЕ МАТЕРИАЛОВ (бюро-материалы) ← material_movements + material_master
+        // Расход = операции group:'bureau', type:'issue' (items[].delta < 0). Склад — текущий.
+        // =====================================================================
+        Object.assign(TR.ru, { nav_analytics: 'Аналитика и движение материалов' });
+        const AN_DAY = 864e5, AN_RUNOUT_DAYS = 5;
+        let anPeriod = '7', anSeq = 0;
+
+        function anRange(p) {
+            const now = Date.now();
+            if (p === 'month') {
+                const d = new Date(), from = new Date(d.getFullYear(), d.getMonth(), 1).getTime(), pFrom = new Date(d.getFullYear(), d.getMonth() - 1, 1).getTime();
+                return { from, to: now, pFrom, pTo: Math.min(pFrom + (now - from), from), days: Math.max(1, (now - from) / AN_DAY), cmp: 'MoM' };
+            }
+            const days = Number(p), len = days * AN_DAY;
+            return { from: now - len, to: now, pFrom: now - 2 * len, pTo: now - len, days, cmp: days === 7 ? 'WoW' : 'MoM' };
+        }
+        function anConsumed(docs, from, to) {
+            const m = new Map();
+            docs.forEach(d => {
+                const ts = d.timestamp || 0;
+                if (d.group !== 'bureau' || d.type !== 'issue' || d.warehouse !== currentWarehouse || ts < from || ts >= to) return;
+                (Array.isArray(d.items) ? d.items : [d]).forEach(i => {
+                    const q = -(Number(i.delta) || 0); if (q <= 0 || !i.sku) return;
+                    const k = normCode(i.sku), e = m.get(k) || { sku: i.sku, name: i.name || i.sku, unit: i.unit || 'шт.', qty: 0 };
+                    e.qty += q; m.set(k, e);
+                });
+            });
+            return m;
+        }
+        function anBadge(cur, prev, cmp) {
+            const base = 'inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold';
+            if (!prev) return cur ? `<span class="${base} bg-sky-500/15 text-sky-300" title="В прошлом периоде расхода не было">🆕 новый</span>` : `<span class="${base} bg-white/5 text-klt-muted">—</span>`;
+            const pct = Math.round((cur - prev) / prev * 100);
+            if (!pct) return `<span class="${base} bg-white/5 text-klt-muted">＝ 0% ${cmp}</span>`;
+            return pct > 0 ? `<span class="${base} bg-emerald-500/15 text-emerald-300">⬆ +${pct}% ${cmp}</span>` : `<span class="${base} bg-red-500/15 text-red-300">⬇ −${Math.abs(pct)}% ${cmp}</span>`;
+        }
+
+        function renderAnalytics(pv) {
+            const wrap = document.createElement('div');
+            wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            pv.appendChild(wrap);
+            const draw = async () => {
+                const tok = ++anSeq, r = anRange(anPeriod);
+                const seg = AN_PERIODS_UI().map(([k, l]) => `<button type="button" data-p="${k}" aria-pressed="${anPeriod === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${anPeriod === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${l}</button>`).join('');
+                wrap.innerHTML = `
+                    <div class="mb-5 flex flex-wrap items-center justify-between gap-3">
+                        <div><h2 class="text-xl font-bold text-klt-emerald-light">📊 Аналитика и Движение материалов
+                            <span class="ml-2 rounded-full border border-solid border-klt-line px-2.5 py-0.5 text-[11px] font-bold text-klt-muted">${escapeHtml(currentWarehouse)}</span></h2>
+                            <p class="mt-1 text-[13px] text-klt-muted">Расход бюро-материалов за период и сравнение с предыдущим</p></div>
+                        <div id="an-seg" class="inline-flex overflow-hidden rounded-lg border border-solid border-klt-line">${seg}</div>
+                    </div>
+                    <div id="an-body" class="py-10 text-center text-klt-muted">…</div>`;
+                wrap.querySelector('#an-seg').onclick = e => { const b = e.target.closest('[data-p]'); if (b && b.dataset.p !== anPeriod) { anPeriod = b.dataset.p; draw(); } };
+                let docs = [], stock = new Map();
+                try {
+                    const [mv, st] = await Promise.all([
+                        getDocs(query(collection(db, 'material_movements'), where('timestamp', '>=', r.pFrom), orderBy('timestamp', 'desc'), limit(5000))),
+                        getDocs(query(collection(db, 'material_master'), where('warehouse', '==', currentWarehouse), where('group', '==', 'bureau')))
+                    ]);
+                    docs = mv.docs.map(d => d.data());
+                    st.docs.forEach(d => { const x = d.data(); if (!x.archived) stock.set(normCode(String(x.sku || d.id.split('__').slice(1).join('__'))), Math.max(0, Number(x.qty) || 0)); });
+                } catch (e) {
+                    console.error('analytics:', e);
+                    if (tok === anSeq && wrap.isConnected) wrap.querySelector('#an-body').innerHTML = '<div class="text-sm text-red-300">Не удалось загрузить данные аналитики</div>';
+                    return;
+                }
+                if (tok !== anSeq || !wrap.isConnected) return;
+                const cur = anConsumed(docs, r.from, r.to + 1), prev = anConsumed(docs, r.pFrom, r.pTo);
+                const top = [...cur.entries()].sort((a, b) => b[1].qty - a[1].qty).slice(0, 5);
+                const max = top.length ? top[0][1].qty : 1;
+                const sum = m => [...m.values()].reduce((s, x) => s + x.qty, 0);
+                const runOut = [...cur.entries()].map(([k, e]) => {
+                    const rate = e.qty / r.days, left = stock.has(k) ? stock.get(k) : null;
+                    return { e, rate, left, days: left == null ? Infinity : left / rate };
+                }).filter(x => x.left != null && x.days < AN_RUNOUT_DAYS).sort((a, b) => a.days - b.days);
+                const card = 'rounded-xl border border-solid border-klt-line bg-klt-bg p-4';
+                const ttl = 'mb-3 text-sm font-bold uppercase tracking-wider text-slate-50';
+                const topHtml = top.length ? top.map(([k, e], i) => `
+                    <div class="mb-3 last:mb-0">
+                        <div class="mb-1 flex items-center justify-between gap-2 text-[13px]">
+                            <span class="min-w-0 truncate"><b class="mr-1.5 text-klt-muted">${i + 1}.</b>${escapeHtml(e.name)} <span class="font-mono text-[11px] text-klt-emerald-light">${escapeHtml(e.sku)}</span></span>
+                            <span class="flex shrink-0 items-center gap-2"><b>${e.qty} ${escapeHtml(e.unit)}</b>${anBadge(e.qty, (prev.get(k) || {}).qty || 0, r.cmp)}</span>
+                        </div>
+                        <div class="h-2 overflow-hidden rounded-full bg-white/5"><div class="h-full rounded-full bg-klt-emerald" style="width:${Math.max(4, Math.round(e.qty / max * 100))}%"></div></div>
+                    </div>`).join('') : '<div class="py-6 text-center text-sm text-klt-muted">За выбранный период выдач не было</div>';
+                const roHtml = runOut.length ? runOut.map(x => `
+                    <div class="flex items-center justify-between gap-2 border-b border-solid border-klt-line py-2 text-[13px] last:border-0">
+                        <span class="min-w-0 truncate">${escapeHtml(x.e.name)} <span class="font-mono text-[11px] text-klt-emerald-light">${escapeHtml(x.e.sku)}</span></span>
+                        <span class="shrink-0 text-right"><b class="${x.days < 1 ? 'text-red-300' : 'text-amber-300'}">${x.left === 0 ? 'нет на складе' : x.days < 1 ? 'хватит < 1 дня' : 'хватит на ~' + Math.floor(x.days) + ' дн.'}</b>
+                        <div class="text-[11px] text-klt-muted">остаток ${x.left} ${escapeHtml(x.e.unit)} · расход ${(Math.round(x.rate * 10) / 10)}/день</div></span>
+                    </div>`).join('') : '<div class="py-6 text-center text-sm text-klt-muted">🟢 Все позиции с расходом обеспечены минимум на 5 дней</div>';
+                wrap.querySelector('#an-body').className = 'grid gap-4 lg:grid-cols-2';
+                wrap.querySelector('#an-body').innerHTML = `
+                    <div class="${card} lg:col-span-2 flex flex-wrap items-center justify-between gap-3">
+                        <div><div class="text-xs text-klt-muted">Всего выдано за период</div><div class="text-2xl font-extrabold text-slate-50">${sum(cur)} <span class="text-sm font-semibold text-klt-muted">ед.</span></div></div>
+                        <div class="flex items-center gap-2 text-xs text-klt-muted">к предыдущему периоду (${sum(prev)} ед.) ${anBadge(sum(cur), sum(prev), r.cmp)}</div>
+                    </div>
+                    <div class="${card}"><div class="${ttl}">🏆 ТОП-5 расходных материалов</div>${topHtml}</div>
+                    <div class="${card}"><div class="${ttl}">⏳ Прогноз Run Out · менее ${AN_RUNOUT_DAYS} дней</div>${roHtml}</div>`;
+            };
+            draw();
+        }
+        const AN_PERIODS_UI = () => [['7', '7 дней'], ['30', '30 дней'], ['month', 'Месяц']];
+
+        // ===== Действия шторки / дашборда =====
+        function navBureauReceive() {
+            openPage('bureau-materials');
+            let n = 0; const iv = setInterval(() => { const b = document.getElementById('bur-rc'); if (b) { clearInterval(iv); b.click(); } else if (++n > 40) clearInterval(iv); }, 100);
+        }
+        async function copyPortalLink() {
+            const url = location.origin + location.pathname + '?portal';
+            try { await navigator.clipboard.writeText(url); cmpToast('Ссылка на портал скопирована: ' + url, 'ok'); }
+            catch (e) { window.prompt('Скопируйте ссылку на портал:', url); }
+        }
+
         window.openQuickIssue = openQuickIssue;
+        window.navBureauReceive = navBureauReceive;
+        window.copyPortalLink = copyPortalLink;
+        window.tlOpenNotifySettings = tlOpenNotifySettings;
+        window.runQuickSearch = window.runQuickSearch || runQuickSearch;
         window.closeQuickIssue = closeQuickIssue;
         window.openImportExport = openImportExport;
         window.showHome = showHome;
