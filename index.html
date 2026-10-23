@@ -194,23 +194,32 @@
         /* Полосы прокрутки скрыты визуально: колесо, тачпад и свайп работают как раньше */
         html, body, .sidebar-nav { scrollbar-width: none; -ms-overflow-style: none; }
         html::-webkit-scrollbar, body::-webkit-scrollbar, .sidebar-nav::-webkit-scrollbar { display: none; width: 0; height: 0; }
-        .nav-group { margin-bottom: 22px; }
-        .nav-group-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.9px; color: var(--text-muted); padding: 0 10px; margin-bottom: 10px; white-space: nowrap; }
+        /* ===== Шторка: группы, заголовки, пункты ===== */
+        .nav-group { padding: 4px 0 14px; margin-bottom: 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .nav-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+        .nav-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.1px; color: var(--text-muted); opacity: 0.7; padding: 10px 12px 0; margin-bottom: 8px; white-space: nowrap; }
         .sidebar.collapsed .nav-group-title { display: none; }
+        .sidebar.collapsed .nav-group { padding-top: 0; }
 
         .nav-item {
-            display: flex; align-items: center; gap: 12px; width: 100%; background: none; border: none; text-align: left;
-            color: #d5e6de; padding: 11px 12px; border-radius: 8px; cursor: pointer; font-size: 15px;
-            font-weight: 600; margin-bottom: 3px; border-left: 3px solid transparent; white-space: nowrap;
+            position: relative; display: flex; align-items: center; gap: 12px; width: 100%; background: transparent; border: none; text-align: left;
+            color: #e3f0ea; padding: 11px 12px; border-radius: 10px; cursor: pointer; font-size: 15px; line-height: 1.25;
+            font-weight: 600; margin-bottom: 2px; border-left: 3px solid transparent; white-space: nowrap;
+            transition: background-color .2s ease, color .2s ease, border-color .2s ease, transform .2s ease;
         }
-        .nav-item .nav-icon { font-size: 17px; width: 20px; text-align: center; flex-shrink: 0; }
-        .nav-item span.nav-label { overflow: hidden; }
+        .nav-item .nav-icon { font-size: 17px; width: 22px; text-align: center; flex-shrink: 0; }
+        .nav-item span.nav-label { overflow: hidden; text-overflow: ellipsis; }
         .sidebar.collapsed .nav-item span.nav-label { display: none; }
-        .nav-item:hover { background: rgba(255,255,255,0.06); color: var(--text-main); }
-        .nav-item.active { background: rgba(16, 185, 129, 0.16); color: var(--emerald-light); border-left-color: var(--emerald); font-weight: 700; }
+        .nav-item:hover { background: rgba(255,255,255,0.07); color: #ffffff; transform: translateX(2px); }
+        .nav-item:active { background: rgba(255,255,255,0.10); }
+        .nav-item:focus-visible { outline: 2px solid var(--emerald); outline-offset: 1px; }
+        .nav-item.active { background: rgba(16, 185, 129, 0.18); color: var(--emerald-light); border-left-color: var(--emerald); font-weight: 700; transform: none; }
+        /* Кнопка «Главная страница» — отдельный заметный пункт */
+        .nav-item.nav-home { font-size: 16px; font-weight: 700; padding: 13px 12px; }
         .nav-badge { margin-left: auto; min-width: 20px; padding: 1px 7px; border-radius: 999px; background: var(--danger-color); color: #fff; font-size: 11px; font-weight: 700; text-align: center; }
         .nav-badge[hidden] { display: none; }
         .sidebar.collapsed .nav-badge { position: absolute; margin: -18px 0 0 14px; padding: 0 5px; min-width: 0; }
+        @media (prefers-reduced-motion: reduce) { .nav-item { transition: none; } .nav-item:hover { transform: none; } }
         /* Режим тимлида: доступен только «Портал заявок» (остальные разделы, склад в шторке и корзина выдачи скрыты) */
         body.tl-mode .sidebar-nav .nav-group:not(#nav-grp-req), body.tl-mode .sidebar-nav .nav-item:not([data-key="tl-portal"]),
         body.tl-mode .sidebar-warehouses, body.tl-mode #bur-cart-fab { display: none !important; }
@@ -459,57 +468,46 @@
                 </div>
 
                 <nav class="sidebar-nav">
+                    <!-- 1. Главная -->
                     <div class="nav-group">
-                        <div class="nav-group-title" data-i18n="grp_main">Главное</div>
-                        <button class="nav-item active" data-key="home" onclick="window.showHome()">
+                        <button class="nav-item active nav-home" data-key="home" onclick="window.showHome()">
                             <span class="nav-icon">🏠</span><span class="nav-label" data-i18n="nav_home">Главная страница</span>
                         </button>
+                    </div>
+
+                    <!-- 2. Бюро материалов -->
+                    <div class="nav-group">
+                        <div class="nav-group-title">📦 Бюро материалов</div>
                         <button class="nav-item" data-key="material-master" onclick="window.openPage('material-master')">
-                            <span class="nav-icon">📦</span><span class="nav-label" data-i18n="nav_material">Material Master</span>
-                        </button>
-                        <button class="nav-item" data-key="asset-ledger" onclick="window.openPage('asset-ledger')">
-                            <span class="nav-icon">📒</span><span class="nav-label" data-i18n="nav_ledger">Asset Ledger</span>
-                        </button>
-                        <button class="nav-item" data-key="components" onclick="window.openPage('components')">
-                            <span class="nav-icon">🔌</span><span class="nav-label" data-i18n="nav_components">Комплектующие</span>
+                            <span class="nav-icon">📋</span><span class="nav-label" data-i18n="nav_material">Материал мастер</span>
                         </button>
                         <button class="nav-item" data-key="bureau-materials" onclick="window.openPage('bureau-materials')">
-                            <span class="nav-icon">🗂️</span><span class="nav-label" data-i18n="nav_bureau">Бюро-материалы</span>
+                            <span class="nav-icon">🗂️</span><span class="nav-label" data-i18n="nav_bureau">Бюро - материалы</span>
                         </button>
                         <button class="nav-item" data-key="code-audit" onclick="window.openPage('code-audit')">
                             <span class="nav-icon">🔍</span><span class="nav-label" data-i18n="nav_audit">Аудит кодов</span>
-                        </button>
-                        <button class="nav-item" data-key="regions" onclick="window.openPage('regions')">
-                            <span class="nav-icon">🗺️</span><span class="nav-label" data-i18n="nav_regions">Регионы и склады</span>
-                        </button>
-                        <button class="nav-item" data-key="search" onclick="window.openPage('search')">
-                            <span class="nav-icon">🔍</span><span class="nav-label" data-i18n="nav_search">Поиск товара</span>
                         </button>
                         <button class="nav-item" data-key="analytics" onclick="window.openPage('analytics')">
                             <span class="nav-icon">📊</span><span class="nav-label">Аналитика</span>
                         </button>
                     </div>
 
-                    <div class="nav-group" id="nav-grp-req">
-                        <div class="nav-group-title" data-i18n="grp_requests">Заявки тимлидов</div>
-                        <button class="nav-item" data-key="tl-portal" onclick="window.openPage('tl-portal')">
-                            <span class="nav-icon">🧾</span><span class="nav-label" data-i18n="nav_tl_portal">Портал заявок</span>
-                        </button>
-                        <button class="nav-item" data-key="tl-requests" onclick="window.openPage('tl-requests')" style="position:relative">
-                            <span class="nav-icon">📨</span><span class="nav-label" data-i18n="nav_tl_requests">Входящие заявки</span><span class="nav-badge" id="tl-req-badge" hidden></span>
+                    <!-- 3. IT-оборудование -->
+                    <div class="nav-group">
+                        <div class="nav-group-title">💻 IT-оборудование</div>
+                        <button class="nav-item" data-key="asset-ledger" onclick="window.openPage('asset-ledger')">
+                            <span class="nav-icon">📒</span><span class="nav-label" data-i18n="nav_ledger">Asset ledger</span>
                         </button>
                     </div>
 
-                    <div class="nav-group">
-                        <div class="nav-group-title" data-i18n="grp_delivery">Delivery</div>
-                        <button class="nav-item" data-key="delivery-calendar" onclick="window.openPage('delivery-calendar')">
-                            <span class="nav-icon">📅</span><span class="nav-label" data-i18n="nav_calendar">Календарь</span>
+                    <!-- 4. Настройки и заявки (id/data-key сохранены: на них завязан режим тимлида) -->
+                    <div class="nav-group" id="nav-grp-req">
+                        <div class="nav-group-title">⚙️ Настройки и заявки</div>
+                        <button class="nav-item" data-key="tl-portal" onclick="window.openPage('tl-portal')">
+                            <span class="nav-icon">🧾</span><span class="nav-label" data-i18n="nav_tl_portal">Портал заявок</span>
                         </button>
-                        <button class="nav-item" data-key="delivery-receive" onclick="window.openPage('delivery-receive')">
-                            <span class="nav-icon">📥</span><span class="nav-label" data-i18n="nav_receive">Прием</span>
-                        </button>
-                        <button class="nav-item" data-key="delivery-issue" onclick="window.openPage('delivery-issue')">
-                            <span class="nav-icon">📤</span><span class="nav-label" data-i18n="nav_issue">Выдача</span>
+                        <button class="nav-item" data-key="tl-requests" onclick="window.openPage('tl-requests')">
+                            <span class="nav-icon">📨</span><span class="nav-label" data-i18n="nav_tl_requests">Входящие заявки</span><span class="nav-badge" id="tl-req-badge" hidden></span>
                         </button>
                     </div>
                 </nav>
