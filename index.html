@@ -212,7 +212,7 @@
         .nav-badge[hidden] { display: none; }
         .sidebar.collapsed .nav-badge { position: absolute; margin: -18px 0 0 14px; padding: 0 5px; min-width: 0; }
         /* Режим тимлида: доступен только «Портал заявок» (остальные разделы, склад в шторке и корзина выдачи скрыты) */
-        body.tl-mode .sidebar-nav,
+        body.tl-mode .sidebar-nav .nav-group:not(#nav-grp-req), body.tl-mode .sidebar-nav .nav-item:not([data-key="tl-portal"]),
         body.tl-mode .sidebar-warehouses, body.tl-mode #bur-cart-fab { display: none !important; }
         /* Публичная ссылка для тимлидов (index.html?portal): без входа, без шторки и служебных кнопок — только портал заявок */
         body.portal-mode .sidebar, body.portal-mode .topbar, body.portal-mode #bur-cart-fab, body.portal-mode #login-screen { display: none !important; }
@@ -283,9 +283,6 @@
         .home-sub { font-size: 13px; color: var(--text-muted); margin-bottom: 24px; }
 
         /* ===== Метрики: 2 ряда по 4 карточки, с цветовой индикацией по типу учёта ===== */
-        .stat-row.stat-row-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-        @media (max-width: 760px) { .stat-row.stat-row-3 { grid-template-columns: 1fr; } }
-        .nav-item span.nav-cat { text-transform: uppercase; letter-spacing: .9px; font-size: 12px; font-weight: 700; }
         .stat-group-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text-muted); margin: 0 0 10px; }
         .stat-row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
         @media (max-width: 900px) { .stat-row { grid-template-columns: repeat(2, minmax(0,1fr)); } }
@@ -463,57 +460,56 @@
 
                 <nav class="sidebar-nav">
                     <div class="nav-group">
+                        <div class="nav-group-title" data-i18n="grp_main">Главное</div>
                         <button class="nav-item active" data-key="home" onclick="window.showHome()">
-                            <span class="nav-icon">🏠</span><span class="nav-label nav-cat">Главная панель</span>
+                            <span class="nav-icon">🏠</span><span class="nav-label" data-i18n="nav_home">Главная страница</span>
                         </button>
-                    </div>
-
-                    <div class="nav-group">
-                        <div class="nav-group-title">📦 Бюро материалов</div>
-                        <button class="nav-item" data-key="bureau-materials" onclick="window.openPage('bureau-materials')">
-                            <span class="nav-icon">📋</span><span class="nav-label">Каталог и остатки</span>
+                        <button class="nav-item" data-key="material-master" onclick="window.openPage('material-master')">
+                            <span class="nav-icon">📦</span><span class="nav-label" data-i18n="nav_material">Material Master</span>
                         </button>
-                        <button class="nav-item" data-key="bureau-issue" onclick="window.openPage('bureau-issue')">
-                            <span class="nav-icon">📤</span><span class="nav-label">Выдача материалов</span>
-                        </button>
-                        <button class="nav-item" data-key="bureau-receive" onclick="window.navBureauReceive()">
-                            <span class="nav-icon">📥</span><span class="nav-label">Приход и пополнение</span>
-                        </button>
-                        <button class="nav-item" data-key="tl-requests" onclick="window.openPage('tl-requests')" style="position:relative">
-                            <span class="nav-icon">📨</span><span class="nav-label">Заявки Тимлидов</span><span class="nav-badge" id="tl-req-badge" hidden></span>
-                        </button>
-                    </div>
-
-                    <div class="nav-group">
-                        <div class="nav-group-title">💻 IT-техника</div>
                         <button class="nav-item" data-key="asset-ledger" onclick="window.openPage('asset-ledger')">
-                            <span class="nav-icon">🖥️</span><span class="nav-label">Учет оборудования</span>
+                            <span class="nav-icon">📒</span><span class="nav-label" data-i18n="nav_ledger">Asset Ledger</span>
                         </button>
-                        <button class="nav-item" onclick="window.openQuickIssue()">
-                            <span class="nav-icon">⚡</span><span class="nav-label">Быстрая выдача</span>
+                        <button class="nav-item" data-key="components" onclick="window.openPage('components')">
+                            <span class="nav-icon">🔌</span><span class="nav-label" data-i18n="nav_components">Комплектующие</span>
+                        </button>
+                        <button class="nav-item" data-key="bureau-materials" onclick="window.openPage('bureau-materials')">
+                            <span class="nav-icon">🗂️</span><span class="nav-label" data-i18n="nav_bureau">Бюро-материалы</span>
+                        </button>
+                        <button class="nav-item" data-key="code-audit" onclick="window.openPage('code-audit')">
+                            <span class="nav-icon">🔍</span><span class="nav-label" data-i18n="nav_audit">Аудит кодов</span>
+                        </button>
+                        <button class="nav-item" data-key="regions" onclick="window.openPage('regions')">
+                            <span class="nav-icon">🗺️</span><span class="nav-label" data-i18n="nav_regions">Регионы и склады</span>
                         </button>
                         <button class="nav-item" data-key="search" onclick="window.openPage('search')">
-                            <span class="nav-icon">🔍</span><span class="nav-label">Поиск по S/N / Asset</span>
+                            <span class="nav-icon">🔍</span><span class="nav-label" data-i18n="nav_search">Поиск товара</span>
                         </button>
-                    </div>
-
-                    <div class="nav-group">
-                        <div class="nav-group-title">📈 Аналитика и отчеты</div>
                         <button class="nav-item" data-key="analytics" onclick="window.openPage('analytics')">
-                            <span class="nav-icon">📊</span><span class="nav-label">Движение и спрос</span>
+                            <span class="nav-icon">📊</span><span class="nav-label">Аналитика</span>
                         </button>
-                        <button class="nav-item" onclick="window.openHistoryModal()">
-                            <span class="nav-icon">🕓</span><span class="nav-label">История транзакций</span>
+                    </div>
+
+                    <div class="nav-group" id="nav-grp-req">
+                        <div class="nav-group-title" data-i18n="grp_requests">Заявки тимлидов</div>
+                        <button class="nav-item" data-key="tl-portal" onclick="window.openPage('tl-portal')">
+                            <span class="nav-icon">🧾</span><span class="nav-label" data-i18n="nav_tl_portal">Портал заявок</span>
+                        </button>
+                        <button class="nav-item" data-key="tl-requests" onclick="window.openPage('tl-requests')" style="position:relative">
+                            <span class="nav-icon">📨</span><span class="nav-label" data-i18n="nav_tl_requests">Входящие заявки</span><span class="nav-badge" id="tl-req-badge" hidden></span>
                         </button>
                     </div>
 
                     <div class="nav-group">
-                        <div class="nav-group-title">⚙️ Настройки</div>
-                        <button class="nav-item" onclick="window.tlOpenNotifySettings()">
-                            <span class="nav-icon">✉️</span><span class="nav-label">EmailJS и Печать</span>
+                        <div class="nav-group-title" data-i18n="grp_delivery">Delivery</div>
+                        <button class="nav-item" data-key="delivery-calendar" onclick="window.openPage('delivery-calendar')">
+                            <span class="nav-icon">📅</span><span class="nav-label" data-i18n="nav_calendar">Календарь</span>
                         </button>
-                        <button class="nav-item" onclick="window.copyPortalLink()">
-                            <span class="nav-icon">🔗</span><span class="nav-label">Ссылка на Портал</span>
+                        <button class="nav-item" data-key="delivery-receive" onclick="window.openPage('delivery-receive')">
+                            <span class="nav-icon">📥</span><span class="nav-label" data-i18n="nav_receive">Прием</span>
+                        </button>
+                        <button class="nav-item" data-key="delivery-issue" onclick="window.openPage('delivery-issue')">
+                            <span class="nav-icon">📤</span><span class="nav-label" data-i18n="nav_issue">Выдача</span>
                         </button>
                     </div>
                 </nav>
@@ -553,30 +549,31 @@
                     </div>
                     <div class="home-sub" data-i18n="home_sub">Импорт из Excel, поставки, перемещения и заказы — всё в одном месте</div>
 
-                    <!-- KPI: 3 карточки в ряд -->
-                    <div class="stat-row stat-row-3" id="kpi-row"></div>
+                    <!-- Строка 1: IT-техника (штучный учёт по S/N и Asset Code) -->
+                    <div class="stat-group-title" data-i18n="stat_group_tech">IT-техника и оборудование</div>
+                    <div class="stat-row stat-row-5" id="stat-row-tech"></div>
 
-                    <!-- Плитки действий: две секции -->
-                    <div class="grid gap-4 md:grid-cols-2">
-                        <section class="rounded-2xl border border-solid border-klt-line bg-klt-card p-5">
-                            <div class="stat-group-title">💻 IT-техника и оборудование</div>
-                            <div class="flex flex-col gap-3">
-                                <button class="qa-btn qa-primary" onclick="window.openQuickIssue()"><span>⚡</span><span>Быстрая выдача</span></button>
-                                <div class="qa-search">
-                                    <span>🔍</span>
-                                    <input type="text" id="qa-search-input" placeholder="Поиск по S/N или Asset Code" onkeydown="if(event.key==='Enter')window.runQuickSearch()">
-                                    <button onclick="window.runQuickSearch()">Поиск S/N</button>
-                                </div>
-                            </div>
-                        </section>
-                        <section class="rounded-2xl border border-solid border-klt-line bg-klt-card p-5">
-                            <div class="stat-group-title">📦 Бюро материалов</div>
-                            <div class="flex flex-col gap-3 sm:flex-row">
-                                <button class="qa-btn qa-blue" onclick="window.openPage('bureau-issue')"><span>📤</span><span>Выдача</span></button>
-                                <button class="qa-btn qa-blue" onclick="window.navBureauReceive()"><span>📥</span><span>Приход</span></button>
-                            </div>
-                        </section>
+                    <!-- Строка 2: Бюро-материалы и логистика (количественный учёт по SKU) -->
+                    <div class="stat-group-title" data-i18n="stat_group_office">Бюро-материалы и логистика</div>
+                    <div class="stat-row" id="stat-row-office"></div>
+
+                    <!-- Панель быстрых действий -->
+                    <div class="quick-actions">
+                        <button class="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-[10px] border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark px-5 py-3.5 text-sm font-bold text-[#052e21] transition hover:brightness-110" onclick="window.openQuickIssue()">
+                            <span>⚡</span><span data-i18n="qa_issue_tech">Быстрая выдача техники</span>
+                        </button>
+                        <button class="qa-btn qa-blue" onclick="window.openPage('bureau-issue')">
+                            <span>🔵</span><span data-i18n="qa_issue_office">+ Выдать бюро-материалы</span>
+                        </button>
+                        <div class="qa-search">
+                            <span>🔍</span>
+                            <input type="text" id="qa-search-input" data-i18n-placeholder="qa_search_placeholder" placeholder="Быстрый поиск по S/N или Asset Code">
+                            <button onclick="window.runQuickSearch()" data-i18n="qa_search_btn">Поиск</button>
+                        </div>
                     </div>
+
+                    <div class="section-title" data-i18n="modules_title">Модули системы</div>
+                    <div class="module-grid" id="module-grid"></div>
                 </div>
 
                 <!-- СТРАНИЦЫ-ЗАГЛУШКИ -->
@@ -1315,6 +1312,7 @@
             // { key: 'office_po_expected', accent: 'accent-neutral', icon: '📦', lbl: 'stat_office_po_expected', link: 'stat_link_go', page: 'po-pr' },
             // { key: 'office_transfers_transit', accent: 'accent-neutral', icon: '🔁', lbl: 'stat_office_transfers_transit', link: 'stat_link_go', page: 'transfer' }
         ];
+        function kpiNewCount() { try { return tlReqs.filter(r => r.status === 'new').length; } catch (e) { return 0; } }
         function renderStatRow(elId, cards) {
             const el = document.getElementById(elId);
             if (!el) return;
@@ -1328,27 +1326,40 @@
             `).join('');
         }
 
-        // ===== KPI главного дашборда =====
-        const KPI = { low: 0, out: 0 };
-        function kpiNewCount() { try { return tlReqs.filter(r => r.status === 'new').length; } catch (e) { return 0; } }
-        function renderKpi() {
-            const el = document.getElementById('kpi-row'); if (!el) return;
-            const card = (acc, icon, num, lbl, page, link) => `
-                <div class="stat-card ${acc}">
-                    <div class="stat-card-top"><span class="stat-icon">${icon}</span></div>
-                    <div class="num">${num}</div>
-                    <div class="lbl">${lbl}</div>
-                    <button class="stat-link" onclick="window.openPage('${page}')">${link} →</button>
-                </div>`;
-            el.innerHTML =
-                card('accent-neutral', '📨', kpiNewCount(), 'Заявки Тимлидов', 'tl-requests', 'Перейти к сборке') +
-                card('accent-warning', '🟡', KPI.low, 'Мало на складе (1–4 шт.)', 'bureau-materials', 'Посмотреть') +
-                card('accent-danger', '🔴', KPI.out, 'Нет в наличии (0 шт.)', 'bureau-materials', 'Посмотреть');
-        }
-
         function renderHome() {
             document.getElementById('home-warehouse-title').innerText = `${currentLang === 'en' ? 'Warehouse' : 'Склад'} ${currentWarehouse}`;
-            renderKpi();
+
+            renderStatRow('stat-row-tech', TECH_STATS);
+            renderStatRow('stat-row-office', OFFICE_STATS);
+            const officeRow = document.getElementById('stat-row-office');
+            if (officeRow) officeRow.insertAdjacentHTML('beforeend', `
+                <button type="button" class="stat-card accent-neutral" style="display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;text-align:left;" onclick="window.openPage('tl-requests')" title="Открыть входящие заявки">
+                    <span class="stat-icon">📨</span><span class="lbl" style="font-size:14px;font-weight:700;color:var(--text-main);">Заявки Тимлидов (<span id="tl-home-count">${kpiNewCount()}</span>)</span>
+                </button>`);
+
+            const searchInput = document.getElementById('qa-search-input');
+            if (searchInput) searchInput.placeholder = t('qa_search_placeholder');
+
+            const grid = document.getElementById('module-grid');
+            if (grid) {
+                // Порядок плиток = порядок на главной. [страница, иконка, префикс ключей i18n, «новое»]
+                // «Delivery» (delivery-calendar) по-прежнему временно скрыта.
+                const tiles = [
+                    ['material-master', '📦', 'm_material'],
+                    ['asset-ledger', '📒', 'm_ledger'],
+                    ['components', '🔌', 'm_components', true],
+                    ['bureau-materials', '🗂️', 'm_bureau'],
+                    ['excel-import-export', '📊', 'm_excel'],
+                    [null, '🕓', 'm_history']
+                ];
+                grid.innerHTML = tiles.map(([page, icon, k, isNew]) => `
+                    <button class="module-tile" style="position:relative;" onclick="${page ? `window.openPage('${page}')` : 'window.openHistoryModal()'}">
+                        ${isNew ? `<span class="absolute right-3.5 top-3.5 rounded-full bg-klt-emerald/20 px-2 py-0.5 text-[10px] font-bold text-klt-emerald-light">${t('m_new_badge')}</span>` : ''}
+                        <span class="icon">${icon}</span>
+                        <div class="label">${t(k + '_label')}</div>
+                        <div class="desc">${t(k + '_desc')}</div>
+                    </button>`).join('');
+            }
         }
 
         // Быстрый поиск по S/N или Asset Code из панели быстрых действий
@@ -5127,7 +5138,7 @@
             const b = document.getElementById('tl-req-badge'); if (!b) return;
             const n = tlReqs.filter(r => r.status === 'new').length;
             b.hidden = !n; b.textContent = String(n);
-            renderKpi();
+            const hc = document.getElementById('tl-home-count'); if (hc) hc.textContent = String(n);
         }
         function tlWatchStop() {
             if (tlReqsUnsub) { try { tlReqsUnsub(); } catch (e) { /* ignore */ } }
@@ -6018,10 +6029,6 @@
                 const list = snap.docs.map(d => d.data());
                 updateStat('office_total', list.length);
                 updateStat('office_low_stock', list.filter(x => (Number(x.qty) || 0) <= (Number(x.minQty) || 0)).length);
-                const live = list.filter(x => !x.archived), qn = x => Math.max(0, Number(x.qty) || 0);
-                KPI.low = live.filter(x => qn(x) >= 1 && qn(x) <= 4).length;
-                KPI.out = live.filter(x => qn(x) === 0).length;
-                renderKpi();
             } catch (e) { console.error('Bureau stats error:', e); }
         }
 
@@ -6581,22 +6588,8 @@
         }
         const AN_PERIODS_UI = () => [['7', '7 дней'], ['30', '30 дней'], ['month', 'Месяц']];
 
-        // ===== Действия шторки / дашборда =====
-        function navBureauReceive() {
-            openPage('bureau-materials');
-            let n = 0; const iv = setInterval(() => { const b = document.getElementById('bur-rc'); if (b) { clearInterval(iv); b.click(); } else if (++n > 40) clearInterval(iv); }, 100);
-        }
-        async function copyPortalLink() {
-            const url = location.origin + location.pathname + '?portal';
-            try { await navigator.clipboard.writeText(url); cmpToast('Ссылка на портал скопирована: ' + url, 'ok'); }
-            catch (e) { window.prompt('Скопируйте ссылку на портал:', url); }
-        }
 
         window.openQuickIssue = openQuickIssue;
-        window.navBureauReceive = navBureauReceive;
-        window.copyPortalLink = copyPortalLink;
-        window.tlOpenNotifySettings = tlOpenNotifySettings;
-        window.runQuickSearch = window.runQuickSearch || runQuickSearch;
         window.closeQuickIssue = closeQuickIssue;
         window.openImportExport = openImportExport;
         window.showHome = showHome;
