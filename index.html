@@ -5,35 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bureau Online</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2040%2040%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22g%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%2334d399%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23059669%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x=%222%22%20y=%222%22%20width=%2236%22%20height=%2236%22%20rx=%2210%22%20fill=%22url(%23g)%22/%3E%3Cpath%20d=%22M11%2017h18l1.6%2014.5a1.5%201.5%200%200%201-1.5%201.7H10.9a1.5%201.5%200%200%201-1.5-1.7z%22%20fill=%22%23fff%22/%3E%3Cpath%20d=%22M15%2017v-2.5a5%205%200%200%201%2010%200V17%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M15.5%2025.5l3.4%203.4%206.2-7%22%20fill=%22none%22%20stroke=%22%23059669%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
             corePlugins: { preflight: false },   // существующие стили проекта остаются нетронутыми
-            theme: { extend: { colors: { klt: {
-                bg: '#071c16', card: '#10281f', hover: '#163629', line: '#1f3d30', muted: '#9fb8ac',
-                emerald: { DEFAULT: '#10b981', light: '#34d399', dark: '#059669' },
-                orange: { DEFAULT: '#f59e0b', light: '#fbbf24' }
-            } } } }
+            // Kraft & Graphite: тёплая бумага, графит, крафт; emerald — только действия и статусы
+            theme: { extend: { colors: {
+                klt: {
+                    bg: '#F5EFE5', card: '#FFFCF7', hover: '#F2EADD', line: '#E2D6C3', muted: '#6F6455',
+                    emerald: { DEFAULT: '#059669', light: '#047857', dark: '#065f46' },
+                    orange: { DEFAULT: '#d97706', light: '#b45309' },
+                    kraft: { DEFAULT: '#C8975A', dark: '#9A6B2F', soft: '#F3E3CB' },
+                    graphite: '#26231F'
+                },
+                // классы «светлого текста на тёмном» переопределены под светлую тему
+                slate: { 50: '#26231F' },
+                red: { 300: '#b42318', 400: '#dc2626' },
+                amber: { 300: '#b45309' }, blue: { 300: '#1d4ed8' }, sky: { 300: '#0369a1' }, emerald: { 300: '#047857' }
+            } } }
         };
     </script>
     <style>
         :root {
-            --bg-color: #071c16;
-            --card-bg: #10281f;
-            --card-bg-hover: #163629;
-            --sidebar-bg: #04140f;
-            --text-main: #f8fafc;
-            --text-muted: #9fb8ac;
-            --border-color: #1f3d30;
-            --danger-color: #ef4444;
-            --danger-hover: #dc2626;
-            --emerald: #10b981;
-            --emerald-dark: #059669;
-            --emerald-light: #34d399;
-            --blue: #3b82f6;
-            --blue-light: #60a5fa;
-            --orange: #f59e0b;
-            --orange-light: #fbbf24;
+            --bg-color: #F5EFE5;
+            --card-bg: #FFFCF7;
+            --card-bg-hover: #F2EADD;
+            --sidebar-bg: #26231F;
+            --text-main: #26231F;
+            --text-muted: #6F6455;
+            --border-color: #E2D6C3;
+            --danger-color: #dc2626;
+            --danger-hover: #b91c1c;
+            --emerald: #059669;
+            --emerald-dark: #065f46;
+            --emerald-light: #047857;
+            --blue: #2563eb;
+            --blue-light: #1d4ed8;
+            --orange: #d97706;
+            --orange-light: #b45309;
+            --kraft: #C8975A;
+            --kraft-dark: #9A6B2F;
+            --kraft-soft: #F3E3CB;
+            --sb-muted: #A89E8F;
+            --sb-line: #3A3631;
+            --shadow-card: 0 1px 2px rgba(60, 40, 10, 0.05), 0 10px 24px -14px rgba(60, 40, 10, 0.22);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -72,9 +90,6 @@
         .qty-btn:active:not(:disabled) { transform: scale(.92); }
         .qty-btn:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
         .qty-btn:disabled { cursor: not-allowed; opacity: .35; background: transparent; border-style: dashed; color: var(--text-muted); box-shadow: none; }
-        .tl-light .qty-btn { border-color: #cfe5da; background: #ecf7f1; color: #047857; }
-        .tl-light .qty-btn:hover:not(:disabled) { background: #d5efe2; border-color: #10b981; }
-        .tl-light .qty-btn:disabled { background: transparent; color: #7c9a8b; }
         /* убираем нативные ▲▼ у number-полей количества */
         .qty-input { -moz-appearance: textfield; appearance: textfield; }
         .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
@@ -87,7 +102,6 @@
         @keyframes tlOkPop { 0% { transform: scale(.55); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
         @keyframes tlOkFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
         @media (prefers-reduced-motion: reduce) { .tl-ok-circle, .tl-ok-check { animation: none; stroke-dashoffset: 0; } .tl-ok-pop, .tl-ok-fade { animation: none; } }
-        .tl-light select.\!border-red-400 { border-color: #dc2626 !important; }
         /* Переключатель языка печати: только код, без дублей */
         .lang-flag { font-size: 16px; line-height: 1; }
         .login-screen::before {
@@ -276,40 +290,16 @@
         body.tl-mode .sidebar-warehouses, body.tl-mode #bur-cart-fab { display: none !important; }
         /* Публичная ссылка для тимлидов (index.html?portal): без входа, без шторки и служебных кнопок — только портал заявок */
         body.portal-mode .sidebar, body.portal-mode .topbar, body.portal-mode #bur-cart-fab, body.portal-mode #login-screen { display: none !important; }
-        body.portal-mode { background: #f3f8f5; }
+        body.portal-mode { background: var(--bg-color); }
         body.portal-mode .page-container { max-width: 1440px; padding: 20px 16px 96px; }
         @media (min-width: 768px) { body.portal-mode .page-container { padding: 28px 28px 96px; } }
         /* Форма заказа тимлидов: светлая бело-зелёная тема (только внутри .tl-light, остальное приложение не меняется) */
-        .tl-light { background: #ffffff !important; border-color: #cfe5da !important; color: #0f2e22; box-shadow: 0 1px 3px rgba(4, 120, 87, 0.06); }
-        .tl-light .bg-klt-card { background: #ffffff !important; }
-        .tl-light .bg-klt-bg { background: #f6fbf8 !important; }
-        .tl-light .border-klt-line { border-color: #cfe5da !important; }
-        .tl-light .text-slate-50 { color: #0f2e22 !important; }
-        .tl-light .text-klt-muted { color: #557566 !important; }
-        .tl-light .text-klt-emerald-light { color: #047857 !important; }
-        .tl-light .text-klt-orange-light { color: #b45309 !important; }
-        .tl-light .text-red-300, .tl-light .text-red-400 { color: #b91c1c !important; }
-        .tl-light .text-blue-300 { color: #1d4ed8 !important; }
-        .tl-light input, .tl-light select, .tl-light textarea { background: #ffffff !important; color: #0f2e22 !important; border-color: #b9d8c8 !important; }
-        .tl-light input:focus, .tl-light select:focus { border-color: #059669 !important; box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15); }
-        .tl-light input::placeholder { color: #8aa79a !important; }
-        .tl-light input.\!border-red-400 { border-color: #dc2626 !important; }
-        .tl-light .bg-gradient-to-br { background: #047857 !important; color: #ffffff !important; }
-        .tl-light .bg-gradient-to-br:hover:not(:disabled) { background: #065f46 !important; }
-        .tl-light .bg-gradient-to-br:disabled { background: #e3eee8 !important; color: #6b8a7c !important; opacity: 1 !important; }
-        .tl-light .bg-klt-emerald\/15, .tl-light .bg-klt-emerald\/20 { background: #d1fae5 !important; }
-        .tl-light .bg-klt-orange\/10, .tl-light .bg-klt-orange\/15 { background: #fff7e6 !important; }
-        .tl-light .border-klt-orange\/50, .tl-light .border-klt-orange\/60 { border-color: #f5c66b !important; }
-        .tl-light .border-klt-emerald { border-color: #059669 !important; }
-        .tl-light .hover\:border-klt-emerald:hover { border-color: #059669 !important; }
-        .tl-light .hover\:text-slate-50:hover, .tl-light .hover\:text-klt-emerald-light:hover { color: #065f46 !important; }
-        .tl-light .hover\:bg-klt-hover:hover { background: #ecf7f1 !important; }
-        .tl-light article { box-shadow: 0 1px 2px rgba(15, 46, 34, 0.06); }
+        .tl-light { box-shadow: var(--shadow-card); }
         .tl-cart-col { flex: 1 1 300px; }
         @media (min-width: 1024px) { .tl-cart-col { flex: 0 0 350px; } }
         #tl-scroll { position: fixed; right: 16px; bottom: 20px; z-index: 105; display: none; flex-direction: column; gap: 8px; }
         body:not(.portal-mode) #tl-scroll { bottom: 84px; }
-        #tl-scroll button { width: 44px; height: 44px; border-radius: 999px; border: 1px solid #cfe5da; background: #ffffff; color: #047857; font-size: 20px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(4, 120, 87, 0.22); }
+        #tl-scroll button { width: 44px; height: 44px; border-radius: 999px; border: 1px solid #E2D6C3; background: #FFFCF7; color: #047857; font-size: 20px; font-weight: 700; cursor: pointer; box-shadow: 0 4px 14px rgba(4, 120, 87, 0.22); }
         #tl-scroll button:hover { background: #047857; color: #ffffff; }
 
         .sidebar-warehouses { padding: 14px 12px; border-top: 1px solid var(--border-color); flex-shrink: 0; }
@@ -452,6 +442,73 @@
         .rcv-bound { background:var(--bg-color); border:1px dashed var(--emerald); border-radius:10px; padding:12px 14px; margin-bottom:14px; font-size:13px; }
         .rcv-bound b { font-family: ui-monospace, Menlo, Consolas, monospace; color:var(--emerald-light); font-size:16px; }
         @media (max-width: 640px) { .rcv-grid { grid-template-columns: 1fr; } }
+    
+        /* =====================================================================
+           KRAFT & GRAPHITE — глобальная тема (поверх прежних правил; цвета берутся из токенов :root)
+           ===================================================================== */
+        * { font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background: var(--bg-color) url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22180%22%20height=%22180%22%3E%3Cfilter%20id=%22n%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%22.9%22%20numOctaves=%222%22%20stitchTiles=%22stitch%22/%3E%3CfeColorMatrix%20values=%220%200%200%200%20.35%20%200%200%200%200%20.25%20%200%200%200%200%20.1%20%200%200%200%20.5%200%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23n)%22%20opacity=%22.06%22/%3E%3C/svg%3E"); font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; }   /* тонкая бумажная фактура: заодно убирает banding */
+        ::selection { background: var(--kraft-soft); color: var(--text-main); }
+        input:focus, select:focus, textarea:focus { border-color: var(--emerald); box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15); outline: none; }
+
+        /* Шторка: графит, акцент — крафт */
+        .sidebar { background: var(--sidebar-bg); border-right: 1px solid var(--sb-line); }
+        .sidebar-top, .sidebar-warehouses { border-color: var(--sb-line); }
+        .sidebar-toggle { color: var(--sb-muted); } .sidebar-toggle:hover { color: #E8C48F; }
+        .nav-group-title { color: var(--sb-muted); opacity: 1; }
+        .nav-item { color: #EDE6DA; }
+        .nav-item:hover { background: rgba(255, 255, 255, 0.07); color: #fff; }
+        .nav-item:focus-visible { outline-color: var(--kraft); }
+        .nav-item.active { background: rgba(200, 151, 90, 0.20); color: #F0CFA0; border-left-color: var(--kraft); }
+        .warehouse-btn { background: #322F2B; border-color: #45403A; color: #C9BFAF; }
+        .warehouse-btn:hover { border-color: var(--kraft); color: #fff; }
+        .warehouse-btn.active { background: var(--kraft); border-color: var(--kraft); color: #26231F; }
+        .sidebar .sync-dot, .sidebar-logo { filter: none; }
+
+        /* Верхняя панель и поверхности */
+        .topbar { background: rgba(255, 252, 247, 0.72); }
+        .sync-indicator { color: var(--text-muted); }
+        .stat-card, .module-tile, .placeholder-page, .modal, .qa-search, article.bg-klt-card, .bg-klt-card.border { box-shadow: var(--shadow-card); }
+        .module-tile:hover { border-color: var(--kraft); background: var(--card-bg); box-shadow: 0 14px 30px -16px rgba(60, 40, 10, 0.35); }
+        .modal-overlay { background: rgba(38, 35, 31, 0.45); }
+        .history-item { background: rgba(60, 40, 10, 0.03); }
+        .bg-white\/5 { background-color: rgba(60, 40, 10, 0.04) !important; }
+        .bg-white\/10 { background-color: rgba(60, 40, 10, 0.07) !important; }
+        .home-status { background: rgba(5, 150, 105, 0.10); }
+        .qa-search button { background: var(--card-bg-hover); }
+        .qa-search button:hover { background: #fff; }
+
+        /* Кнопки действий: насыщенный emerald + белый текст */
+        .btn-add, .qa-btn.qa-primary, [class*="from-klt-emerald-light"] { background: var(--emerald-light) !important; color: #fff !important; box-shadow: 0 4px 12px -4px rgba(4, 120, 87, 0.45); }
+        .btn-add:hover, .qa-btn.qa-primary:hover, [class*="from-klt-emerald-light"]:hover:not(:disabled) { background: var(--emerald-dark) !important; filter: none; }
+        [class*="from-klt-emerald-light"]:disabled { background: #E9E1D3 !important; color: #9A8F7E !important; box-shadow: none; opacity: 1 !important; }
+        .qa-btn.qa-blue { background: #26231F !important; color: #fff; box-shadow: 0 4px 12px -4px rgba(38, 35, 31, 0.5); }   /* вторичное действие — графит */
+        .qa-btn.qa-blue:hover { background: #3A3631 !important; filter: none; }
+        .btn-secondary:hover { border-color: var(--kraft); color: var(--kraft-dark); }
+        .qty-btn { background: var(--kraft-soft); border-color: #E7D3B3; color: var(--emerald-light); }
+        .qty-btn:hover:not(:disabled) { background: #EBD5B1; border-color: var(--kraft); box-shadow: 0 0 0 3px rgba(200, 151, 90, 0.18); }
+        .qty-btn:disabled { background: transparent; color: var(--text-muted); }
+
+        /* Экран входа: светлая карточка на крафтовой бумаге, графитовая панель с анимацией */
+        .login-screen { background: radial-gradient(circle at 12% 8%, rgba(200, 151, 90, 0.30), transparent 46%), radial-gradient(circle at 92% 92%, rgba(5, 150, 105, 0.10), transparent 52%), #EFE6D8 url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22180%22%20height=%22180%22%3E%3Cfilter%20id=%22n%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%22.9%22%20numOctaves=%222%22%20stitchTiles=%22stitch%22/%3E%3CfeColorMatrix%20values=%220%200%200%200%20.35%20%200%200%200%200%20.25%20%200%200%200%200%20.1%20%200%200%200%20.5%200%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23n)%22%20opacity=%22.06%22/%3E%3C/svg%3E"); }
+        .login-screen::before, .login-screen::after { display: none; }
+        .boot-splash { background: var(--bg-color) url("data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20width=%22180%22%20height=%22180%22%3E%3Cfilter%20id=%22n%22%3E%3CfeTurbulence%20type=%22fractalNoise%22%20baseFrequency=%22.9%22%20numOctaves=%222%22%20stitchTiles=%22stitch%22/%3E%3CfeColorMatrix%20values=%220%200%200%200%20.35%20%200%200%200%200%20.25%20%200%200%200%200%20.1%20%200%200%200%20.5%200%22/%3E%3C/filter%3E%3Crect%20width=%22100%25%22%20height=%22100%25%22%20filter=%22url(%23n)%22%20opacity=%22.06%22/%3E%3C/svg%3E"); color: var(--text-muted); }
+        .boot-spinner { border-color: rgba(200, 151, 90, 0.30); border-top-color: var(--emerald-light); }
+        .login-shell { background: #FFFCF7; backdrop-filter: none; -webkit-backdrop-filter: none; border: 1px solid var(--border-color); box-shadow: 0 34px 70px -28px rgba(60, 40, 10, 0.40), 0 2px 6px rgba(60, 40, 10, 0.08); }
+        .login-hero { background: radial-gradient(circle at 50% 42%, rgba(200, 151, 90, 0.22), transparent 62%), #26231F; border-right: 0; }
+        .login-hero-title { color: #FAF5EC; }
+        .login-hero-sub { color: #E8C48F; }
+        .login-card .login-logo, .login-logo { filter: none; }
+        .login-hint { color: var(--text-muted); }
+        .login-field label { color: var(--text-muted); }
+        .login-field input { background: #fff; border: 1px solid var(--border-color); color: var(--text-main); }
+        .login-field input:focus { background: #fff; border-color: var(--emerald); box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.15); }
+        .login-field input::placeholder { color: #A89E8F; }
+        .login-toggle-pin { color: #8C8070; } .login-toggle-pin:hover { color: var(--emerald-light); }
+        .login-btn { color: #fff; background: var(--emerald-light); box-shadow: 0 8px 18px -6px rgba(4, 120, 87, 0.5); }
+        .login-btn:hover { background: var(--emerald-dark); box-shadow: 0 10px 22px -6px rgba(4, 120, 87, 0.55); }
+        .login-remember { color: var(--text-muted); }
+        .login-error { color: #b91c1c; }
     </style>
 </head>
 <body>
@@ -517,7 +574,7 @@
             </aside>
             <div class="login-card">
                 <div class="login-title">Bureau Online</div>
-                <img class="login-logo" src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20220%2040%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22g%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%2334d399%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23059669%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x=%222%22%20y=%222%22%20width=%2236%22%20height=%2236%22%20rx=%2210%22%20fill=%22url(%23g)%22/%3E%3Cpath%20d=%22M11%2017h18l1.6%2014.5a1.5%201.5%200%200%201-1.5%201.7H10.9a1.5%201.5%200%200%201-1.5-1.7z%22%20fill=%22%23fff%22/%3E%3Cpath%20d=%22M15%2017v-2.5a5%205%200%200%201%2010%200V17%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M15.5%2025.5l3.4%203.4%206.2-7%22%20fill=%22none%22%20stroke=%22%23059669%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3Ctext%20x=%2246%22%20y=%2228%22%20font-family=%22Inter,-apple-system,Segoe%20UI,Roboto,Arial,sans-serif%22%20font-size=%2222%22%20font-weight=%22800%22%20letter-spacing=%22-0.5%22%20fill=%22%23ecfdf5%22%3EBureau%3Ctspan%20fill=%22%2334d399%22%3E%20Online%3C/tspan%3E%3C/text%3E%3C/svg%3E" alt="Bureau Online" draggable="false" oncontextmenu="return false;">
+                <img class="login-logo" src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20220%2040%22%20xmlns:c2pa=%22http://c2pa.org/manifest%22%3E%3Cmetadata%3E%3Cc2pa:manifest%3EAAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTozZWZmYmNkYy1iMjJmLTQ5NGEtOTc5MS1hNjM4MzgxNDE0NTUAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaHvjkcGZT/vCbfdRHxuhYNsAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDpmYWMzZjQ0OC1hMDQ1LTQ1YmYtYjEyNy1hMTQ4M2NkN2NhOWJscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoXP0/qfKv9pBrP/ff6VSevQAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFggWgftFZvH1G3QB8tJb%2BH0WvkJUd1fJ/BEJh7d%2BxiUp42kZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaHy23Kiq0ZkoLvwikgg9ZN4AAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRNAAAAAAAAAAAAAAAAAGRoYXNoWCCl817d82tNP5OlUXbDhSv0nT27HtEJIBn0E4710vzh/WRuYW1lbmp1bWJmIG1hbmlmZXN0amV4Y2x1c2lvbnOBomVzdGFydBh8Zmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOjNlZmZiY2RjLWIyMmYtNDk0YS05NzkxLWE2MzgzODE0MTQ1NS9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOjQ1Y2YwMTc2LTMxOTAtNDcxNi04MDllLTA2ZjJiMGNiNTNjZnJjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCBaB%2B0Vm8fUbdAHy0lv4fRa%2BQlR3V8n8EQmHt37GJSnjaJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFgg1mKE31MowzlPioRydQCOdcgM4zhzRYO324nUlWzsCaaiY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFggWsisv2Si9G9i%2BRlJET5M6mb2JTUrpUHl1Au3Zquxihx0Y2xhaW1fZ2VuZXJhdG9yX2luZm%2BjZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj%2BOPEz5o%2BnMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1%2BUCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9%2B1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQBx0lIA4MKTDeifp8uUyYDUmHlXa4epKFxheXvtiaQtrTRiK9XYZr3y3sVHgWhyAEVuuNyKDFSsNqvz3nRJqbaA=%3C/c2pa:manifest%3E%3C/metadata%3E%3Cdefs%3E%3ClinearGradient%20id=%22g%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%2334d399%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23059669%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x=%222%22%20y=%222%22%20width=%2236%22%20height=%2236%22%20rx=%2210%22%20fill=%22url(%23g)%22/%3E%3Cpath%20d=%22M11%2017h18l1.6%2014.5a1.5%201.5%200%200%201-1.5%201.7H10.9a1.5%201.5%200%200%201-1.5-1.7z%22%20fill=%22%23fff%22/%3E%3Cpath%20d=%22M15%2017v-2.5a5%205%200%200%201%2010%200V17%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M15.5%2025.5l3.4%203.4%206.2-7%22%20fill=%22none%22%20stroke=%22%23059669%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3Ctext%20x=%2246%22%20y=%2228%22%20font-family=%22Inter,-apple-system,Segoe%20UI,Roboto,Arial,sans-serif%22%20font-size=%2222%22%20font-weight=%22800%22%20letter-spacing=%22-0.5%22%20fill=%22%2326231F%22%3EBureau%3Ctspan%20fill=%22%23047857%22%3E%20Online%3C/tspan%3E%3C/text%3E%3C/svg%3E" alt="Bureau Online" draggable="false" oncontextmenu="return false;">
             <div class="login-hint">ID та PIN-код</div>
 
             <div class="login-field">
@@ -693,7 +750,7 @@
                 <button class="btn btn-secondary" onclick="window.closeAddEmployeeModal()">Отмена</button>
                 <button class="btn btn-add" onclick="window.addEmployee()" id="add-emp-btn">Добавить</button>
             </div>
-            <div class="save-indicator" id="add-emp-error" style="color:#fca5a5;"></div>
+            <div class="save-indicator" id="add-emp-error" style="color:#b91c1c;"></div>
         </div>
     </div>
 
