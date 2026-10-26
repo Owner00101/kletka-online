@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kletka Online</title>
+    <title>Material Warehouse</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -77,6 +77,16 @@
         /* убираем нативные ▲▼ у number-полей количества */
         .qty-input { -moz-appearance: textfield; appearance: textfield; }
         .qty-input::-webkit-outer-spin-button, .qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        /* Success-экран заказа: рисуется кружок, затем галочка; иконка «выскакивает» */
+        .tl-ok-circle { stroke-dasharray: 166; stroke-dashoffset: 166; animation: tlOkStroke .6s cubic-bezier(.65, 0, .45, 1) forwards; }
+        .tl-ok-check { stroke-dasharray: 48; stroke-dashoffset: 48; animation: tlOkStroke .35s .55s cubic-bezier(.65, 0, .45, 1) forwards; }
+        .tl-ok-pop { animation: tlOkPop .55s ease both; }
+        .tl-ok-fade { animation: tlOkFade .5s .7s ease both; }
+        @keyframes tlOkStroke { to { stroke-dashoffset: 0; } }
+        @keyframes tlOkPop { 0% { transform: scale(.55); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+        @keyframes tlOkFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        @media (prefers-reduced-motion: reduce) { .tl-ok-circle, .tl-ok-check { animation: none; stroke-dashoffset: 0; } .tl-ok-pop, .tl-ok-fade { animation: none; } }
+        .tl-light select.\!border-red-400 { border-color: #dc2626 !important; }
         /* Переключатель языка печати: только код, без дублей */
         .lang-flag { font-size: 16px; line-height: 1; }
         .login-screen::before {
@@ -411,7 +421,7 @@
             if (/[?&]portal\b/.test(location.search)) {
                 // режим портала определяем ДО первого рендера: сразу тёмная заставка, главное меню скрыто CSS-ом
                 document.body.classList.add('portal-mode', 'portal-loading');
-                document.body.insertAdjacentHTML('afterbegin', '<div class="boot-splash portal-loader" id="portal-loader" role="status" aria-live="polite"><div class="boot-spinner"></div><div>Kletka Online…</div></div>');
+                document.body.insertAdjacentHTML('afterbegin', '<div class="boot-splash portal-loader" id="portal-loader" role="status" aria-live="polite"><div class="boot-spinner"></div><div>Material Warehouse…</div></div>');
                 // Страховка: если Firebase не ответил, через 12 с всё равно показываем форму (она работает и без входа)
                 setTimeout(function () {
                     document.body.classList.remove('portal-loading');
@@ -419,7 +429,7 @@
                 }, 12000);
                 return;
             }
-            document.body.insertAdjacentHTML('afterbegin', '<div class="boot-splash" id="boot-splash"><div class="boot-spinner"></div><div>Kletka Online…</div></div>');
+            document.body.insertAdjacentHTML('afterbegin', '<div class="boot-splash" id="boot-splash"><div class="boot-spinner"></div><div>Material Warehouse…</div></div>');
             // Страховка: если модуль Firebase не загрузился (нет сети), через 10 с показываем экран входа вместо вечной заставки
             setTimeout(function () {
                 var sp = document.getElementById('boot-splash');
@@ -431,8 +441,8 @@
     <!-- Экран входа -->
     <div class="login-screen hidden" id="login-screen">
         <div class="login-card">
-            <div class="login-title">Kletka Online</div>
-            <img class="login-logo" src="logo.png" alt="Kletka Online" draggable="false" oncontextmenu="return false;">
+            <div class="login-title">Material Warehouse</div>
+            <img class="login-logo" src="logo.png" alt="Material Warehouse" draggable="false" oncontextmenu="return false;">
             <div class="login-hint">ID та PIN-код</div>
 
             <div class="login-field">
@@ -463,7 +473,7 @@
             <!-- ШТОРКА -->
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-top">
-                    <div class="sidebar-logo"><img class="sidebar-logo-img" src="logo.png" alt="Kletka Online"></div>
+                    <div class="sidebar-logo"><img class="sidebar-logo-img" src="logo.png" alt="Material Warehouse"></div>
                     <button class="sidebar-toggle" id="sidebar-toggle-btn" title="Свернуть/развернуть">☰</button>
                 </div>
 
@@ -3153,6 +3163,8 @@
             if (!raw) return 'шт.';
             return BUR_UNIT_ALIAS[raw.toLowerCase().replace(/\.$/, '')] || raw;
         };
+        // Лимит «макс. в один заказ» (Material Master → material_catalog.maxPerOrder): целое ≥ 1, иначе 0 = без лимита
+        function tlMaxOf(v) { const n = Math.floor(Number(v)); return Number.isFinite(n) && n > 0 ? n : 0; }
         // Описание показываем целиком: неразрывные пробелы / невидимые символы заменяем обычными, чтобы текст чисто переносился
         const burCleanText = v => String(v == null ? '' : v).replace(/&nbsp;/gi, ' ').replace(/[\u00A0\u2007\u202F]/g, ' ').replace(/[\u200B-\u200D\u2060\uFEFF\u00AD]/g, '');
         // Складская запись хранит только sku/warehouse/qty/minQty. Паспорт (название, категория, ед. изм., фото, описание)
@@ -3163,7 +3175,7 @@
             return {
                 id: d.id, sku, name: String(p.name || ''), category: burCatSafe(p.category),
                 unit: burResolveUnit(p.unit), qty: Math.max(0, Number(x.qty) || 0), minQty: Math.max(0, Number(x.minQty) || 0), image: p.image || '',
-                description: burCleanText(p.description), hasStock: true, tlVisible: p.tlVisible !== false
+                description: burCleanText(p.description), hasStock: true, tlVisible: p.tlVisible !== false, maxPerOrder: tlMaxOf(p.maxPerOrder)
             };
         };
         const burLog = (action, msg) => logActivity(action, `Бюро-материалы: ${msg}, склад ${currentWarehouse}`);
@@ -4090,7 +4102,7 @@
         const mmcDocId = code => normCode(code).replace(/\//g, '_');
         const mmcFromDoc = d => {
             const x = d.data();
-            return { id: d.id, sku: normCode(x.sku || x.code || d.id), name: String(x.name || ''), category: burCatSafe(x.category), unit: burResolveUnit(x.unit), image: x.image || '', description: burCleanText(x.description), tlVisible: x.tlVisible !== false };
+            return { id: d.id, sku: normCode(x.sku || x.code || d.id), name: String(x.name || ''), category: burCatSafe(x.category), unit: burResolveUnit(x.unit), image: x.image || '', description: burCleanText(x.description), tlVisible: x.tlVisible !== false, maxPerOrder: tlMaxOf(x.maxPerOrder) };
         };
         function mmcSet(list) { mmcItems = list; mmcByCode.clear(); list.forEach(x => mmcByCode.set(normCode(x.sku), x)); }
         async function mmcLoad() {
@@ -4249,6 +4261,9 @@
                         <input id="mmc-f-tl" type="checkbox" ${!edit || it.tlVisible !== false ? 'checked' : ''} class="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-emerald-500">
                         <span><span class="block text-sm font-semibold text-slate-50">🧾 ${t('mmc_f_tl')}: <span id="mmc-f-tl-v" class="text-klt-emerald-light"></span></span>
                             <span class="mt-0.5 block text-xs text-klt-muted">${t('mmc_f_tl_hint')}</span></span></label>
+                    <div><label class="${CMP_LBL}" for="mmc-f-max">📦 ${t('mmc_f_max')}</label>
+                        <input id="mmc-f-max" type="number" min="1" max="${TL_MAX_QTY}" step="1" inputmode="numeric" value="${edit && tlMaxOf(it.maxPerOrder) ? tlMaxOf(it.maxPerOrder) : ''}" placeholder="${cmpAttr(t('mmc_f_max_ph'))}" class="${CMP_FLD}">
+                        <p class="mb-0 mt-1 text-xs text-klt-muted">${t('mmc_f_max_hint')}</p></div>
                     ${edit ? `<p class="m-0 text-xs text-klt-muted">ℹ️ ${t('mmc_code_note')}</p>` : ''}
                 </div>
                 <div id="mmc-f-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
@@ -4312,6 +4327,9 @@
                 if (!fileImg && url && !/^https?:\/\//i.test(url)) { err.textContent = t('cmp_err_url'); return; }
                 const image = fileImg || url || '';
                 const tlVisible = $('#mmc-f-tl').checked;   // «Показывать в форме заказа тимлидов»: Да / Нет
+                const maxRaw = $('#mmc-f-max').value.trim();   // «Макс. в один заказ»: пусто = без лимита
+                if (maxRaw && !(/^\d+$/.test(maxRaw) && +maxRaw >= 1 && +maxRaw <= TL_MAX_QTY)) { err.textContent = fmt(t('mmc_err_max'), { max: TL_MAX_QTY }); $('#mmc-f-max').focus(); return; }
+                const maxPerOrder = maxRaw ? parseInt(maxRaw, 10) : null;
                 okBtn.disabled = true; err.textContent = '';
                 try {
                     if (edit) {
@@ -4322,7 +4340,8 @@
                         if (desc !== it.description) ch.push('описание');
                         if (image !== it.image) ch.push('фото');
                         if (tlVisible !== (it.tlVisible !== false)) ch.push(`форма тимлидов: ${tlVisible ? 'Да' : 'Нет'}`);
-                        const upd = { name, category, unit, image, description: desc, tlVisible };
+                        if ((maxPerOrder || 0) !== tlMaxOf(it.maxPerOrder)) ch.push(`лимит на заказ: ${tlMaxOf(it.maxPerOrder) || '—'} → ${maxPerOrder || '—'}`);
+                        const upd = { name, category, unit, image, description: desc, tlVisible, maxPerOrder };
                         if (sku !== normCode(it.sku)) {   // смена кода: перенос карточки и остатков + правки паспорта — одной транзакцией
                             const old = it.sku;
                             await mmcRenameCode(old, sku, upd);
@@ -4338,7 +4357,7 @@
                     }
                     const id = mmcDocId(sku), ref = doc(db, 'material_catalog', id);
                     if ((await getDoc(ref)).exists()) { err.textContent = t('mmc_err_dup'); okBtn.disabled = false; return; }
-                    const now = Date.now(), data = { sku, name, category, unit, image, description: desc, tlVisible, createdAt: now, updatedAt: now, updatedBy: currentUserName };
+                    const now = Date.now(), data = { sku, name, category, unit, image, description: desc, tlVisible, maxPerOrder, createdAt: now, updatedAt: now, updatedBy: currentUserName };
                     await setDoc(ref, data);
                     const made = mmcFromDoc({ id, data: () => data });
                     mmcSet(mmcItems.concat(made));
@@ -4753,6 +4772,81 @@
         Object.assign(TR.pl, { tl_n_resend: 'Wyślij powiadomienie', tl_n_sent: '🟢 Powiadomienie wysłane', tl_n_sent_to: 'Wysłano na {to}', tl_n_noemail: 'Nie podano adresu e-mail', tl_n_failed: '⚠️ Powiadomienie nie zostało wysłane', tl_n_nocfg: 'skonfiguruj wysyłkę w „✉️ Powiadomienia”', tl_n_done_toast: 'Powiadomienie o gotowości wysłano na {to}', tl_n_fail_toast: 'Wydanie zrealizowane, ale e-mail nie został wysłany: {e}', tl_n_err: 'Nie udało się wysłać: {e}' });
         Object.assign(TR.en, { tl_n_resend: 'Send notification', tl_n_sent: '🟢 Notification sent', tl_n_sent_to: 'Sent to {to}', tl_n_noemail: 'No email provided', tl_n_failed: '⚠️ Notification not sent', tl_n_nocfg: 'set up sending in “✉️ Notifications”', tl_n_done_toast: 'Ready-notification sent to {to}', tl_n_fail_toast: 'Issued, but the email was not sent: {e}', tl_n_err: 'Could not send: {e}' });
 
+        // ---- Новые строки интерфейса: лимиты, процессы, экран успеха ----
+        Object.assign(TR.ru, {
+            mmc_f_max: 'Макс. количество в один заказ', mmc_f_max_ph: 'Без ограничения', mmc_f_max_hint: 'Необязательно. Тимлид не сможет заказать больше этого количества за один заказ.',
+            mmc_err_max: 'Лимит на заказ: целое число от 1 до {max} или пустое поле',
+            tl_max_hint: '(Макс. {limit} шт. за заказ)', tl_h_qty: 'количество — целое число от 1 до лимита позиции: {list}',
+            tl_f_process_pick: 'Выберите процесс', tl_proc_empty: 'Список процессов пуст — обратитесь к администратору',
+            tl_proc_title: 'Управление процессами', tl_proc_sub: 'Варианты для выпадающего списка «Процесс / отдел» в форме заказа. Уже отправленные заявки не меняются.',
+            tl_proc_add_ph: 'Название нового процесса', tl_proc_add: 'Добавить', tl_proc_none: 'Процессов пока нет — добавьте первый',
+            tl_proc_del: 'Удалить процесс', tl_proc_del_q: 'Удалить процесс «{name}» из списка?', tl_proc_len: 'Название: от 2 до 60 символов',
+            tl_proc_dup: 'Такой процесс уже есть в списке', tl_proc_err_save: 'Не удалось сохранить (проверьте правила Firestore для bureau_processes)',
+            tl_ok_title: 'Заказ успешно отправлен!', tl_ok_no: 'Номер заказа: {no} · склад {wh}', tl_ok_mail_wait: 'Отправляем копию заказа на {to}…',
+            tl_ok_mail_sent: 'Копия заказа отправлена на {to}. Когда заказ будет укомплектован, придёт отдельное уведомление.',
+            tl_ok_mail_none: 'Заказ принят. Копия на Email не отправлена (отправка не настроена) — уведомление придёт, когда заказ будет готов.',
+            tl_ok_mail_fail: 'Заказ принят, но копию не удалось отправить на {to}.', tl_ok_new: 'Создать новый заказ',
+            tl_n_ctpl: 'Template ID — копия заказа (необязательно)'
+        });
+        Object.assign(TR.uk, {
+            mmc_f_max: 'Макс. кількість в одному замовленні', mmc_f_max_ph: 'Без обмеження', mmc_f_max_hint: 'Необовʼязково. Тімлід не зможе замовити більше цієї кількості за одне замовлення.',
+            mmc_err_max: 'Ліміт на замовлення: ціле число від 1 до {max} або порожнє поле',
+            tl_max_hint: '(Макс. {limit} шт. за замовлення)', tl_h_qty: 'кількість — ціле число від 1 до ліміту позиції: {list}',
+            tl_f_process_pick: 'Оберіть процес', tl_proc_empty: 'Список процесів порожній — зверніться до адміністратора',
+            tl_proc_title: 'Керування процесами', tl_proc_sub: 'Варіанти для випадного списку «Процес / відділ» у формі замовлення. Уже надіслані заявки не змінюються.',
+            tl_proc_add_ph: 'Назва нового процесу', tl_proc_add: 'Додати', tl_proc_none: 'Процесів поки немає — додайте перший',
+            tl_proc_del: 'Видалити процес', tl_proc_del_q: 'Видалити процес «{name}» зі списку?', tl_proc_len: 'Назва: від 2 до 60 символів',
+            tl_proc_dup: 'Такий процес уже є в списку', tl_proc_err_save: 'Не вдалося зберегти (перевірте правила Firestore для bureau_processes)',
+            tl_ok_title: 'Замовлення успішно надіслано!', tl_ok_no: 'Номер замовлення: {no} · склад {wh}', tl_ok_mail_wait: 'Надсилаємо копію замовлення на {to}…',
+            tl_ok_mail_sent: 'Копію замовлення надіслано на {to}. Коли замовлення буде скомплектовано, прийде окреме сповіщення.',
+            tl_ok_mail_none: 'Замовлення прийнято. Копію на Email не надіслано (надсилання не налаштоване) — сповіщення прийде, коли замовлення буде готове.',
+            tl_ok_mail_fail: 'Замовлення прийнято, але копію не вдалося надіслати на {to}.', tl_ok_new: 'Створити нове замовлення',
+            tl_n_ctpl: 'Template ID — копія замовлення (необовʼязково)'
+        });
+        Object.assign(TR.pl, {
+            mmc_f_max: 'Maks. ilość w jednym zamówieniu', mmc_f_max_ph: 'Bez limitu', mmc_f_max_hint: 'Opcjonalnie. Lider nie zamówi więcej niż ta ilość w jednym zamówieniu.',
+            mmc_err_max: 'Limit na zamówienie: liczba całkowita od 1 do {max} lub puste pole',
+            tl_max_hint: '(Maks. {limit} szt. na zamówienie)', tl_h_qty: 'ilość musi być liczbą całkowitą od 1 do limitu pozycji: {list}',
+            tl_f_process_pick: 'Wybierz proces', tl_proc_empty: 'Lista procesów jest pusta — skontaktuj się z administratorem',
+            tl_proc_title: 'Zarządzanie procesami', tl_proc_sub: 'Opcje listy rozwijanej „Proces / dział” w formularzu zamówienia. Wysłane już zgłoszenia nie zmieniają się.',
+            tl_proc_add_ph: 'Nazwa nowego procesu', tl_proc_add: 'Dodaj', tl_proc_none: 'Brak procesów — dodaj pierwszy',
+            tl_proc_del: 'Usuń proces', tl_proc_del_q: 'Usunąć proces „{name}” z listy?', tl_proc_len: 'Nazwa: od 2 do 60 znaków',
+            tl_proc_dup: 'Taki proces już jest na liście', tl_proc_err_save: 'Nie udało się zapisać (sprawdź reguły Firestore dla bureau_processes)',
+            tl_ok_title: 'Zamówienie wysłane!', tl_ok_no: 'Numer zamówienia: {no} · magazyn {wh}', tl_ok_mail_wait: 'Wysyłamy kopię zamówienia na {to}…',
+            tl_ok_mail_sent: 'Kopia zamówienia została wysłana na {to}. Gdy zamówienie będzie skompletowane, dostaniesz osobne powiadomienie.',
+            tl_ok_mail_none: 'Zamówienie przyjęte. Kopia e-mailem nie została wysłana (wysyłka nie jest skonfigurowana) — powiadomimy Cię, gdy będzie gotowe.',
+            tl_ok_mail_fail: 'Zamówienie przyjęte, ale nie udało się wysłać kopii na {to}.', tl_ok_new: 'Utwórz nowe zamówienie',
+            tl_n_ctpl: 'Template ID — kopia zamówienia (opcjonalnie)'
+        });
+        Object.assign(TR.en, {
+            nav_tl_portal: 'Bureau Order Portal',
+            mmc_f_max: 'Max quantity per order', mmc_f_max_ph: 'No limit', mmc_f_max_hint: 'Optional. Team leads cannot order more than this in a single order.',
+            mmc_err_max: 'Per-order limit: a whole number from 1 to {max}, or leave empty',
+            tl_max_hint: '(Max {limit} pcs per order)', tl_h_qty: 'quantity must be a whole number from 1 up to the item limit: {list}',
+            tl_f_process_pick: 'Select a process', tl_proc_empty: 'No processes configured — contact an administrator',
+            tl_proc_title: 'Process management', tl_proc_sub: 'Options for the “Process / department” dropdown in the order form. Orders already sent are not changed.',
+            tl_proc_add_ph: 'New process name', tl_proc_add: 'Add', tl_proc_none: 'No processes yet — add the first one',
+            tl_proc_del: 'Delete process', tl_proc_del_q: 'Remove process “{name}” from the list?', tl_proc_len: 'Name: 2 to 60 characters',
+            tl_proc_dup: 'This process is already in the list', tl_proc_err_save: 'Could not save (check Firestore rules for bureau_processes)',
+            tl_ok_title: 'Order Successfully Sent!', tl_ok_no: 'Order no. {no} · warehouse {wh}', tl_ok_mail_wait: 'Sending a copy of your order to {to}…',
+            tl_ok_mail_sent: 'A copy of your order has been sent to {to}. You will get a separate email when it is ready.',
+            tl_ok_mail_none: 'Your order is registered. An email copy is not available (sending is not configured) — you will be notified when it is ready.',
+            tl_ok_mail_fail: 'Your order is registered, but the copy could not be emailed to {to}.', tl_ok_new: 'Create New Order',
+            tl_n_ctpl: 'Template ID — order copy (optional)'
+        });
+        // Эффективный лимит позиции в одном заказе: maxPerOrder (если задан) ограничен общим потолком TL_MAX_QTY
+        const tlHasLimit = it => !!(it && tlMaxOf(it.maxPerOrder));
+        const tlLimit = it => tlHasLimit(it) ? Math.min(tlMaxOf(it.maxPerOrder), TL_MAX_QTY) : TL_MAX_QTY;
+        // Процессы: коллекция bureau_processes { name, order, createdAt, createdBy }; сортировка на клиенте (индекс не нужен)
+        const tlProcCache = { list: [], docs: [], loaded: false };
+        async function tlProcLoad(force) {
+            if (tlProcCache.loaded && !force) return tlProcCache.list;
+            const snap = await getDocs(collection(db, 'bureau_processes'));
+            const docs = snap.docs.map(d => ({ id: d.id, name: tlNorm(d.data().name), order: Number(d.data().order) || 0 })).filter(x => x.name)
+                .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+            Object.assign(tlProcCache, { docs, list: docs.map(x => x.name), loaded: true });
+            return tlProcCache.list;
+        }
         const TL_IDENT_KEY = 'kletka_tl_ident_v1', TL_CART_KEY = 'kletka_tl_cart_v1', TL_MAX_QTY = 999;
         // Владелец данных портала: по ссылке (?portal) входа нет — используем постоянный id этого браузера/устройства,
         // для вошедшего тимлида — его uid. По нему хранятся корзина/идентификация и ищутся «Мои заявки».
@@ -4840,7 +4934,7 @@
         function tlLineState(l) {
             if (!l.it) return 'missing';
             if (tlStatus(l.it) === 'out') return 'out';
-            return Number.isInteger(l.q) && l.q >= 1 && l.q <= TL_MAX_QTY ? 'ok' : 'qty';
+            return Number.isInteger(l.q) && l.q >= 1 && l.q <= tlLimit(l.it) ? 'ok' : 'qty';
         }
         function tlSendBlockers(identErr, lines, loaded) {   // → список причин блокировки (пустой = можно отправлять)
             const why = [], names = st => lines.filter(l => tlLineState(l) === st).map(l => l.it ? l.it.name : l.id.split('__').slice(1).join('__')).join(', ');
@@ -4887,12 +4981,14 @@
             // смена языка = перерисовка страницы: берём уже загруженный каталог склада из кэша, без пустого экрана и повторной загрузки
             const cached = f.wh && tlCatCache.wh === f.wh;
             let items = cached ? tlCatCache.items : [], loadedFor = cached ? f.wh : '', loadErr = false, cart = tlCartLoad(f.wh), q = cached ? tlCatCache.q : '', busy = false, touched = new Set(), seq = 0;
-            if (PORTAL_MODE) document.title = t('tl_title');
+            if (PORTAL_MODE) document.title = `${t('nav_tl_portal')} · Material Warehouse`;
+            const canManage = !PORTAL_MODE && !isTeamlead() && isAdmin;   // админ-блок «Управление процессами»
 
             const wrap = document.createElement('div');
             wrap.className = 'tl-light w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-4 sm:p-7';
             const fld = (key, label, input) => `<div><label class="${CMP_LBL}" for="tl-${key}">${label} <span class="text-red-300">*</span></label>${input}<div data-err="${key}" class="mt-1 min-h-[16px] text-[11px] text-red-300"></div></div>`;
             wrap.innerHTML = `
+                <div id="tl-form">
                 <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
                     <div class="min-w-0" style="flex:1 1 320px">
                         <h2 class="text-2xl font-extrabold text-klt-emerald-light">📦 ${t('tl_title')}</h2>
@@ -4911,8 +5007,7 @@
                         ${fld('empId', t('tl_f_id'), `<input id="tl-empId" type="text" autocomplete="off" maxlength="20" placeholder="${cmpAttr(t('tl_f_id_ph'))}" value="${cmpAttr(f.empId)}" class="${CMP_FLD} font-mono">`)}
                         ${fld('email', t('tl_f_email'), `<input id="tl-email" type="email" autocomplete="email" maxlength="100" placeholder="${cmpAttr(t('tl_f_email_ph'))}" value="${cmpAttr(f.email)}" class="${CMP_FLD}">`)}
                         ${fld('wh', t('tl_f_wh'), `<div id="tl-wh" role="radiogroup" aria-label="${cmpAttr(t('tl_f_wh'))}" class="flex flex-wrap gap-2"></div>`)}
-                        ${fld('process', t('tl_f_process'), `<input id="tl-process" type="text" autocomplete="off" maxlength="60" list="tl-proc-list" placeholder="${cmpAttr(t('tl_f_process_ph'))}" value="${cmpAttr(f.process)}" class="${CMP_FLD}">
-                            <datalist id="tl-proc-list">${recent.map(p => `<option value="${cmpAttr(p)}"></option>`).join('')}</datalist>`)}
+                        ${fld('process', t('tl_f_process'), `<select id="tl-process" class="cursor-pointer ${CMP_FLD}"></select>`)}
                     </div>
                 </section>
                 <div class="flex flex-wrap items-start gap-5">
@@ -4940,7 +5035,19 @@
                 <section class="mt-7">
                     <h3 class="mb-3 text-sm font-bold uppercase tracking-wider text-slate-50">📋 ${t('tl_mine')}</h3>
                     <div id="tl-mine"><div class="py-6 text-center text-klt-muted">…</div></div>
-                </section>`;
+                </section>
+                ${canManage ? `<section id="tl-proc-admin" class="mt-7 rounded-xl border border-solid border-klt-line bg-klt-bg p-4 sm:p-5">
+                    <h3 class="text-sm font-bold uppercase tracking-wider text-slate-50">⚙️ ${t('tl_proc_title')}</h3>
+                    <p class="mb-3 mt-1 text-xs text-klt-muted">${t('tl_proc_sub')}</p>
+                    <div class="flex flex-wrap gap-2">
+                        <input id="tl-proc-new" type="text" maxlength="60" autocomplete="off" placeholder="${cmpAttr(t('tl_proc_add_ph'))}" class="${CMP_FLD}" style="flex:1 1 220px">
+                        <button type="button" id="tl-proc-add" class="${CMP_BTN_MAIN}">＋ ${t('tl_proc_add')}</button>
+                    </div>
+                    <div id="tl-proc-err" class="mt-1 min-h-[16px] text-[11px] text-red-300"></div>
+                    <div id="tl-proc-list" class="mt-2 flex flex-wrap gap-2"></div>
+                </section>` : ''}
+                </div>
+                <div id="tl-success" class="hidden"></div>`;
             pv.appendChild(wrap);
             const $ = s => wrap.querySelector(s);
 
@@ -4954,7 +5061,7 @@
                 ['fio', 'empId', 'email', 'wh', 'process'].forEach(k => {
                     const el = $(`[data-err="${k}"]`), show = touched.has(k) && e[k];
                     el.textContent = show ? t(e[k]) : '';
-                    const inp = $(`#tl-${k}`); if (inp && inp.tagName === 'INPUT') inp.classList.toggle('!border-red-400', !!show);
+                    const inp = $(`#tl-${k}`); if (inp && (inp.tagName === 'INPUT' || inp.tagName === 'SELECT')) inp.classList.toggle('!border-red-400', !!show);
                 });
                 const ok = !Object.keys(e).length, st = $('#tl-ident-st');
                 st.textContent = t(ok ? 'tl_ident_ok' : 'tl_ident_need');
@@ -4988,7 +5095,8 @@
                         <div class="flex flex-1 flex-col p-3">
                             <div class="text-sm font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
                             <div class="mt-0.5 text-[11px] text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${escapeHtml(it.unit)}</div>
-                            <button type="button" data-tl-add="${cmpAttr(it.id)}" ${out ? 'disabled' : ''} title="${cmpAttr(out ? t('tl_out_blocked') : t('tl_add'))}" class="${CMP_BTN_MAIN} mt-auto w-full" style="margin-top:10px">${out ? '⛔ ' + t('tl_st_out') : n ? fmt(t('tl_in_cart'), { n }) + ' · +1' : t('tl_add')}</button>
+                            ${tlHasLimit(it) ? `<div class="mt-1 text-[11px] font-semibold text-klt-orange-light">${escapeHtml(fmt(t('tl_max_hint'), { limit: tlLimit(it) }))}</div>` : ''}
+                            <button type="button" data-tl-add="${cmpAttr(it.id)}" ${out || n >= tlLimit(it) ? 'disabled' : ''} title="${cmpAttr(out ? t('tl_out_blocked') : t('tl_add'))}" class="${CMP_BTN_MAIN} mt-auto w-full" style="margin-top:10px">${out ? '⛔ ' + t('tl_st_out') : n >= tlLimit(it) ? fmt(t('tl_in_cart'), { n }) + ' · MAX' : n ? fmt(t('tl_in_cart'), { n }) + ' · +1' : t('tl_add')}</button>
                         </div></article>`;
                 }).join('')}</div>`;
             }
@@ -4997,19 +5105,29 @@
                 $('#tl-clear').disabled = !ls.length;
                 if (!ls.length) { box.innerHTML = `<div class="rounded-lg border border-dashed border-klt-line px-3 py-6 text-center text-xs text-klt-muted">${t('tl_cart_empty')}</div>`; return; }
                 box.innerHTML = ls.map(l => {
-                    const id = cmpAttr(l.id), st = tlLineState(l);
+                    const id = cmpAttr(l.id), st = tlLineState(l), lim = tlLimit(l.it), atMax = l.q >= lim, img = l.it ? cmpSafeImg(l.it.image) : '';
                     const name = l.it ? escapeHtml(l.it.name) : `<span class="font-mono">${escapeHtml(l.id.split('__').slice(1).join('__'))}</span>`;
+                    // миниатюра 40×40: rounded-md + object-cover; если фото нет или оно не загрузилось — иконка категории
+                    const thumb = `<div class="relative h-10 w-10 shrink-0 overflow-hidden rounded-md border border-solid border-klt-line bg-klt-card"><span class="absolute inset-0 flex items-center justify-center text-lg opacity-60">${l.it ? burCatIcon(l.it.category) : '📦'}</span>${img ? `<img src="${cmpAttr(img)}" alt="" loading="lazy" onerror="this.remove()" class="absolute inset-0 h-10 w-10 rounded-md object-cover">` : ''}</div>`;
+                    const chip = 'cursor-pointer rounded-md border border-solid border-klt-line bg-transparent px-2 py-1 text-[11px] font-bold text-klt-emerald-light transition hover:border-klt-emerald disabled:cursor-not-allowed disabled:opacity-40';
                     return `<div data-tl-line="${id}" class="rounded-lg border border-solid p-2.5 ${st === 'ok' ? 'border-klt-line' : 'border-red-500/60'}">
-                        <div class="flex items-start gap-2"><div class="min-w-0 flex-1 text-[13px] font-semibold leading-snug text-slate-50" style="overflow-wrap:anywhere">${name}</div>
+                        <div class="flex items-start gap-2.5">${thumb}
+                            <div class="min-w-0 flex-1"><div class="text-[13px] font-semibold leading-snug text-slate-50" style="overflow-wrap:anywhere">${name}</div>
+                                ${tlHasLimit(l.it) ? `<div class="mt-0.5 text-[11px] font-semibold text-klt-orange-light">${escapeHtml(fmt(t('tl_max_hint'), { limit: lim }))}</div>` : ''}</div>
                             <button type="button" data-tl-del="${id}" title="${cmpAttr(t('tl_cart_del'))}" aria-label="${cmpAttr(t('tl_cart_del'))}" class="${CMP_ICO} px-2 py-1 text-xs">✕</button></div>
-                        <div class="mt-1.5 flex flex-wrap items-center gap-2">
+                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
                             ${l.it ? tlStBadge(tlStatus(l.it)) : ''}
                             <span class="ml-auto inline-flex items-center gap-1">
                                 ${qtyBtn(-1, `data-tl-step="-1" data-id="${id}"`, l.q <= 1)}
-                                <input type="number" data-tl-qty="${id}" min="1" max="${TL_MAX_QTY}" step="1" inputmode="numeric" value="${l.q}" aria-label="${cmpAttr(t('tl_col_req_qty'))}" style="width:4.2rem" class="qty-input ${CMP_FLD} px-2 py-1 text-center ${st === 'qty' ? '!border-red-400' : ''}">
-                                ${qtyBtn(1, `data-tl-step="1" data-id="${id}"`, l.q >= TL_MAX_QTY)}
+                                <input type="number" data-tl-qty="${id}" min="1" max="${lim}" step="1" inputmode="numeric" pattern="[0-9]*" value="${l.q}" onfocus="this.select()" aria-label="${cmpAttr(t('tl_col_req_qty'))}" style="width:4.2rem" class="qty-input ${CMP_FLD} px-2 py-1 text-center ${st === 'qty' ? '!border-red-400' : ''}">
+                                ${qtyBtn(1, `data-tl-step="1" data-id="${id}"`, atMax)}
                                 <span class="text-xs text-klt-muted">${l.it ? escapeHtml(l.it.unit) : ''}</span>
-                            </span></div></div>`;
+                            </span></div>
+                        <div class="mt-1.5 flex items-center justify-end gap-1.5">
+                            <button type="button" data-tl-addn="5" data-id="${id}" class="${chip}"${atMax ? ' disabled' : ''}>+5</button>
+                            <button type="button" data-tl-addn="10" data-id="${id}" class="${chip}"${atMax ? ' disabled' : ''}>+10</button>
+                            <button type="button" data-tl-maxbtn="1" data-id="${id}" class="${chip}"${atMax ? ' disabled' : ''}>MAX</button>
+                        </div></div>`;
                 }).join('');
             }
             // Кнопка «Отправить» активна только если идентификация полная И в заявке ≥1 корректная строка без «нет в наличии»
@@ -5020,7 +5138,25 @@
                 box.innerHTML = why.length ? `<div class="mb-1 font-bold">🔒 ${t('tl_why')}</div><ul class="m-0 list-disc pl-4">${why.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul>` : '';
                 return why;
             }
-            const drawAll = () => { drawWh(); drawList(); drawLines(); drawSend(); };
+            // ---- процессы: выпадающий список из bureau_processes + админ-блок ----
+            let procs = tlProcCache.list.slice(), procsLoaded = tlProcCache.loaded;
+            function drawProc() {
+                const sel = $('#tl-process'); if (!sel) return;
+                const cur = [sel.value, f.process].find(v => v && procs.includes(v)) || '';
+                sel.innerHTML = `<option value="" disabled ${cur ? '' : 'selected'}>${escapeHtml(procsLoaded && !procs.length ? t('tl_proc_empty') : t('tl_f_process_pick'))}</option>` +
+                    procs.map(p => `<option value="${cmpAttr(p)}" ${p === cur ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('');
+                sel.disabled = procsLoaded && !procs.length;
+            }
+            function drawProcAdmin() {
+                const box = $('#tl-proc-list'); if (!box) return;
+                box.innerHTML = tlProcCache.docs.length ? tlProcCache.docs.map(p => `<span class="inline-flex items-center gap-1.5 rounded-full border border-solid border-klt-line bg-klt-card py-1 pl-3 pr-1 text-[13px] font-semibold text-slate-50">${escapeHtml(p.name)}<button type="button" data-proc-del="${cmpAttr(p.id)}" title="${cmpAttr(t('tl_proc_del'))}" aria-label="${cmpAttr(t('tl_proc_del'))}" class="cursor-pointer rounded-full border-0 bg-transparent px-2 py-0.5 text-xs text-klt-muted transition hover:text-red-400">✕</button></span>`).join('')
+                    : `<span class="text-xs text-klt-muted">${t('tl_proc_none')}</span>`;
+            }
+            async function loadProcs() {
+                try { procs = await tlProcLoad(true); procsLoaded = true; } catch (e) { console.error('bureau_processes:', e); }
+                if (wrap.isConnected) { drawProc(); drawProcAdmin(); drawSend(); }
+            }
+            const drawAll = () => { drawProc(); drawProcAdmin(); drawWh(); drawList(); drawLines(); drawSend(); };
             const saveCart = () => tlCartSave(f.wh, cart);
 
             async function loadWh(wh) {
@@ -5031,6 +5167,9 @@
                     if (my !== seq || !wrap.isConnected) return;
                     // в каталог тимлида попадают только позиции с «Показывать в форме заказа тимлидов: Да» (Material Master)
                     items = snap.docs.map(burFromDoc).filter(x => x.tlVisible); loadedFor = wh;
+                    let fixed = false;   // лимит могли снизить после того, как корзина сохранилась в браузере
+                    cart.forEach((qq, id) => { const it = items.find(x => x.id === id); if (it && qq > tlLimit(it)) { cart.set(id, tlLimit(it)); fixed = true; } });
+                    if (fixed) saveCart();
                     Object.assign(tlCatCache, { wh, items, q });
                 } catch (err) { console.error(err); if (my !== seq) return; loadErr = true; }
                 if (wrap.isConnected) { drawList(); drawLines(); drawSend(); }
@@ -5055,6 +5194,7 @@
             ['fio', 'empId', 'email', 'process'].forEach(k => {
                 const inp = $(`#tl-${k}`);
                 inp.addEventListener('input', () => { $('#tl-err').textContent = ''; tlIdentSave(readF(), false); drawSend(); });
+                inp.addEventListener('change', () => { $('#tl-err').textContent = ''; tlIdentSave(readF(), false); drawSend(); });
                 inp.addEventListener('blur', () => { touched.add(k); drawSend(); });
             });
             $('#tl-wh').addEventListener('click', e => {
@@ -5069,24 +5209,29 @@
                 const b = e.target.closest('[data-tl-add]'); if (!b || b.disabled) return;
                 const it = items.find(x => x.id === b.dataset.tlAdd);
                 if (!it || tlStatus(it) === 'out') { cmpToast(t('tl_out_blocked'), 'err'); return; }   // 🔴 — добавить нельзя
-                const cur = cart.get(it.id) || 0;
-                if (cur >= TL_MAX_QTY) return;
+                const cur = cart.get(it.id) || 0, lim = tlLimit(it);
+                if (cur >= lim) { if (tlHasLimit(it)) cmpToast(fmt(t('tl_max_hint'), { limit: lim }), 'err'); return; }
                 cart.set(it.id, Math.max(1, cur + 1)); saveCart();
                 $('#tl-err').textContent = ''; drawList(); drawLines(); drawSend();
             });
             $('#tl-lines').addEventListener('click', e => {
                 const d = e.target.closest('[data-tl-del]');
                 if (d) { cart.delete(d.dataset.tlDel); saveCart(); drawList(); drawLines(); drawSend(); return; }
-                const s = e.target.closest('[data-tl-step]'); if (!s) return;
-                const id = s.dataset.id, cur = cart.get(id) || 0, next = Math.min(TL_MAX_QTY, Math.max(1, cur + Number(s.dataset.tlStep)));
-                cart.set(id, next); saveCart(); drawList(); drawLines(); drawSend();
+                const s = e.target.closest('[data-tl-step],[data-tl-addn],[data-tl-maxbtn]'); if (!s) return;
+                const id = s.dataset.id, it = items.find(x => x.id === id), lim = tlLimit(it), cur = cart.get(id) || 0;
+                // −1 / +1 / +5 / +10 / MAX — результат никогда не выходит за 1…лимит позиции
+                const want = s.dataset.tlStep ? cur + Number(s.dataset.tlStep) : s.dataset.tlAddn ? cur + Number(s.dataset.tlAddn) : lim;
+                if (want > lim && tlHasLimit(it)) cmpToast(fmt(t('tl_max_hint'), { limit: lim }), 'err');
+                cart.set(id, Math.min(lim, Math.max(1, want))); saveCart(); drawList(); drawLines(); drawSend();
             });
-            // ввод количества: не перерисовываем строки (чтобы не терять фокус), только проверку и кнопку
+            // ввод количества с клавиатуры: не перерисовываем строки (чтобы не терять фокус), только проверку и кнопку
             $('#tl-lines').addEventListener('input', e => {
                 const inp = e.target.closest('[data-tl-qty]'); if (!inp) return;
-                const v = inp.value.trim(), n = /^\d+$/.test(v) ? parseInt(v, 10) : 0;
+                const it = items.find(x => x.id === inp.dataset.tlQty), lim = tlLimit(it), v = inp.value.trim();
+                let n = /^\d+$/.test(v) ? parseInt(v, 10) : 0;
+                if (n > lim) { n = lim; inp.value = String(lim); if (tlHasLimit(it)) cmpToast(fmt(t('tl_max_hint'), { limit: lim }), 'err'); }   // выше лимита вписать нельзя
                 cart.set(inp.dataset.tlQty, n); saveCart();
-                const bad = !(n >= 1 && n <= TL_MAX_QTY);
+                const bad = !(n >= 1 && n <= lim);
                 inp.classList.toggle('!border-red-400', bad); inp.closest('[data-tl-line]').classList.toggle('border-red-500/60', bad);
                 drawSend();
             });
@@ -5110,21 +5255,79 @@
                     });
                     if (changed) { err.textContent = t('tl_e_changed'); busy = false; drawList(); drawLines(); drawSend(); return; }
                     const reqNo = mmTxId('REQ');
-                    await addDoc(collection(db, 'tl_requests'), {
+                    if (ls.some(l => l.q > tlLimit(l.it))) { err.textContent = t('tl_e_changed'); busy = false; drawLines(); drawSend(); return; }   // страховка: лимит на заказ
+                    const reqDoc = {
                         reqNo, status: 'new', fio: ff.fio, empId: ff.empId, email: ff.email, warehouse: ff.wh, process: ff.process,
                         items: ls.map(l => ({ id: l.id, sku: l.it.sku, name: l.it.name, unit: l.it.unit, qty: l.q })),
                         createdAt: Date.now(), createdBy: tlOwner(), createdByName: currentUserName || '', viaLink: PORTAL_MODE
-                    });
+                    };
+                    await addDoc(collection(db, 'tl_requests'), reqDoc);
                     tlIdentSave(ff, true);
                     cart.clear(); saveCart(); busy = false;
-                    cmpToast(fmt(t('tl_sent'), { no: reqNo, wh: ff.wh }), 'ok');
                     logActivity('tl_request', `Заявка тимлида ${reqNo}: ${ff.fio} (ID ${ff.empId}, ${ff.email}), склад ${ff.wh}, процесс «${ff.process}», позиций ${ls.length}`);
                     drawList(); drawLines(); drawSend(); loadMine();
+                    showSuccess(reqNo, ff, reqDoc);
                 } catch (x) { console.error(x); err.textContent = t('tl_e_send'); busy = false; drawSend(); }
             };
 
+            // ---- Success Screen: форма скрыта, галочка рисуется анимацией, «копия на Email» отправляется в фоне ----
+            function showSuccess(reqNo, ff, reqDoc) {
+                const box = $('#tl-success');
+                $('#tl-form').classList.add('hidden');
+                box.classList.remove('hidden');
+                box.innerHTML = `<div class="mx-auto flex max-w-[540px] flex-col items-center px-2 py-12 text-center">
+                    <div class="tl-ok-pop"><svg width="112" height="112" viewBox="0 0 52 52" fill="none" aria-hidden="true"><circle class="tl-ok-circle" cx="26" cy="26" r="24" stroke="#059669" stroke-width="3" stroke-linecap="round"/><path class="tl-ok-check" d="M14.5 27.5l8 8 15.5-17" stroke="#059669" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+                    <h2 class="tl-ok-fade mb-0 mt-5 text-2xl font-extrabold text-klt-emerald-light">${t('tl_ok_title')}</h2>
+                    <div class="tl-ok-fade mt-2 font-mono text-sm text-klt-muted">${escapeHtml(fmt(t('tl_ok_no'), { no: reqNo, wh: ff.wh }))}</div>
+                    <p id="tl-ok-mail" class="tl-ok-fade mb-0 mt-3 text-sm leading-relaxed text-klt-muted">${escapeHtml(fmt(t('tl_ok_mail_wait'), { to: ff.email }))}</p>
+                    <button type="button" id="tl-new" class="${CMP_BTN_MAIN} tl-ok-fade mt-7 px-6 py-3 text-[15px]">➕ ${t('tl_ok_new')}</button></div>`;
+                try { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { /* ignore */ }
+                $('#tl-new').onclick = () => {   // сброс формы: корзина и поиск очищены, ФИО/ID/email/склад/процесс остаются запомненными
+                    cart.clear(); saveCart(); q = ''; tlCatCache.q = ''; $('#tl-q').value = ''; $('#tl-err').textContent = '';
+                    box.classList.add('hidden'); box.innerHTML = ''; $('#tl-form').classList.remove('hidden');
+                    drawList(); drawLines(); drawSend(); if (f.wh) loadWh(f.wh);
+                    try { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (x) { /* ignore */ }
+                };
+                (async () => {   // копия заказа: EmailJS (отдельный шаблон) или Webhook; без настройки — честное сообщение, что копия не уходила
+                    const say = k => { const el = box.querySelector('#tl-ok-mail'); if (el) el.textContent = fmt(t(k), { to: ff.email }); };
+                    try {
+                        const cfg = await tlNotifyLoad();
+                        if (!tlNotifyCfgOk(cfg) || (cfg.mode === 'emailjs' && !cfg.copyTemplateId)) { say('tl_ok_mail_none'); return; }
+                        await tlNotifySend(cfg, Object.assign(tlNotifyParams(reqDoc, null), { event: 'tl_order_created', order_status: 'received' }), cfg.mode === 'emailjs' ? cfg.copyTemplateId : undefined);
+                        say('tl_ok_mail_sent');
+                    } catch (x) { console.error(x); say('tl_ok_mail_fail'); }
+                })();
+            }
+
+            // ---- админ-блок «Управление процессами» ----
+            if (canManage) {
+                const pErr = $('#tl-proc-err'), pInp = $('#tl-proc-new'), pBtn = $('#tl-proc-add');
+                const addProc = async () => {
+                    const name = tlNorm(pInp.value);
+                    if (name.length < 2 || name.length > 60) { pErr.textContent = t('tl_proc_len'); return; }
+                    if (procs.some(p => p.toLowerCase() === name.toLowerCase())) { pErr.textContent = t('tl_proc_dup'); return; }
+                    pBtn.disabled = true; pErr.textContent = '';
+                    try {
+                        await addDoc(collection(db, 'bureau_processes'), { name, order: Date.now(), createdAt: Date.now(), createdBy: currentUserName || '' });
+                        pInp.value = ''; logActivity('tl_process', `Портал заявок: добавлен процесс «${name}»`); await loadProcs();
+                    } catch (x) { console.error(x); pErr.textContent = t('tl_proc_err_save'); }
+                    pBtn.disabled = false;
+                };
+                pBtn.onclick = addProc;
+                pInp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addProc(); } });
+                $('#tl-proc-list').addEventListener('click', async e => {
+                    const b = e.target.closest('[data-proc-del]'); if (!b) return;
+                    const p = tlProcCache.docs.find(x => x.id === b.dataset.procDel); if (!p) return;
+                    if (!confirm(fmt(t('tl_proc_del_q'), { name: p.name }))) return;
+                    b.disabled = true;
+                    try { await deleteDoc(doc(db, 'bureau_processes', p.id)); logActivity('tl_process', `Портал заявок: удалён процесс «${p.name}»`); await loadProcs(); }
+                    catch (x) { console.error(x); pErr.textContent = t('tl_proc_err_save'); b.disabled = false; }
+                });
+            }
+
             drawAll();
             tlScrollShow(true);
+            loadProcs();
             if (f.wh) loadWh(f.wh);   // при наличии кэша список уже на экране, загрузка только освежает остатки/статусы
             loadMine();
         }
@@ -5436,7 +5639,7 @@
                 ready_at: mmFmtDate(mv && mv.timestamp ? mv.timestamp : Date.now()), tx_id: (mv && mv.txId) || '', issued_by: currentUserName || ''
             };
         }
-        async function tlNotifySend(cfg, params) {
+        async function tlNotifySend(cfg, params, templateOverride) {
             // Адресат — только email из заявки тимлида (в тесте — адрес из окна настроек). Пустой/некорректный адрес → не отправляем вообще.
             const rcpt = tlNorm(params.to_email).toLowerCase();
             if (!TL_EMAIL.test(rcpt)) throw new Error('invalid recipient');
@@ -5444,7 +5647,7 @@
             if (cfg.mode === 'emailjs') {
                 const r = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ service_id: cfg.serviceId, template_id: cfg.templateId, user_id: cfg.publicKey, template_params: params })
+                    body: JSON.stringify({ service_id: cfg.serviceId, template_id: templateOverride || cfg.templateId, user_id: cfg.publicKey, template_params: params })
                 });
                 if (!r.ok) { let txt = ''; try { txt = await r.text(); } catch (e) { /* ignore */ } throw new Error(`EmailJS ${r.status}${txt ? ': ' + txt : ''}`); }
                 return;
@@ -5645,7 +5848,7 @@
                 <p class="mb-4 text-xs text-klt-muted">${t('tl_n_sub')}</p>
                 <div class="${CMP_LBL}">${t('tl_n_mode')}</div>
                 <div id="tln-seg" class="mb-4 inline-flex overflow-hidden rounded-lg border border-solid border-klt-line"></div>
-                <div id="tln-ejs" class="mb-3 grid gap-3">${inp('tln-svc', t('tl_n_service'), cfg.serviceId, 'service_xxxxxxx')}${inp('tln-tpl', t('tl_n_template'), cfg.templateId, 'template_xxxxxxx')}${inp('tln-key', t('tl_n_key'), cfg.publicKey, 'xXxXxXxXxXxXxXxXx')}</div>
+                <div id="tln-ejs" class="mb-3 grid gap-3">${inp('tln-svc', t('tl_n_service'), cfg.serviceId, 'service_xxxxxxx')}${inp('tln-tpl', t('tl_n_template'), cfg.templateId, 'template_xxxxxxx')}${inp('tln-key', t('tl_n_key'), cfg.publicKey, 'xXxXxXxXxXxXxXxXx')}${inp('tln-ctpl', t('tl_n_ctpl'), cfg.copyTemplateId, 'template_xxxxxxx')}</div>
                 <div id="tln-hook" class="mb-3">${inp('tln-url', t('tl_n_url'), cfg.webhookUrl, 'https://script.google.com/macros/s/…/exec')}</div>
                 <div id="tln-test" class="mt-2 flex flex-wrap items-end gap-2 border-0 border-t border-solid border-klt-line pt-3">
                     <div class="min-w-[200px] flex-1"><label class="${CMP_LBL}" for="tln-to">${t('tl_n_test')}</label><input id="tln-to" type="email" autocomplete="email" class="${CMP_FLD}"></div>
@@ -5654,7 +5857,7 @@
                 <div id="tln-err" class="mt-3 min-h-[18px] text-xs text-red-300"></div>
                 <div class="mt-3 flex justify-end gap-2.5"><button type="button" id="tln-cancel" class="${CMP_BTN}">${t('cmp_cancel')}</button><button type="button" id="tln-ok" class="${CMP_BTN_MAIN}">${t('cmp_save')}</button></div>`, true);
             const $ = m.$, err = $('#tln-err');
-            const read = () => ({ mode, serviceId: $('#tln-svc').value.trim(), templateId: $('#tln-tpl').value.trim(), publicKey: $('#tln-key').value.trim(), webhookUrl: $('#tln-url').value.trim() });
+            const read = () => ({ mode, serviceId: $('#tln-svc').value.trim(), templateId: $('#tln-tpl').value.trim(), publicKey: $('#tln-key').value.trim(), copyTemplateId: $('#tln-ctpl').value.trim(), webhookUrl: $('#tln-url').value.trim() });
             const draw = () => {
                 $('#tln-seg').innerHTML = [['off', 'tl_n_off'], ['emailjs', 'tl_n_emailjs'], ['webhook', 'tl_n_hook']].map(([k, l]) =>
                     `<button type="button" data-k="${k}" aria-pressed="${mode === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${mode === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${t(l)}</button>`).join('');
