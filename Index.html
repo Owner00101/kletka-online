@@ -12,19 +12,24 @@
     <script>
         tailwind.config = {
             corePlugins: { preflight: false },   // существующие стили проекта остаются нетронутыми
-            // Kraft & Graphite: тёплая бумага, графит, крафт; emerald — только действия и статусы
+            // Bureau Design System v2. Цвета — CSS-переменные (RGB-каналы), поэтому одна и та же разметка
+            // рисуется тёмным графитом в админ-панели и светлой бумагой в портале тимлидов.
             theme: { extend: { colors: {
                 klt: {
-                    bg: '#F5EFE5', card: '#FFFCF7', hover: '#F2EADD', line: '#E2D6C3', muted: '#6F6455',
-                    emerald: { DEFAULT: '#059669', light: '#047857', dark: '#065f46' },
-                    orange: { DEFAULT: '#d97706', light: '#b45309' },
+                    bg: 'rgb(var(--c-bg) / <alpha-value>)', card: 'rgb(var(--c-card) / <alpha-value>)',
+                    hover: 'rgb(var(--c-hover) / <alpha-value>)', line: 'rgb(var(--c-line) / <alpha-value>)',
+                    muted: 'rgb(var(--c-muted) / <alpha-value>)',
+                    ok: 'rgb(var(--c-ok) / <alpha-value>)',   // Emerald: ТОЛЬКО статус наличия / подтверждение
+                    // «emerald»-классы старого кода = нейтральный акцент (активный чип, hover, заголовки), не зелёный
+                    emerald: { DEFAULT: 'rgb(var(--c-accent) / <alpha-value>)', light: 'rgb(var(--c-strong) / <alpha-value>)', dark: 'rgb(var(--c-accent) / <alpha-value>)' },
+                    orange: { DEFAULT: 'rgb(var(--c-warn) / <alpha-value>)', light: 'rgb(var(--c-warn-text) / <alpha-value>)' },
                     kraft: { DEFAULT: '#C8975A', dark: '#9A6B2F', soft: '#F3E3CB' },
                     graphite: '#26231F'
                 },
-                // классы «светлого текста на тёмном» переопределены под светлую тему
-                slate: { 50: '#26231F' },
-                red: { 300: '#b42318', 400: '#dc2626' },
-                amber: { 300: '#b45309' }, blue: { 300: '#1d4ed8' }, sky: { 300: '#0369a1' }, emerald: { 300: '#047857' }
+                slate: { 50: 'rgb(var(--c-text) / <alpha-value>)' },
+                red: { 300: 'rgb(var(--c-red-300) / <alpha-value>)', 400: 'rgb(var(--c-red-400) / <alpha-value>)' },
+                amber: { 300: 'rgb(var(--c-amber-300) / <alpha-value>)' }, blue: { 300: 'rgb(var(--c-blue-300) / <alpha-value>)' },
+                sky: { 300: 'rgb(var(--c-sky-300) / <alpha-value>)' }, emerald: { 300: 'rgb(var(--c-ok) / <alpha-value>)' }
             } } }
         };
     </script>
@@ -586,6 +591,209 @@
         .login-hero { background: radial-gradient(circle at 50% 45%, #4A3D2C 0%, #2E2A24 42%, #221F1B 78%); }
         .login-hero-title { color: var(--cream); }
         .login-hero-sub { color: var(--gold); letter-spacing: 2.4px; }
+
+        /* =====================================================================
+           BUREAU DESIGN SYSTEM v2  (финальный слой — перекрывает Kraft/Dark Gold выше)
+           Две зоны:
+             1) Админ-панель и склад  → Dark Graphite & Clean Emerald  (:root)
+             2) Портал тимлидов       → Light & Clean                  (.tl-light, body.portal-mode, body.tl-mode)
+           Emerald используется ТОЛЬКО: кнопки действия (.btn-emerald) и статус наличия (.st-ok / text-klt-ok).
+           Цвета-токены хранятся RGB-каналами: rgb(var(--c-card) / .5) работает и в CSS, и в Tailwind (bg-klt-card/50).
+           ===================================================================== */
+        :root {
+            --c-bg: 24 25 28;          /* #18191C фон приложения */
+            --c-card: 33 35 40;        /* #212328 карточки */
+            --c-hover: 40 43 50;       /* #282B32 hover / вторичная поверхность */
+            --c-line: 42 45 53;        /* #2A2D35 рамки */
+            --c-text: 230 232 236;     /* мягкий белый */
+            --c-strong: 241 243 246;   /* заголовки */
+            --c-muted: 152 158 170;
+            --c-accent: 200 205 214;   /* нейтральный акцент: активные чипы, hover (НЕ зелёный) */
+            --c-ok: 16 185 129;        /* Emerald — только статус наличия */
+            --c-warn: 245 158 11; --c-warn-text: 251 191 36;
+            --c-red-300: 252 165 165; --c-red-400: 248 113 113; --c-amber-300: 252 211 77;
+            --c-blue-300: 147 197 253; --c-sky-300: 125 211 252;
+            --btn: #10B981; --btn-hover: #34D399; --btn-fg: #04261B; --btn-off-bg: #2A2D35; --btn-off-fg: #6B7280;
+            /* прежние переменные проекта → новые значения */
+            --bg-color: #18191C; --card-bg: #212328; --card-bg-hover: #282B32; --border-color: #2A2D35;
+            --text-main: #E6E8EC; --text-muted: #989EAA;
+            --emerald: #C8CDD6; --emerald-light: #F1F3F6; --emerald-dark: #989EAA;   /* нейтральные: старый «зелёный» текст/рамки больше не зелёные */
+            --danger-color: #F87171; --danger-hover: #EF4444;
+            --orange: #F59E0B; --orange-light: #FBBF24; --blue: #60A5FA; --blue-light: #93C5FD;
+            --sidebar-bg: #15161A; --sb-line: #2A2D35;
+            --shadow-card: none;
+        }
+        /* Светлая зона: портал тимлидов (и вся страница, пока в ней открыт портал) */
+        body.portal-mode, body.tl-mode, .tl-light, .main-area:has(.tl-light) {
+            --c-bg: 250 247 242;       /* #FAF7F2 бежевая основа */
+            --c-card: 255 255 255;     /* #FFFFFF */
+            --c-hover: 245 240 232;
+            --c-line: 232 226 214;     /* #E8E2D6 тонкая рамка */
+            --c-text: 38 35 31; --c-strong: 24 22 19; --c-muted: 112 104 91;
+            --c-accent: 38 35 31;
+            --c-ok: 4 120 87;
+            --c-warn: 217 119 6; --c-warn-text: 180 83 9;
+            --c-red-300: 180 35 24; --c-red-400: 220 38 38; --c-amber-300: 180 83 9;
+            --c-blue-300: 29 78 216; --c-sky-300: 3 105 161;
+            --btn: #059669; --btn-hover: #047857; --btn-fg: #FFFFFF; --btn-off-bg: #EEE8DC; --btn-off-fg: #A39A8A;
+            --bg-color: #FAF7F2; --card-bg: #FFFFFF; --card-bg-hover: #F5F0E8; --border-color: #E8E2D6;
+            --text-main: #26231F; --text-muted: #70685B;
+            --emerald: #26231F; --emerald-light: #181613; --emerald-dark: #70685B;
+            --danger-color: #DC2626; --danger-hover: #B91C1C;
+            --orange: #D97706; --orange-light: #B45309; --blue: #2563EB; --blue-light: #1D4ED8;
+            --shadow-card: 0 1px 2px rgba(60, 40, 10, .04), 0 12px 32px -20px rgba(60, 40, 10, .20);
+        }
+        /* Экран входа остаётся светлой карточкой: фиксируем его переменные независимо от темы */
+        .login-screen {
+            --bg-color: #F5EFE5; --card-bg: #FFFCF7; --border-color: #E2D6C3; --text-main: #26231F; --text-muted: #6F6455;
+            --emerald: #059669; --emerald-light: #047857; --emerald-dark: #065f46;
+        }
+
+        /* ---- Фон и каркас ---- */
+        html { background: #18191C; }
+        html:has(body.portal-mode), html:has(body.tl-mode) { background: #FAF7F2; }
+        body { background: #18191C; color: rgb(var(--c-text)); }          /* без шума, свечения и градиентов */
+        body.portal-mode, body.tl-mode { background: #FAF7F2; }
+        .main-area:has(.tl-light) { background: #FAF7F2; color: rgb(var(--c-text)); min-height: 100vh; }
+        ::selection { background: rgb(var(--c-accent) / .30); color: inherit; }
+        .topbar, .modal-overlay, [class*="backdrop-blur"] { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+        .topbar { background: rgb(var(--c-card)); border-bottom: 1px solid rgb(var(--c-line)); }
+        .topbar .lang-select, .topbar .btn-secondary, .lang-select { background: rgb(var(--c-bg)); border-color: rgb(var(--c-line)); color: rgb(var(--c-text)); }
+        .topbar .lang-select option, .lang-select option { background: rgb(var(--c-card)); color: rgb(var(--c-text)); }
+        .topbar .btn-secondary:hover, .topbar .lang-select:hover { border-color: rgb(var(--c-muted)); color: rgb(var(--c-strong)); }
+        .topbar .sync-indicator, .sync-indicator { color: rgb(var(--c-muted)); }
+        .sync-dot { background: rgb(var(--c-ok)); box-shadow: 0 0 0 3px rgb(var(--c-ok) / .18); }
+        .sync-indicator.offline .sync-dot { background: var(--danger-color); box-shadow: 0 0 0 3px rgb(239 68 68 / .18); }
+        .modal-overlay { background: rgba(10, 11, 13, .72); }
+        .modal { background: rgb(var(--c-card)); border: 1px solid rgb(var(--c-line)); box-shadow: 0 24px 60px -24px rgba(0, 0, 0, .7); }
+        .modal h2 { color: rgb(var(--c-strong)); }
+        input:focus, select:focus, textarea:focus { border-color: rgb(var(--c-muted)); box-shadow: 0 0 0 3px rgb(var(--c-accent) / .14); outline: none; }
+
+        /* ---- Шторка (всегда тёмный графит, в обеих зонах) ---- */
+        .sidebar { background: #15161A; border-right: 1px solid #2A2D35; }
+        .sidebar-top, .sidebar-warehouses, .nav-group { border-color: #2A2D35; }
+        .sidebar-toggle { color: #8B92A0; } .sidebar-toggle:hover { color: #F1F3F6; }
+        .nav-group-title { color: #7F8694; opacity: 1; }
+        .nav-item { color: #C9CED8; }
+        .nav-item:hover { background: #1F2126; color: #F1F3F6; }
+        .nav-item.active { background: #262930; color: #F1F3F6; border-left-color: #E6E8EC; }   /* нейтральный active — не зелёный */
+        .nav-item:focus-visible { outline-color: #E6E8EC; }
+        .warehouse-btn { background: #1F2126; border-color: #2A2D35; color: #A8AEBB; }
+        .warehouse-btn:hover { border-color: #4A4F5B; color: #F1F3F6; }
+        .warehouse-btn.active { background: #E6E8EC; border-color: #E6E8EC; color: #18191C; }
+
+        /* ---- Поверхности главной ---- */
+        .stat-card, .module-tile, .placeholder-page, .qa-search, .history-item {
+            background-color: rgb(var(--c-card)); border-color: rgb(var(--c-line)); box-shadow: none; border-radius: 12px;
+        }
+        .module-tile:hover { border-color: rgb(var(--c-muted) / .55); background-color: rgb(var(--c-hover)); box-shadow: none; transform: translateY(-1px); }
+        .stat-card.accent-warning { background-image: linear-gradient(rgb(var(--c-warn) / .06), rgb(var(--c-warn) / .06)); }
+        .stat-card.accent-danger, .stat-card.accent-danger.stage-2 { background-image: linear-gradient(rgb(239 68 68 / .07), rgb(239 68 68 / .07)); }
+        .stat-card.accent-success { border-left-color: rgb(var(--c-ok)); }
+        .stat-card.accent-success .num, .stat-card.accent-success .stat-link { color: rgb(var(--c-ok)); }
+        .stat-card .num, .stat-card .lbl { font-variant-numeric: tabular-nums; }
+        .home-header h1 { color: rgb(var(--c-strong)); }
+        .home-status { color: rgb(var(--c-text)); background: rgb(var(--c-hover)); border: 1px solid rgb(var(--c-line)); }
+        .home-sub { color: rgb(var(--c-muted)); }
+        .stat-group-title, .section-title { color: rgb(var(--c-muted)); letter-spacing: 1.2px; }
+        .back-link { color: rgb(var(--c-muted)); } .back-link:hover { color: rgb(var(--c-strong)); }
+        .qa-search button { background: rgb(var(--c-hover)); color: rgb(var(--c-text)); border-color: rgb(var(--c-line)); }
+        .qa-search button:hover { background: rgb(var(--c-line)); color: rgb(var(--c-strong)); }
+        .bg-white\/5 { background-color: rgb(var(--c-text) / .05) !important; }
+        .bg-white\/10 { background-color: rgb(var(--c-text) / .08) !important; }
+
+        /* ---- Кнопки: Emerald только для главного действия ---- */
+        .btn-emerald, .btn-add, .qa-btn.qa-primary {
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            background: var(--btn) !important; color: var(--btn-fg) !important; border: 0; box-shadow: none; font-weight: 700;
+            transition: background-color .15s ease, transform .1s ease;
+        }
+        .btn-emerald:hover:not(:disabled), .btn-add:hover:not(:disabled), .qa-btn.qa-primary:hover:not(:disabled) { background: var(--btn-hover) !important; filter: none; }
+        .btn-emerald:active:not(:disabled) { transform: translateY(1px); }
+        .btn-emerald:focus-visible, .btn-add:focus-visible { outline: 2px solid rgb(var(--c-strong)); outline-offset: 2px; }
+        .btn-emerald:disabled { background: var(--btn-off-bg) !important; color: var(--btn-off-fg) !important; cursor: not-allowed; opacity: 1; }
+        .qa-btn.qa-blue { background: rgb(var(--c-hover)) !important; color: rgb(var(--c-text)); border: 1px solid rgb(var(--c-line)); box-shadow: none; }
+        .qa-btn.qa-blue:hover { background: rgb(var(--c-line)) !important; }
+        .btn-secondary:hover { border-color: rgb(var(--c-muted)); color: rgb(var(--c-strong)); }
+        .qty-btn { background: rgb(var(--c-hover)); border-color: rgb(var(--c-line)); color: rgb(var(--c-text)); }
+        .qty-btn:hover:not(:disabled) { background: rgb(var(--c-line)); border-color: rgb(var(--c-muted) / .6); box-shadow: none; }
+        .qty-btn:disabled { background: transparent; color: rgb(var(--c-muted)); }
+        .qty-input, .qty-btn, td, th, .nav-badge { font-variant-numeric: tabular-nums; }
+
+        /* ---- Фильтры категорий: нейтральный тёмно-серый чип, никаких зелёных заливок ---- */
+        .chip {
+            display: inline-flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap;
+            padding: 6px 14px; border-radius: 999px; border: 1px solid rgb(var(--c-line));
+            background: rgb(var(--c-hover)); color: rgb(var(--c-text) / .86); font-size: 13px; font-weight: 600; line-height: 1.3;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+        }
+        .chip:hover { background: rgb(var(--c-line)); color: rgb(var(--c-strong)); }
+        .chip[aria-pressed="true"] { background: rgb(var(--c-text) / .13); border-color: rgb(var(--c-muted) / .7); color: rgb(var(--c-strong)); }
+        .chip:focus-visible { outline: 2px solid rgb(var(--c-muted)); outline-offset: 2px; }
+        .chip-n { opacity: .6; font-variant-numeric: tabular-nums; }
+        .chip-out { color: rgb(var(--c-red-300) / .92); }
+        .chip-out[aria-pressed="true"] { background: rgb(239 68 68 / .14); border-color: rgb(239 68 68 / .5); color: rgb(var(--c-red-300)); }
+
+        /* ---- Плашка статуса наличия 🟢 🟡 🔴 ---- */
+        .st-chip {
+            display: inline-flex; align-items: center; gap: 6px; max-width: 100%; padding: 4px 10px; border-radius: 999px;
+            border: 1px solid transparent; font-size: 12px; font-weight: 700; line-height: 1.25; white-space: nowrap;
+        }
+        .st-ok  { color: rgb(var(--c-ok));        background: rgb(var(--c-ok) / .12);   border-color: rgb(var(--c-ok) / .32); }
+        .st-low { color: rgb(var(--c-warn-text)); background: rgb(var(--c-warn) / .12); border-color: rgb(var(--c-warn) / .36); }
+        .st-out { color: rgb(var(--c-red-300));   background: rgb(239 68 68 / .12);      border-color: rgb(239 68 68 / .34); }
+        .st-arch { color: rgb(var(--c-muted));    background: rgb(var(--c-hover));       border-color: rgb(var(--c-line)); }
+
+        /* ---- Складская карточка (Комплектующие, Бюро-материалы): плотная #212328 на графите ---- */
+        .page-container .wh-page { background: transparent; border-color: transparent; box-shadow: none; padding-left: 0; padding-right: 0; }
+        .wh-page input, .wh-page select { background: rgb(var(--c-card)); }
+        .wh-card {
+            display: flex; flex-direction: column; overflow: hidden; border-radius: 12px;
+            background: rgb(var(--c-card)); border: 1px solid rgb(var(--c-line)); transition: border-color .15s ease;
+        }
+        .wh-card:hover { border-color: rgb(var(--c-muted) / .45); }
+        .wh-card.is-low { border-color: rgb(var(--c-warn) / .42); }
+        .wh-card.is-out { border-color: rgb(239 68 68 / .42); }
+        .wh-card.is-arch { opacity: .7; }
+        .wh-media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: rgb(var(--c-bg)); border-bottom: 1px solid rgb(var(--c-line)); }
+        .wh-body { display: flex; flex: 1; flex-direction: column; gap: 10px; padding: 16px; }
+        /* верхняя строка: статус слева, ✏️ 🗑 справа — в потоке, поверх ничего не накладывается; при нехватке места переносится */
+        .wh-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+        .wh-tools { display: flex; flex: none; gap: 6px; margin-left: auto; }
+        .wh-name { margin: 0; padding: 0; font-size: 15px; font-weight: 700; line-height: 1.35; color: rgb(var(--c-strong)); overflow-wrap: anywhere; text-align: left; }
+        .wh-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: rgb(var(--c-muted)); }
+        .wh-sku { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: rgb(var(--c-text)); }
+        .wh-desc { margin: 0; font-size: 12px; line-height: 1.5; color: rgb(var(--c-muted)); }
+        .wh-qty { display: flex; align-items: baseline; gap: 6px; }
+        .wh-num { font-size: 32px; font-weight: 800; line-height: 1; letter-spacing: -.02em; font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+        .wh-unit { font-size: 13px; color: rgb(var(--c-muted)); }
+        .wh-min { margin-left: auto; font-size: 11px; color: rgb(var(--c-muted)); font-variant-numeric: tabular-nums; }
+        .wh-actions { margin-top: auto; padding-top: 12px; border-top: 1px solid rgb(var(--c-line)); }
+
+        /* ---- Портал тимлидов: светлый, воздушный ---- */
+        .tl-light { background: #FFFFFF; border: 1px solid rgb(var(--c-line)); border-radius: 16px; box-shadow: var(--shadow-card); }
+        .tl-card {
+            display: flex; flex-direction: column; overflow: hidden; border-radius: 12px; background: #FFFFFF;
+            border: 1px solid rgb(var(--c-line)); transition: border-color .15s ease, box-shadow .15s ease;
+        }
+        .tl-card:hover { border-color: #D9CFBD; box-shadow: 0 10px 24px -16px rgba(60, 40, 10, .30); }
+        .tl-card.is-out { opacity: .62; }
+        .tl-media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; background: #F4EFE6; border-bottom: 1px solid rgb(var(--c-line)); }
+        .tl-body { display: flex; flex: 1; flex-direction: column; align-items: flex-start; gap: 8px; padding: 14px; }
+        .tl-name { font-size: 14px; font-weight: 700; line-height: 1.35; color: rgb(var(--c-strong)); overflow-wrap: anywhere; }
+        .tl-meta { display: flex; flex-wrap: wrap; gap: 2px 8px; font-size: 12px; color: rgb(var(--c-muted)); }
+        .tl-sku { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: rgb(var(--c-text)); }
+        .tl-limit { font-size: 11px; font-weight: 600; color: rgb(var(--c-warn-text)); }
+        .tl-body .tl-add { width: 100%; margin-top: auto; padding: 10px 14px; }
+        .tl-light [data-tl-qty] { font-variant-numeric: tabular-nums; text-align: center; }
+        body.portal-mode .portal-loader { background: #FAF7F2; color: #70685B; }
+        body.portal-mode .boot-spinner { border-color: rgba(38, 35, 31, .15); border-top-color: #26231F; }
+
+        /* ---- Вход и заставки: плоский графит без свечения ---- */
+        .login-screen, .boot-splash { background: #18191C; }
+        .boot-spinner { border-color: rgba(230, 232, 236, .18); border-top-color: #E6E8EC; }
+
+        @media (prefers-reduced-motion: reduce) { .chip, .wh-card, .tl-card, .btn-emerald { transition: none; } }
     </style>
 </head>
 <body>
@@ -777,7 +985,7 @@
 
                     <!-- Панель быстрых действий -->
                     <div class="quick-actions">
-                        <button class="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-[10px] border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark px-5 py-3.5 text-sm font-bold text-[#052e21] transition hover:brightness-110" onclick="window.openQuickIssue()">
+                        <button class="flex cursor-pointer items-center gap-2 whitespace-nowrap rounded-[10px] border-0 btn-emerald px-5 py-3.5 text-sm font-bold transition" onclick="window.openQuickIssue()">
                             <span>⚡</span><span data-i18n="qa_issue_tech">Быстрая выдача техники</span>
                         </button>
                         <button class="qa-btn qa-blue" onclick="window.openPage('bureau-issue')">
@@ -1776,7 +1984,7 @@
         }
         function setQiMsg(text, kind) {
             const m = qiEl('qi-msg');
-            m.className = 'mt-2 min-h-[18px] text-xs ' + (kind === 'err' ? 'text-red-300' : kind === 'ok' ? 'text-klt-emerald-light' : 'text-klt-muted');
+            m.className = 'mt-2 min-h-[18px] text-xs ' + (kind === 'err' ? 'text-red-300' : kind === 'ok' ? 'text-klt-ok' : 'text-klt-muted');
             m.innerText = text || '';
         }
         function focusQiScan() { const el = qiEl('qi-scan'); if (el) { el.focus(); el.select(); } }
@@ -1943,7 +2151,7 @@
             const pill = (cls, txt) => `<span class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${cls}">${escapeHtml(txt)}</span>`;
             if (a.status === 'written_off') return pill('bg-red-500/15 text-red-300', t('led_st_written_off'));
             if (a.status === 'service') return pill('bg-blue-500/15 text-blue-300', t('led_st_service'));
-            if (a.status === 'issued' || a.assignedTo) return pill('bg-klt-emerald/15 text-klt-emerald-light', t('led_st_issued'));
+            if (a.status === 'issued' || a.assignedTo) return pill('bg-klt-ok/15 text-klt-ok', t('led_st_issued'));
             if (isIdle(a)) return pill('bg-klt-orange/15 text-klt-orange-light', t('led_st_cage'));
             return pill('bg-white/10 text-klt-muted', a.status || '—');
         }
@@ -2241,7 +2449,7 @@
                 document.body.appendChild(el);
             }
             el.className = 'rounded-lg border border-solid px-4 py-2.5 text-[13px] font-semibold shadow-lg ' +
-                (kind === 'err' ? 'border-red-400/40 bg-[#2a1214] text-red-300' : 'border-klt-emerald/40 bg-[#0c2a20] text-klt-emerald-light');
+                (kind === 'err' ? 'border-red-400/40 bg-klt-card text-red-300' : 'border-klt-ok/40 bg-klt-card text-klt-ok');
             el.textContent = text; el.style.display = 'block';
             clearTimeout(el._t); el._t = setTimeout(() => { el.style.display = 'none'; }, 3200);
         }
@@ -2289,17 +2497,23 @@
         const CMP_FLD = 'w-full rounded-lg border border-solid border-klt-line bg-klt-bg px-3 py-2.5 text-sm text-slate-50 outline-none placeholder:text-klt-muted focus:border-klt-emerald';
         const CMP_LBL = 'mb-1.5 block text-xs font-semibold uppercase tracking-wide text-klt-muted';
         const CMP_BTN = 'cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-3 py-2 text-sm font-bold text-slate-50 transition hover:border-klt-emerald hover:text-klt-emerald-light disabled:cursor-not-allowed disabled:opacity-40';
-        const CMP_BTN_MAIN = 'cursor-pointer rounded-lg border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark px-4 py-2 text-sm font-bold text-[#052e21] transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40';
+        const CMP_BTN_MAIN = 'cursor-pointer rounded-lg border-0 btn-emerald px-4 py-2 text-sm font-bold transition disabled:cursor-not-allowed';
 
         // Кнопки − / + для изменения количества (SVG в стиле Lucide Minus / Plus). Общий хелпер для корзины тимлидов, бюро и карточек.
         const QTY_SVG = { '-1': '<path d="M5 12h14"/>', '1': '<path d="M5 12h14"/><path d="M12 5v14"/>' };
         const qtyBtn = (step, attrs, disabled) => `<button type="button" ${attrs} aria-label="${step < 0 ? '−1' : '+1'}" class="qty-btn"${disabled ? ' disabled' : ''}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${QTY_SVG[step < 0 ? '-1' : '1']}</svg></button>`;
-        const CMP_ICO = 'cursor-pointer rounded-lg border border-solid border-klt-line bg-transparent px-2.5 py-2 text-sm leading-none text-slate-50 transition hover:border-klt-emerald disabled:cursor-not-allowed disabled:opacity-40';
+        const CMP_ICO = 'inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-solid border-klt-line bg-transparent text-sm leading-none text-slate-50 transition hover:border-klt-emerald hover:bg-klt-hover disabled:cursor-not-allowed disabled:opacity-40';
+
+        // Статус наличия 🟢 / 🟡 / 🔴 — одна плашка для каталога склада, таблиц и портала тимлидов.
+        // Всегда стоит В ПОТОКЕ (в строке над названием), а не absolute поверх фото → не конфликтует с ✏️ / 🗑.
+        const ST_CHIP = { ok: ['🟢', 'tl_st_ok'], low: ['🟡', 'tl_st_low'], out: ['🔴', 'tl_st_out'] };
+        const stChip = (st, label) => `<span data-tl-st="${st}" class="st-chip st-${st}"><span aria-hidden="true">${ST_CHIP[st][0]}</span><span>${escapeHtml(label || t(ST_CHIP[st][1]))}</span></span>`;
+        const stOf = tn => tn.zero ? 'out' : tn.low ? 'low' : 'ok';
 
         function cmpQtyTone(it) {
             if (it.archived) return { zero: false, low: false, num: 'text-klt-muted' };
             const zero = it.qty <= 0, low = it.qty <= it.minQty;
-            return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-klt-emerald-light' };
+            return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-slate-50' };
         }
         // цифра остатка — кнопка «Принять» (у архивных плиток — просто число)
         const cmpQtyEl = (it, cls) => it.archived ? `<span class="${cls}">${it.qty}</span>` :
@@ -2315,7 +2529,7 @@
                 (max && specs.length > max ? `<div class="mt-0.5 text-[11px] text-klt-muted">${fmt(t('cmp_specs_more'), { n: specs.length - max })}</div>` : '');
         }
         function cmpActions(it, compact) {
-            const id = cmpAttr(it.id), pos = compact ? 'justify-end' : 'mt-4';
+            const id = cmpAttr(it.id), pos = compact ? 'justify-end' : 'wh-actions';
             if (it.archived) return `<div class="flex gap-2 ${pos}"><button type="button" data-cmp-act="restore" data-id="${id}" class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'}">♻️ ${t('cmp_restore')}</button></div>`;
             return `<div class="flex flex-wrap gap-2 ${pos}">
                 ${qtyBtn(-1, `data-cmp-act="dec" data-id="${id}"`, it.qty <= 0)}
@@ -2333,23 +2547,19 @@
         const cmpNameBtn = (it, cls) => `<button type="button" data-cmp-act="details" data-id="${cmpAttr(it.id)}" class="cursor-pointer border-0 bg-transparent p-0 text-left text-slate-50 transition hover:text-klt-emerald-light ${cls}">${escapeHtml(it.name)}</button>`;
 
         function cmpCard(it) {
-            const tn = cmpQtyTone(it);
-            return `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid bg-klt-bg ${it.archived ? 'border-klt-line opacity-70' : tn.zero ? 'border-red-500/70' : tn.low ? 'border-klt-orange/70' : 'border-klt-line'}">
-                <div class="relative aspect-[4/3] bg-klt-card">
-                    ${cmpPhoto(it, 'text-5xl')}
-                    ${it.archived ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full bg-slate-600 px-2.5 py-1 text-[11px] font-bold text-white">🗄 ${t('cmp_in_archive')}</span>` :
-                      tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t('cmp_low')}</span>` : ''}
-                </div>
-                <div class="flex flex-1 flex-col p-4">
-                    <div class="flex items-start gap-2">${cmpNameBtn(it, 'min-w-0 flex-1 text-[15px] font-bold leading-snug')}<span class="flex shrink-0 gap-1.5">${cmpIcons(it)}</span></div>
-                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
-                        <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${cmpCatIcon(it.category)} ${escapeHtml(cmpCatName(it.category))}</span>
-                    </div>
+            const tn = cmpQtyTone(it), st = stOf(tn);
+            const chip = it.archived ? `<span class="st-chip st-arch">🗄 ${t('cmp_in_archive')}</span>` : stChip(st);
+            return `<article class="wh-card ${it.archived ? 'is-arch' : st === 'out' ? 'is-out' : st === 'low' ? 'is-low' : ''}">
+                <div class="wh-media">${cmpPhoto(it, 'text-5xl')}</div>
+                <div class="wh-body">
+                    <div class="wh-top">${chip}<span class="wh-tools">${cmpIcons(it)}</span></div>
+                    ${cmpNameBtn(it, 'wh-name')}
+                    <div class="wh-meta"><span class="wh-sku">${escapeHtml(it.sku)}</span><span>${cmpCatIcon(it.category)} ${escapeHtml(cmpCatName(it.category))}</span></div>
                     ${cmpSpecsHtml(it.specs, 3)}
-                    <div class="mt-3 flex items-baseline gap-1.5">
-                        ${cmpQtyEl(it, 'text-4xl font-extrabold leading-none ' + tn.num)}
-                        <span class="text-sm text-klt-muted">${t('cmp_unit')}</span>
-                        <span class="ml-auto text-[11px] text-klt-muted">${fmt(t('cmp_min'), { n: it.minQty })}</span>
+                    <div class="wh-qty">
+                        ${cmpQtyEl(it, 'wh-num ' + tn.num)}
+                        <span class="wh-unit">${t('cmp_unit')}</span>
+                        <span class="wh-min">${fmt(t('cmp_min'), { n: it.minQty })}</span>
                     </div>
                     ${cmpActions(it, false)}
                 </div>
@@ -2372,8 +2582,8 @@
                         <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</td>
                         <td class="${td} text-klt-muted">${cmpCatIcon(it.category)} ${escapeHtml(cmpCatName(it.category))}</td>
                         <td class="${td}">${cmpSpecsHtml(it.specs) || '<span class="text-klt-muted">—</span>'}</td>
-                        <td class="${td}">${cmpQtyEl(it, 'text-lg font-extrabold ' + tn.num)} <span class="text-klt-muted">${t('cmp_unit')}</span>
-                            ${tn.low ? `<span class="ml-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${tn.zero ? 'bg-red-500/20 text-red-300' : 'bg-klt-orange/20 text-klt-orange-light'}">${t('cmp_low')}</span>` : ''}</td>
+                        <td class="${td}">${cmpQtyEl(it, 'text-lg font-extrabold tabular-nums ' + tn.num)} <span class="text-klt-muted">${t('cmp_unit')}</span>
+                            <span class="ml-2 align-middle">${stChip(stOf(tn))}</span></td>
                         <td class="${td} text-klt-muted">${it.minQty}</td>
                         <td class="${td}">${cmpActions(it, true)}</td>
                     </tr>`;
@@ -2710,7 +2920,7 @@
 
         async function renderComponents(pv) {
             const wrap = document.createElement('div');
-            wrap.className = 'rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            wrap.className = 'wh-page rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
             const seg = on => `cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${on ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}`;
             wrap.innerHTML = `
                 <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -2741,7 +2951,7 @@
                 if (cmpCat !== 'all' && !cats.some(c => c.id === cmpCat)) cmpCat = 'all';
                 const chip = (id, label, n) => {
                     const on = cmpCat === id;
-                    return `<button type="button" data-cmp-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${n}</span></button>`;
+                    return `<button type="button" data-cmp-cat="${cmpAttr(id)}" aria-pressed="${on}" class="chip">${label} <span class="chip-n">${n}</span></button>`;
                 };
                 $('cmp-chips').innerHTML = chip('all', t('cmp_cat_all'), vis.length) +
                     cats.map(c => chip(c.id, `${c.icon} ${escapeHtml(c.name)}`, vis.filter(x => x.category === c.id).length)).join('') +
@@ -2958,7 +3168,7 @@
             return ops;
         }
         const mmDeltaTxt = (delta, unit) => { const d = Number(delta) || 0; return (d > 0 ? '+' : d < 0 ? '−' : '') + Math.abs(d) + ' ' + (unit || 'шт.'); };
-        const mmDeltaCls = delta => { const d = Number(delta) || 0; return d > 0 ? 'text-klt-emerald-light' : d < 0 ? 'text-red-400' : 'text-klt-muted'; };
+        const mmDeltaCls = delta => { const d = Number(delta) || 0; return d > 0 ? 'text-klt-ok' : d < 0 ? 'text-red-400' : 'text-klt-muted'; };
         const mmDeltaHtml = (delta, unit) => `<span class="whitespace-nowrap font-extrabold ${mmDeltaCls(delta)}">${escapeHtml(mmDeltaTxt(delta, unit))}</span>`;
         // Итог операции по единицам измерения (шт. и упак. не складываем между собой)
         function mmTotals(items) {
@@ -3155,7 +3365,7 @@
                 <div id="mm-body" class="max-h-[58vh] overflow-auto rounded-xl border border-solid border-klt-line"></div>`, 'xl');
             const th = 'sticky top-0 whitespace-nowrap border-b border-solid border-klt-line bg-klt-card px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
             const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-top text-slate-50';
-            const typeCls = { receipt: 'bg-klt-emerald/15 text-klt-emerald-light', issue: 'bg-blue-500/15 text-blue-300', adjust: 'bg-klt-orange/15 text-klt-orange-light', writeoff: 'bg-red-500/15 text-red-300' };
+            const typeCls = { receipt: 'bg-klt-ok/15 text-klt-ok', issue: 'bg-blue-500/15 text-blue-300', adjust: 'bg-klt-orange/15 text-klt-orange-light', writeoff: 'bg-red-500/15 text-red-300' };
             const drawSeg = () => {
                 m.$('#mm-seg').innerHTML = [['today', 'mm_p_today'], ['week', 'mm_p_week'], ['all', 'mm_p_all']].map(([k, l]) =>
                     `<button type="button" data-p="${k}" aria-pressed="${period === k}" class="cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${period === k ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}">${t(l)}</button>`).join('');
@@ -3396,7 +3606,7 @@
         // Вкладка-фильтр «Нет в наличии»: служебный id, который не пересекается с id категорий (у них префикс c_ / seed-имена)
         const BUR_OUT = '__out';
         const burIsOut = it => it.qty <= 0;
-        const burTone = it => { const zero = it.qty <= 0, low = it.qty <= it.minQty; return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-klt-emerald-light' }; };
+        const burTone = it => { const zero = it.qty <= 0, low = it.qty <= it.minQty; return { zero, low, num: zero ? 'text-red-400' : low ? 'text-klt-orange-light' : 'text-slate-50' }; };
         function burPhoto(it, cls) {
             const img = cmpSafeImg(it.image);
             return `<span class="absolute inset-0 flex items-center justify-center ${cls} opacity-50">${burCatIcon(it.category)}</span>` +
@@ -3412,28 +3622,24 @@
         function burActions(it, compact) {
             burCartEnsure();
             const id = cmpAttr(it.id), n = burCart.get(it.id) || 0;
-            return `<div class="flex flex-wrap items-center gap-2 ${compact ? 'justify-end' : 'mt-4'}">
+            return `<div class="flex flex-wrap items-center gap-2 ${compact ? 'justify-end' : 'wh-actions'}">
                 ${compact ? burEditBtn(it) + burDelBtn(it) : ''}
                 <button type="button" data-bur-act="order" data-id="${id}" class="${CMP_BTN_MAIN} ${compact ? '' : 'flex-1'} ${it.qty <= 0 ? 'opacity-60' : ''}">${n ? fmt(t('bur_in_order'), { n }) : t('bur_to_order')}</button>
             </div>`;
         }
         function burCard(it) {
-            const tn = burTone(it);
-            return `<article class="flex flex-col overflow-hidden rounded-2xl border border-solid bg-klt-bg ${tn.zero ? 'border-red-500/70' : tn.low ? 'border-klt-orange/70' : 'border-klt-line'}">
-                <div class="relative aspect-[4/3] bg-klt-card">
-                    ${burPhoto(it, 'text-5xl')}
-                    ${tn.low ? `<span class="pointer-events-none absolute left-2.5 top-2.5 rounded-full px-2.5 py-1 text-[11px] font-bold ${tn.zero ? 'bg-red-500 text-white' : 'bg-klt-orange text-[#2a1800]'}">⚠ ${t(tn.zero ? 'bur_out' : 'bur_low')}</span>` : ''}
-                </div>
-                <div class="flex flex-1 flex-col p-4">
-                    <div class="flex items-start gap-2"><div class="min-w-0 flex-1 text-[15px] font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div><span class="flex shrink-0 gap-1.5">${burEditBtn(it)}${burDelBtn(it)}</span></div>
-                    <div class="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-klt-muted">
-                        <span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span>
-                    </div>
-                    ${burDescHtml(it, 'mt-2 text-xs leading-snug text-klt-muted')}
-                    <div class="mt-3 flex items-baseline gap-1.5">
-                        <span class="text-4xl font-extrabold leading-none ${tn.num}">${it.qty}</span>
-                        <span class="text-sm text-klt-muted">${escapeHtml(it.unit)}</span>
-                        <span class="ml-auto text-[11px] text-klt-muted">${fmt(t('bur_min'), { n: it.minQty })}</span>
+            const tn = burTone(it), st = stOf(tn);
+            return `<article class="wh-card ${st === 'out' ? 'is-out' : st === 'low' ? 'is-low' : ''}">
+                <div class="wh-media">${burPhoto(it, 'text-5xl')}</div>
+                <div class="wh-body">
+                    <div class="wh-top">${stChip(st)}<span class="wh-tools">${burEditBtn(it)}${burDelBtn(it)}</span></div>
+                    <div class="wh-name">${escapeHtml(it.name)}</div>
+                    <div class="wh-meta"><span class="wh-sku">${escapeHtml(it.sku)}</span><span>${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</span></div>
+                    ${burDescHtml(it, 'wh-desc')}
+                    <div class="wh-qty">
+                        <span class="wh-num ${tn.num}">${it.qty}</span>
+                        <span class="wh-unit">${escapeHtml(it.unit)}</span>
+                        <span class="wh-min">${fmt(t('bur_min'), { n: it.minQty })}</span>
                     </div>
                     ${burActions(it, false)}
                 </div>
@@ -3452,8 +3658,8 @@
                         <td class="${td} font-semibold">${escapeHtml(it.name)}${burDescHtml(it, 'mt-0.5 text-xs font-normal text-klt-muted')}</td>
                         <td class="${td} font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</td>
                         <td class="${td} text-klt-muted">${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))}</td>
-                        <td class="${td}"><span class="text-lg font-extrabold ${tn.num}">${it.qty}</span> <span class="text-klt-muted">${escapeHtml(it.unit)}</span>
-                            ${tn.low ? `<span class="ml-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold ${tn.zero ? 'bg-red-500/20 text-red-300' : 'bg-klt-orange/20 text-klt-orange-light'}">${t(tn.zero ? 'bur_out' : 'bur_low')}</span>` : ''}</td>
+                        <td class="${td}"><span class="text-lg font-extrabold tabular-nums ${tn.num}">${it.qty}</span> <span class="text-klt-muted">${escapeHtml(it.unit)}</span>
+                            <span class="ml-2 align-middle">${stChip(stOf(tn))}</span></td>
                         <td class="${td} text-klt-muted">${it.minQty}</td>
                         <td class="${td}">${burActions(it, true)}</td></tr>`;
                 }).join('')}</tbody></table></div>`;
@@ -3610,7 +3816,7 @@
                 <label class="${CMP_LBL}" for="bur-q-n">${t('bur_rc_qty')}</label>
                 <div class="flex flex-wrap items-center gap-2">
                     ${qtyBtn(-1, 'data-q-step="-1"', false)}
-                    <input id="bur-q-n" type="number" min="1" step="1" inputmode="numeric" value="1" style="width:6rem" class="qty-input ${CMP_FLD} text-center text-base font-bold">
+                    <input id="bur-q-n" type="number" min="1" step="1" inputmode="numeric" value="1" style="width:6rem" class="qty-input tabular-nums ${CMP_FLD} text-center text-base font-bold">
                     ${qtyBtn(1, 'data-q-step="1"', false)}
                     <span class="text-sm text-klt-muted">${unit}</span>
                     <button type="button" id="bur-q-max" class="${CMP_BTN} ml-auto text-[13px]" ${out ? 'hidden' : ''}></button>
@@ -3727,7 +3933,7 @@
                 box.innerHTML = `<div class="${CMP_LBL}">${t('bur_rc_list')}</div><div class="flex flex-col gap-2">${lines.map((l, i) => `
                     <div class="flex items-center gap-3 rounded-lg border border-solid border-klt-line bg-klt-bg px-3 py-2">
                         <div class="min-w-0 flex-1"><span class="font-mono text-xs text-klt-emerald-light">${escapeHtml(l.it.sku)}</span> <span class="text-sm text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(l.it.name)}</span></div>
-                        <span class="whitespace-nowrap text-sm font-extrabold text-klt-emerald-light">+${l.q} ${escapeHtml(l.it.unit)}</span>
+                        <span class="whitespace-nowrap text-sm font-extrabold text-klt-ok">+${l.q} ${escapeHtml(l.it.unit)}</span>
                         <button type="button" data-del="${i}" aria-label="${cmpAttr(t('bur_cart_del'))}" class="${CMP_ICO}">✕</button></div>`).join('')}</div>`;
             };
             const pick = it => { sel = it; code.value = it.sku; matches = []; hi = -1; err.textContent = ''; drawDd(); drawSel(); };
@@ -3890,7 +4096,7 @@
                             <div class="text-xs text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${burCatIcon(it.category)} ${escapeHtml(burCatName(it.category))} · ${fmt(t('bur_cart_avail'), { n: it.qty, unit: escapeHtml(it.unit) })}</div>
                             <div data-msg class="text-xs font-semibold ${msgCls(st)}">${escapeHtml(msgOf(it, st))}</div>
                         </div>
-                        <input type="number" data-k-qty="${id}" min="1" ${it.qty > 0 ? `max="${it.qty}"` : ''} step="1" inputmode="numeric" value="${q}" aria-label="${cmpAttr(t('cmp_issue_qty'))}" style="width:5rem" class="qty-input ${CMP_FLD} text-center">
+                        <input type="number" data-k-qty="${id}" min="1" ${it.qty > 0 ? `max="${it.qty}"` : ''} step="1" inputmode="numeric" value="${q}" aria-label="${cmpAttr(t('cmp_issue_qty'))}" style="width:5rem" class="qty-input tabular-nums ${CMP_FLD} text-center">
                         <span class="text-sm text-klt-muted">${escapeHtml(it.unit)}</span>
                         <button type="button" data-k-del="${id}" title="${cmpAttr(t('bur_cart_del'))}" aria-label="${cmpAttr(t('bur_cart_del'))}" class="${CMP_ICO}">✕</button></div>`;
                 }).join('');
@@ -4469,7 +4675,7 @@
                         </div></div>
                     <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-solid border-klt-line bg-klt-bg p-3">
                         <input id="mmc-f-tl" type="checkbox" ${!edit || it.tlVisible !== false ? 'checked' : ''} class="mt-0.5 h-5 w-5 shrink-0 cursor-pointer accent-emerald-500">
-                        <span><span class="block text-sm font-semibold text-slate-50">🧾 ${t('mmc_f_tl')}: <span id="mmc-f-tl-v" class="text-klt-emerald-light"></span></span>
+                        <span><span class="block text-sm font-semibold text-slate-50">🧾 ${t('mmc_f_tl')}: <span id="mmc-f-tl-v" class="text-klt-ok"></span></span>
                             <span class="mt-0.5 block text-xs text-klt-muted">${t('mmc_f_tl_hint')}</span></span></label>
                     <div><label class="${CMP_LBL}" for="mmc-f-max">📦 ${t('mmc_f_max')}</label>
                         <input id="mmc-f-max" type="number" min="1" max="${TL_MAX_QTY}" step="1" inputmode="numeric" value="${edit && tlMaxOf(it.maxPerOrder) ? tlMaxOf(it.maxPerOrder) : ''}" placeholder="${cmpAttr(t('mmc_f_max_ph'))}" class="${CMP_FLD}">
@@ -4519,7 +4725,7 @@
                 catch (x) { console.error(x); fileImg = null; prev(''); err.textContent = t('cmp_err_img'); }
             };
             $('#mmc-f-url').oninput = e => { const u = e.target.value.trim(); if (u) fileImg = null; prev(fileImg || cmpSafeImg(u)); };
-            const tlYN = () => { const v = $('#mmc-f-tl').checked, el = $('#mmc-f-tl-v'); el.textContent = t(v ? 'mmc_tl_yes' : 'mmc_tl_no'); el.className = v ? 'text-klt-emerald-light' : 'text-red-300'; };
+            const tlYN = () => { const v = $('#mmc-f-tl').checked, el = $('#mmc-f-tl-v'); el.textContent = t(v ? 'mmc_tl_yes' : 'mmc_tl_no'); el.className = v ? 'text-klt-ok' : 'text-red-300'; };
             $('#mmc-f-tl').onchange = tlYN; tlYN();
             $('#mmc-f-cancel').onclick = m.close;
             $(edit ? '#mmc-f-name' : '#mmc-f-code').focus();
@@ -4695,7 +4901,7 @@
 
         async function renderBureau(pv, focusSearch) {
             const wrap = document.createElement('div');
-            wrap.className = 'w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
+            wrap.className = 'wh-page w-full rounded-2xl border border-solid border-klt-line bg-klt-card p-5 sm:p-7';
             const seg = on => `cursor-pointer border-0 px-3.5 py-2 text-[13px] font-semibold transition ${on ? 'bg-klt-emerald/20 text-klt-emerald-light' : 'bg-transparent text-klt-muted hover:text-slate-50'}`;
             wrap.innerHTML = `
                 <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
@@ -4723,10 +4929,7 @@
                     `<button type="button" data-bur-view="${k}" aria-pressed="${burView === k}" class="${seg(burView === k)}">${ic} ${t(l)}</button>`).join('');
                 const chip = (id, label, n, out) => {
                     const on = burCat === id;
-                    const cls = out
-                        ? (on ? 'border-red-400 bg-red-500/15 text-red-300' : 'border-red-500/40 bg-transparent text-red-300/80 hover:border-red-400 hover:text-red-300')
-                        : (on ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50');
-                    return `<button type="button" data-bur-cat="${cmpAttr(id)}" aria-pressed="${on}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${cls}">${label} <span class="opacity-70">${n}</span></button>`;
+                    return `<button type="button" data-bur-cat="${cmpAttr(id)}" aria-pressed="${on}" class="chip${out ? ' chip-out' : ''}">${label} <span class="chip-n">${n}</span></button>`;
                 };
                 // Только фильтр: чипсы — категории, которые есть у товаров этого склада (берутся из карточек Material Master).
                 // Создавать/менять категории здесь нельзя — это делается в Material Master.
@@ -5078,7 +5281,7 @@
             low: ['🟡', 'tl_st_low', 'background:#f59e0b;color:#1f1300'],
             out: ['🔴', 'tl_st_out', 'background:#dc2626;color:#ffffff']
         };
-        const tlStBadge = st => `<span data-tl-st="${st}" class="inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-extrabold" style="${TL_ST[st][2]};border:1.5px solid rgba(255,255,255,.9);box-shadow:0 2px 6px rgba(0,0,0,.35)">${TL_ST[st][0]} ${t(TL_ST[st][1])}</span>`;
+        const tlStBadge = st => stChip(st);   // та же плашка, что и в складской части (светлая/тёмная — по теме контейнера)
         // Флажки языка формы (EN / PL / UA) и плавающие кнопки «вверх / вниз»
         const TL_LANGS = [['en', '🇬🇧', 'EN'], ['pl', '🇵🇱', 'PL'], ['uk', '🇺🇦', 'UA']];
         // Плавная прокрутка (easeInOutCubic): разгон в начале, мягкое торможение в конце.
@@ -5120,7 +5323,7 @@
         }
         // Каталог склада запоминается между перерисовками (смена языка перерисовывает страницу — список не должен пропадать)
         const tlCatCache = { wh: '', items: [], q: '' };
-        const TL_RS = { new: ['tl_s_new', 'bg-blue-500/15 text-blue-300'], issued: ['tl_s_issued', 'bg-klt-emerald/15 text-klt-emerald-light'], rejected: ['tl_s_rejected', 'bg-red-500/15 text-red-300'] };
+        const TL_RS = { new: ['tl_s_new', 'bg-blue-500/15 text-blue-300'], issued: ['tl_s_issued', 'bg-klt-ok/15 text-klt-ok'], rejected: ['tl_s_rejected', 'bg-red-500/15 text-red-300'] };
         const tlReqBadge = s => { const x = TL_RS[s] || TL_RS.new; return `<span data-req-st="${cmpAttr(s)}" class="inline-block whitespace-nowrap rounded-full px-2.5 py-0.5 text-[11px] font-bold ${x[1]}">${t(x[0])}</span>`; };
 
         // ---- Идентификация: проверка полей. Возвращает { поле: ключ ошибки }; пустой объект = всё заполнено верно ----
@@ -5275,7 +5478,7 @@
                 });
                 const ok = !Object.keys(e).length, st = $('#tl-ident-st');
                 st.textContent = t(ok ? 'tl_ident_ok' : 'tl_ident_need');
-                st.className = `rounded-full px-2.5 py-0.5 text-[11px] font-bold ${ok ? 'bg-klt-emerald/15 text-klt-emerald-light' : 'bg-klt-orange/15 text-klt-orange-light'}`;
+                st.className = `rounded-full px-2.5 py-0.5 text-[11px] font-bold ${ok ? 'bg-klt-ok/15 text-klt-ok' : 'bg-klt-orange/15 text-klt-orange-light'}`;
                 $('#tl-ident-box').classList.toggle('border-klt-orange/60', !ok);
                 return e;
             }
@@ -5298,15 +5501,16 @@
                 if (!list.length) { box.innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-10 text-center text-sm text-klt-muted">${t('tl_empty')}</div>`; return; }
                 // ВАЖНО: в карточке тимлида нет ни остатка, ни минимума — только статус
                 // резиновая сетка: 1 колонка на телефоне, 3–4 на мониторе ПК
-                box.innerHTML = `<div class="grid gap-3 sm:gap-4" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,200px),1fr))">${list.map(it => {
+                box.innerHTML = `<div class="grid gap-3 sm:gap-4" style="grid-template-columns:repeat(auto-fill,minmax(min(100%,220px),1fr))">${list.map(it => {
                     const st = tlStatus(it), n = cart.get(it.id) || 0, out = st === 'out';
-                    return `<article data-tl-item="${cmpAttr(it.id)}" class="flex flex-col overflow-hidden rounded-xl border border-solid bg-klt-bg ${out ? 'border-red-500/50 opacity-70' : st === 'low' ? 'border-klt-orange/60' : 'border-klt-line'}">
-                        <div class="relative aspect-[4/3] bg-klt-card">${burPhoto(it, 'text-4xl')}<span class="absolute left-2 top-2">${tlStBadge(st)}</span></div>
-                        <div class="flex flex-1 flex-col p-3">
-                            <div class="text-sm font-bold leading-snug text-slate-50" style="overflow-wrap:anywhere">${escapeHtml(it.name)}</div>
-                            <div class="mt-0.5 text-[11px] text-klt-muted"><span class="font-mono text-klt-emerald-light">${escapeHtml(it.sku)}</span> · ${escapeHtml(it.unit)}</div>
-                            ${tlHasLimit(it) ? `<div class="mt-1 text-[11px] font-semibold text-klt-orange-light">${escapeHtml(fmt(t('tl_max_hint'), { limit: tlLimit(it) }))}</div>` : ''}
-                            <button type="button" data-tl-add="${cmpAttr(it.id)}" ${out || n >= tlLimit(it) ? 'disabled' : ''} title="${cmpAttr(out ? t('tl_out_blocked') : t('tl_add'))}" class="${CMP_BTN_MAIN} mt-auto w-full" style="margin-top:10px">${out ? '⛔ ' + t('tl_st_out') : n >= tlLimit(it) ? fmt(t('tl_in_cart'), { n }) + ' · MAX' : n ? fmt(t('tl_in_cart'), { n }) + ' · +1' : t('tl_add')}</button>
+                    return `<article data-tl-item="${cmpAttr(it.id)}" class="tl-card ${out ? 'is-out' : ''}">
+                        <div class="tl-media">${burPhoto(it, 'text-4xl')}</div>
+                        <div class="tl-body">
+                            <div>${tlStBadge(st)}</div>
+                            <div class="tl-name">${escapeHtml(it.name)}</div>
+                            <div class="tl-meta"><span class="tl-sku">${escapeHtml(it.sku)}</span><span>${escapeHtml(it.unit)}</span></div>
+                            ${tlHasLimit(it) ? `<div class="tl-limit">${escapeHtml(fmt(t('tl_max_hint'), { limit: tlLimit(it) }))}</div>` : ''}
+                            <button type="button" data-tl-add="${cmpAttr(it.id)}" ${out || n >= tlLimit(it) ? 'disabled' : ''} title="${cmpAttr(out ? t('tl_out_blocked') : t('tl_add'))}" class="${CMP_BTN_MAIN} tl-add">${out ? '⛔ ' + t('tl_st_out') : n >= tlLimit(it) ? fmt(t('tl_in_cart'), { n }) + ' · MAX' : n ? fmt(t('tl_in_cart'), { n }) + ' · +1' : t('tl_add')}</button>
                         </div></article>`;
                 }).join('')}</div>`;
             }
@@ -5329,7 +5533,7 @@
                             ${l.it ? tlStBadge(tlStatus(l.it)) : ''}
                             <span class="ml-auto inline-flex items-center gap-1">
                                 ${qtyBtn(-1, `data-tl-step="-1" data-id="${id}"`, l.q <= 1)}
-                                <input type="number" data-tl-qty="${id}" min="1" max="${lim}" step="1" inputmode="numeric" pattern="[0-9]*" value="${l.q}" onfocus="this.select()" aria-label="${cmpAttr(t('tl_col_req_qty'))}" style="width:4.2rem" class="qty-input ${CMP_FLD} px-2 py-1 text-center ${st === 'qty' ? '!border-red-400' : ''}">
+                                <input type="number" data-tl-qty="${id}" min="1" max="${lim}" step="1" inputmode="numeric" pattern="[0-9]*" value="${l.q}" onfocus="this.select()" aria-label="${cmpAttr(t('tl_col_req_qty'))}" style="width:4.2rem" class="qty-input tabular-nums ${CMP_FLD} px-2 py-1 text-center ${st === 'qty' ? '!border-red-400' : ''}">
                                 ${qtyBtn(1, `data-tl-step="1" data-id="${id}"`, atMax)}
                                 <span class="text-xs text-klt-muted">${l.it ? escapeHtml(l.it.unit) : ''}</span>
                             </span></div>
@@ -5487,7 +5691,7 @@
                 box.classList.remove('hidden');
                 box.innerHTML = `<div class="mx-auto flex max-w-[540px] flex-col items-center px-2 py-12 text-center">
                     <div class="tl-ok-pop"><svg width="112" height="112" viewBox="0 0 52 52" fill="none" aria-hidden="true"><circle class="tl-ok-circle" cx="26" cy="26" r="24" stroke="#059669" stroke-width="3" stroke-linecap="round"/><path class="tl-ok-check" d="M14.5 27.5l8 8 15.5-17" stroke="#059669" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-                    <h2 class="tl-ok-fade mb-0 mt-5 text-2xl font-extrabold text-klt-emerald-light">${t('tl_ok_title')}</h2>
+                    <h2 class="tl-ok-fade mb-0 mt-5 text-2xl font-extrabold text-klt-ok">${t('tl_ok_title')}</h2>
                     <div class="tl-ok-fade mt-2 font-mono text-sm text-klt-muted">${escapeHtml(fmt(t('tl_ok_no'), { no: reqNo, wh: ff.wh }))}</div>
                     <p id="tl-ok-mail" class="tl-ok-fade mb-0 mt-3 text-sm leading-relaxed text-klt-muted">${escapeHtml(fmt(t('tl_ok_mail_wait'), { to: ff.email }))}</p>
                     <button type="button" id="tl-new" class="${CMP_BTN_MAIN} tl-ok-fade mt-7 px-6 py-3 text-[15px]">➕ ${t('tl_ok_new')}</button></div>`;
@@ -5703,9 +5907,9 @@
                         <td class="${td} text-klt-muted">${k + 1}</td><td class="${td} font-semibold" style="overflow-wrap:anywhere">${escapeHtml(r.name || '—')}</td>
                         <td class="${td} font-mono text-klt-muted">${escapeHtml(r.sku)}</td>
                         <td class="${td} text-right font-bold">${r.req} ${escapeHtml(r.unit)}</td>
-                        <td class="${td} text-right font-bold ${r.stock <= 0 ? 'text-red-400' : r.stock < r.req ? 'text-klt-orange-light' : 'text-klt-emerald-light'}">${r.stock}</td>
+                        <td class="${td} text-right font-bold ${r.stock <= 0 ? 'text-red-400' : r.stock < r.req ? 'text-klt-orange-light' : 'text-klt-ok'}">${r.stock}</td>
                         <td class="${td}">${r.stock > 0 ? `<input type="number" data-tli-give="${k}" min="1" max="${maxOf(r)}" step="1" inputmode="numeric" value="${r.give}" style="width:5rem" class="${CMP_FLD} px-2 py-1 text-center ${badQty(r) ? '!border-red-400' : ''}">` : '<span class="text-klt-muted">0</span>'}</td>
-                        <td class="${td}"><span data-tli-msg class="text-xs font-semibold ${st === 'ok' ? 'text-klt-emerald-light' : st === 'part' ? 'text-klt-orange-light' : 'text-red-300'}">${escapeHtml(msg)}</span></td></tr>`; }).join('')}</tbody></table>`;
+                        <td class="${td}"><span data-tli-msg class="text-xs font-semibold ${st === 'ok' ? 'text-klt-ok' : st === 'part' ? 'text-klt-orange-light' : 'text-red-300'}">${escapeHtml(msg)}</span></td></tr>`; }).join('')}</tbody></table>`;
             }
             const canIssue = () => rows.length && !rows.some(badQty) && rows.some(r => r.stock > 0 && r.give > 0);
             const syncBtns = () => { $('#tli-ok').disabled = $('#tli-okp').disabled = busy || !canIssue(); };
@@ -5733,7 +5937,7 @@
                 r.give = /^\d+$/.test(v) ? parseInt(v, 10) : 0;
                 inp.classList.toggle('!border-red-400', badQty(r));
                 const [st, msg] = lineMsg(r), el = inp.closest('tr').querySelector('[data-tli-msg]');
-                el.textContent = msg; el.className = `text-xs font-semibold ${st === 'ok' ? 'text-klt-emerald-light' : st === 'part' ? 'text-klt-orange-light' : 'text-red-300'}`;
+                el.textContent = msg; el.className = `text-xs font-semibold ${st === 'ok' ? 'text-klt-ok' : st === 'part' ? 'text-klt-orange-light' : 'text-red-300'}`;
                 err.textContent = ''; syncBtns();
             });
 
@@ -5882,7 +6086,7 @@
             if (!el) {
                 el = document.createElement('div'); el.id = 'tl-busy';
                 el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
-                el.className = 'fixed inset-0 z-[130] flex items-center justify-center bg-black/50 backdrop-blur-sm';
+                el.className = 'fixed inset-0 z-[130] flex items-center justify-center bg-black/50 ';
                 document.body.appendChild(el);
             }
             el.innerHTML = `<div class="flex max-w-[90vw] items-center gap-3 rounded-xl border border-solid border-klt-line bg-klt-card px-5 py-4 text-sm font-semibold text-slate-50 shadow-2xl">
@@ -6040,7 +6244,7 @@
             if (!tlNorm(r.email)) return `<div class="mt-1.5 text-[11px] text-klt-muted">${t('tl_n_noemail')}</div>`;
             const btn = `<button type="button" data-tlr-notify="${cmpAttr(r._id)}" class="${CMP_BTN} mt-1.5 text-[12px]">${t('tl_n_resend')}</button>`;
             let st = '';
-            if (n && n.status === 'sent') st = `<div class="mt-1.5 text-[11px] font-semibold text-klt-emerald-light" title="${cmpAttr(fmt(t('tl_n_sent_to'), { to: n.to || r.email }) + ' · ' + mmFmtDate(n.at || 0))}">${t('tl_n_sent')}</div>`;
+            if (n && n.status === 'sent') st = `<div class="mt-1.5 text-[11px] font-semibold text-klt-ok" title="${cmpAttr(fmt(t('tl_n_sent_to'), { to: n.to || r.email }) + ' · ' + mmFmtDate(n.at || 0))}">${t('tl_n_sent')}</div>`;
             else if (n && n.status === 'failed') st = `<div class="mt-1.5 text-[11px] font-semibold text-red-300" title="${cmpAttr(n.error || '')}">${t('tl_n_failed')}</div>`;
             return st + btn;
         }
@@ -6180,7 +6384,7 @@
 
         let audScope = 'all', audFilter = 'all', audQuery = '';
         const AUD_ST = {
-            ok: { ic: '✅', k: 'aud_s_ok', chip: 'border-emerald-400/50 bg-emerald-500/15 text-emerald-300', row: '', code: 'text-klt-emerald-light' },
+            ok: { ic: '✅', k: 'aud_s_ok', chip: 'border-emerald-400/50 bg-emerald-500/15 text-emerald-300', row: '', code: 'text-klt-ok' },
             mm: { ic: '⚠️', k: 'aud_s_mm', chip: 'border-amber-400/50 bg-amber-500/15 text-amber-300', row: '', code: 'text-amber-300' },
             orphan: { ic: '❌', k: 'aud_s_orphan', chip: 'border-red-400/60 bg-red-500/15 text-red-300', row: 'bg-red-500/10', code: 'text-red-300 font-bold' }
         };
@@ -6375,7 +6579,7 @@
             }
             function drawList() {
                 const { cnt, n } = res;
-                const chip = (id, label, k) => `<button type="button" data-aud-f="${id}" aria-pressed="${audFilter === id}" class="cursor-pointer rounded-full border border-solid px-3.5 py-1.5 text-[13px] font-semibold transition ${audFilter === id ? 'border-klt-emerald bg-klt-emerald/15 text-klt-emerald-light' : 'border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-slate-50'}">${label} <span class="opacity-70">${k}</span></button>`;
+                const chip = (id, label, k) => `<button type="button" data-aud-f="${id}" aria-pressed="${audFilter === id}" class="chip">${label} <span class="chip-n">${k}</span></button>`;
                 $('aud-chips').innerHTML = chip('all', t('aud_f_all'), n) + ['ok', 'mm', 'orphan'].map(st => chip(st, `${AUD_ST[st].ic} ${t(AUD_ST[st].k)}`, cnt[st])).join('');
                 const list = visible();
                 if (!list.length) { $('aud-list').innerHTML = `<div class="rounded-xl border border-dashed border-klt-line px-4 py-12 text-center text-sm text-klt-muted">${n ? t('aud_empty') : t('aud_empty_all')}</div>`; return; }
@@ -6469,7 +6673,7 @@
                 <div id="ah-body" class="max-h-[58vh] overflow-auto rounded-xl border border-solid border-klt-line"></div>`, 'xl');
             const th = 'sticky top-0 whitespace-nowrap border-b border-solid border-klt-line bg-klt-card px-3 py-2.5 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
             const td = 'border-b border-solid border-klt-line px-3 py-2.5 align-top text-slate-50';
-            const typeCls = { receive: 'bg-klt-emerald/15 text-klt-emerald-light', quick_issue: 'bg-blue-500/15 text-blue-300', reassign: 'bg-violet-500/15 text-violet-300', service: 'bg-klt-orange/15 text-klt-orange-light', writeoff: 'bg-red-500/15 text-red-300' };
+            const typeCls = { receive: 'bg-klt-ok/15 text-klt-ok', quick_issue: 'bg-blue-500/15 text-blue-300', reassign: 'bg-violet-500/15 text-violet-300', service: 'bg-klt-orange/15 text-klt-orange-light', writeoff: 'bg-red-500/15 text-red-300' };
             const draw = () => {
                 const body = m.$('#ah-body'), cnt = m.$('#ah-count');
                 if (loading) { cnt.textContent = ''; body.innerHTML = '<div class="py-10 text-center text-klt-muted">…</div>'; return; }
@@ -6813,7 +7017,7 @@
                     <span class="mt-0.5 block text-xs text-klt-muted">${t(c.descKey)}</span></span></button>`;
             };
             const chip = (txt, req) => `<span class="rounded-full border border-solid px-2.5 py-0.5 font-mono text-[11px] ${req ? 'border-klt-emerald/50 text-klt-emerald-light' : 'border-klt-line text-klt-muted'}">${escapeHtml(txt)}</span>`;
-            const msgCls = !ieMsg ? '' : ieMsg.kind === 'err' ? 'border-red-400/40 bg-red-500/10 text-red-300' : ieMsg.kind === 'ok' ? 'border-klt-emerald/40 bg-klt-emerald/10 text-klt-emerald-light' : 'border-klt-line bg-white/5 text-klt-muted';
+            const msgCls = !ieMsg ? '' : ieMsg.kind === 'err' ? 'border-red-400/40 bg-red-500/10 text-red-300' : ieMsg.kind === 'ok' ? 'border-klt-ok/40 bg-klt-ok/10 text-klt-ok' : 'border-klt-line bg-white/5 text-klt-muted';
             const btn = 'cursor-pointer rounded-lg px-4 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-40';
             const th = 'border-b border-solid border-klt-line px-3 py-2 text-left text-[11px] font-bold uppercase tracking-wider text-klt-muted';
 
@@ -6852,7 +7056,7 @@
                 ${ieMsg ? `<div class="mt-4 rounded-lg border border-solid px-3.5 py-2.5 text-[13px] ${msgCls}">${escapeHtml(ieMsg.text)}</div>` : ''}
 
                 <div class="mt-5 flex flex-wrap gap-2.5">
-                    <button data-ie-act="import" ${s && s.ready && !ieBusy ? '' : 'disabled'} class="${btn} border-0 bg-gradient-to-br from-klt-emerald-light to-klt-emerald-dark text-[#052e21] hover:brightness-110">${fmt(t('ie_btn_import'), { db: dbName })}</button>
+                    <button data-ie-act="import" ${s && s.ready && !ieBusy ? '' : 'disabled'} class="${btn} border-0 btn-emerald">${fmt(t('ie_btn_import'), { db: dbName })}</button>
                     <button data-ie-act="export" ${ieBusy ? 'disabled' : ''} class="${btn} border border-solid border-klt-line bg-transparent text-slate-50 hover:border-klt-emerald hover:text-klt-emerald-light">${fmt(t('ie_btn_export'), { db: dbName })}</button>
                     <button data-ie-act="template" class="${btn} border border-solid border-klt-line bg-transparent text-klt-muted hover:border-klt-emerald hover:text-klt-emerald-light">${t('ie_btn_tpl')}</button>
                 </div>`;
@@ -6978,7 +7182,7 @@
                             <span class="min-w-0 truncate"><b class="mr-1.5 text-klt-muted">${i + 1}.</b>${escapeHtml(e.name)} <span class="font-mono text-[11px] text-klt-emerald-light">${escapeHtml(e.sku)}</span></span>
                             <span class="flex shrink-0 items-center gap-2"><b>${e.qty} ${escapeHtml(e.unit)}</b>${anBadge(e.qty, (prev.get(k) || {}).qty || 0, r.cmp)}</span>
                         </div>
-                        <div class="h-2 overflow-hidden rounded-full bg-white/5"><div class="h-full rounded-full bg-klt-emerald" style="width:${Math.max(4, Math.round(e.qty / max * 100))}%"></div></div>
+                        <div class="h-2 overflow-hidden rounded-full bg-white/5"><div class="h-full rounded-full bg-klt-ok" style="width:${Math.max(4, Math.round(e.qty / max * 100))}%"></div></div>
                     </div>`).join('') : '<div class="py-6 text-center text-sm text-klt-muted">За выбранный период выдач не было</div>';
                 const roHtml = runOut.length ? runOut.map(x => `
                     <div class="flex items-center justify-between gap-2 border-b border-solid border-klt-line py-2 text-[13px] last:border-0">
