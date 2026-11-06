@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Bureau Online</title>
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2040%2040%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22g%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%2334d399%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23059669%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x=%222%22%20y=%222%22%20width=%2236%22%20height=%2236%22%20rx=%2210%22%20fill=%22url(%23g)%22/%3E%3Cpath%20d=%22M11%2017h18l1.6%2014.5a1.5%201.5%200%200%201-1.5%201.7H10.9a1.5%201.5%200%200%201-1.5-1.7z%22%20fill=%22%23fff%22/%3E%3Cpath%20d=%22M15%2017v-2.5a5%205%200%200%201%2010%200V17%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M15.5%2025.5l3.4%203.4%206.2-7%22%20fill=%22none%22%20stroke=%22%23059669%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3C/svg%3E">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1271,6 +1271,168 @@
         .page-container .tl-light input:-webkit-autofill:focus { -webkit-box-shadow: 0 0 0 1000px #FFFFFF inset, 0 0 0 4px rgba(14, 159, 110, .14); }
         .page-container .tl-light .\!border-red-400, .page-container .tl-light input.\!border-red-400, .page-container .tl-light select.\!border-red-400 { border-color: #DC2626 !important; box-shadow: 0 0 0 4px rgba(220, 38, 38, .12); }
         .page-container .tl-light input::selection { background: rgba(14, 159, 110, .22); color: #26231F; }
+
+        /* =====================================================================
+           MOBILE v1 — режим «приложение» для экранов < 1024px.
+           Десктоп (≥ 1024px) не затрагивается: все правила ниже лежат внутри max-width: 1023px,
+           а новые элементы (.m-header, .m-bottom, .m-backdrop, .m-close) на десктопе скрыты.
+           Блок стоит последним в <style>, поэтому перебивает прежние темы без правки старых правил.
+           ===================================================================== */
+        .m-header, .m-bottom, .m-backdrop, .m-close { display: none; }
+
+        @media (max-width: 1023px) {
+            html, body { overflow-x: clip; }
+            html.m-lock, html.m-lock body { overflow: hidden; }
+
+            /* ---- 1. Каркас: шторка превращается в выдвижной Drawer ---- */
+            .app-shell { display: block; min-height: 100vh; min-height: 100dvh; }
+            .main-area { width: 100%; min-width: 0; }
+
+            .sidebar, .sidebar.collapsed {
+                position: fixed; top: 0; left: 0; bottom: 0; z-index: 1190; align-self: auto;
+                width: min(86vw, 320px); height: 100vh; height: 100dvh; padding-top: env(safe-area-inset-top, 0px);
+                transform: translateX(-104%); visibility: hidden; box-shadow: none;
+                transition: transform .28s cubic-bezier(.22, 1, .36, 1), visibility 0s linear .28s;
+            }
+            .sidebar.m-open, .sidebar.collapsed.m-open {
+                transform: none; visibility: visible; box-shadow: 0 0 48px rgba(0, 0, 0, .5);
+                transition: transform .28s cubic-bezier(.22, 1, .36, 1), visibility 0s;
+            }
+            /* «свёрнутая» шторка с десктопа в Drawer не переносится: всегда полная */
+            .sidebar-toggle { display: none; }
+            .sidebar.collapsed .sidebar-logo { display: flex; }
+            .sidebar.collapsed .nav-group-title { display: block; }
+            .sidebar.collapsed .nav-group { padding-top: 4px; }
+            .sidebar.collapsed .nav-item span.nav-label { display: inline; }
+            .sidebar.collapsed .warehouse-row { flex-direction: row; }
+            .sidebar.collapsed .nav-badge { position: static; margin: 0 0 0 auto; padding: 1px 7px; min-width: 20px; }
+            .sidebar .nav-item { min-height: 48px; }
+            .m-close {
+                display: inline-flex; align-items: center; justify-content: center; flex: none; width: 40px; height: 40px; padding: 0;
+                border-radius: 12px; border: 1px solid var(--sb-line); background: rgba(255, 255, 255, .04); color: var(--sb-muted);
+                font-size: 18px; line-height: 1; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+            }
+            .m-close:active { background: rgba(255, 255, 255, .1); }
+            .m-backdrop {
+                display: block; position: fixed; inset: 0; z-index: 1180; background: rgba(15, 13, 10, .55);
+                opacity: 0; pointer-events: none; transition: opacity .25s ease; -webkit-tap-highlight-color: transparent;
+            }
+            .m-backdrop.on { opacity: 1; pointer-events: auto; }
+
+            /* Верхняя панель (язык, синхронизация, выход) переезжает в низ Drawer — см. JS «mobileShell» */
+            .sidebar .topbar {
+                display: flex; flex-wrap: wrap; justify-content: flex-start; align-items: center; gap: 8px; flex-shrink: 0;
+                padding: 12px; border-top: 1px solid var(--sb-line); border-bottom: 0;
+                background: transparent !important; -webkit-backdrop-filter: none !important; backdrop-filter: none !important;
+            }
+            .sidebar .topbar .sync-indicator { flex: 1 1 100%; padding: 0 4px 4px; }
+            .sidebar .topbar .lang-select { flex: 1 1 100%; min-height: 44px; font-size: 14px; }
+            .sidebar .topbar .btn { flex: 1 1 auto; min-height: 44px; justify-content: center; }
+
+            /* ---- 2. Компактная верхняя шапка: бургер + логотип (+ текущий склад) ---- */
+            .m-header {
+                display: flex; align-items: center; gap: 10px; position: sticky; top: 0; z-index: 90;
+                min-height: calc(56px + env(safe-area-inset-top, 0px)); padding: env(safe-area-inset-top, 0px) 12px 0;
+                background: var(--sidebar-bg); border-bottom: 1px solid var(--sb-line);
+            }
+            .m-burger {
+                display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; padding: 0;
+                border-radius: 12px; border: 1px solid var(--sb-line); background: rgba(255, 255, 255, .04); color: #ECE6DA;
+                cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+            }
+            .m-burger:active { background: rgba(255, 255, 255, .1); }
+            .m-burger svg { width: 22px; height: 22px; }
+            .m-logo { display: block; height: 28px; width: auto; min-width: 0; max-width: calc(100vw - 190px); object-fit: contain; }
+            .m-wh {
+                margin-left: auto; flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--sb-line);
+                background: rgba(255, 255, 255, .05); color: #ECE6DA; font-size: 13px; font-weight: 700; letter-spacing: .02em; cursor: pointer;
+                -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+            }
+
+            /* ---- 3. Нижняя плавающая панель навигации (удобно большим пальцем) ---- */
+            .m-bottom {
+                display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; position: fixed; z-index: 95;
+                left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px)); height: 64px; padding: 6px;
+                border-radius: 22px; background: var(--sidebar-bg); border: 1px solid var(--sb-line);
+                box-shadow: 0 12px 32px -10px rgba(0, 0, 0, .55);
+            }
+            .m-bottom button {
+                position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; min-width: 0;
+                padding: 0; border: 0; border-radius: 16px; background: transparent; color: var(--sb-muted); cursor: pointer;
+                font: 600 11px/1.1 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+                -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color .2s ease, color .2s ease;
+            }
+            .m-bottom button:active { background: rgba(255, 255, 255, .08); }
+            .m-bottom button.active { color: #fff; background: rgba(255, 255, 255, .12); }
+            .m-bottom button.active::after { content: ''; position: absolute; bottom: 4px; width: 16px; height: 3px; border-radius: 3px; background: #34D399; }
+            .m-bottom .m-ico { width: 24px; height: 24px; flex: none; }
+            .m-bottom .m-lbl { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+            .m-badge {
+                position: absolute; top: 3px; left: calc(50% + 6px); display: inline-flex; align-items: center; justify-content: center;
+                min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger-color); color: #fff; font-size: 10px; font-weight: 700;
+            }
+            .m-badge[hidden] { display: none; }
+
+            /* Публичная ссылка тимлидов (?portal) — это одна страница без меню; тимлид с логином — одна страница, нижняя панель не нужна */
+            body.portal-mode .m-header, body.portal-mode .m-bottom, body.portal-mode .m-backdrop, body.tl-mode .m-bottom, body.tl-mode .m-wh { display: none !important; }
+
+            /* Плавающие элементы поднимаем над нижней панелью */
+            body:not(.portal-mode):not(.tl-mode) #bur-cart-fab { bottom: calc(86px + env(safe-area-inset-bottom, 0px)) !important; right: 16px !important; min-height: 48px; font-size: 15px; }
+            body:not(.portal-mode):not(.tl-mode) #cmp-toast { bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important; }
+
+            /* ---- 4. Контент на всю ширину экрана, аккуратные поля px-4 ---- */
+            .page-container, body.portal-mode .page-container { width: 100%; max-width: none; margin: 0; padding: 16px 16px 96px; }
+            body:not(.portal-mode):not(.tl-mode) .page-container { padding-bottom: calc(108px + env(safe-area-inset-bottom, 0px)); }
+            .home-sub, .qa-search { max-width: none; }
+            #page-view [class*="max-w-["] { max-width: 100% !important; }
+            .home-header h1 { font-size: 22px; }
+
+            /* ---- 5. Главная: KPI-плитки. Телефон — одна широкая колонка (grid-cols-1 gap-4 w-full), планшет — две ---- */
+            .kpi-grid { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 16px 0 14px; }
+            .kpi-num { font-size: 38px; }
+            .kpi-lbl { font-size: 15px; }
+            .kpi-hint { font-size: 13px; }
+            .quick-actions { flex-direction: column; gap: 10px; margin-bottom: 24px; }
+            .quick-actions .qa-btn { width: 100%; min-height: 52px; justify-content: center; font-size: 15px; white-space: normal; }
+
+            /* ---- 6. Каталог: карточки + крупные кнопки «+ В заказ» ---- */
+            #page-view .cat-grid { gap: 12px; }
+            #bur-seg, #mmc-seg { display: none; }   /* на телефоне только карточки: широкая таблица не нужна */
+            .wh-name { font-size: 16px; line-height: 1.3; }
+            .wh-meta, .wh-desc { font-size: 13px; }
+            .wh-num { font-size: 32px; }
+            .wh-foot { flex-direction: column; align-items: stretch; gap: 10px; }
+            .wh-foot .wh-qty { flex-wrap: wrap; }
+            .wh-foot .btn-emerald, .wh-body .btn-emerald, .tl-body .tl-add, .tl-card .tl-add {
+                width: 100%; min-height: 48px; margin-left: 0; padding: 12px 16px; font-size: 16px; font-weight: 700; white-space: normal; flex: none;
+            }
+            .wh-tools button, .wh-tools .inline-flex > button { min-width: 40px; min-height: 40px; }
+            #bur-search, #mmc-search, #tl-q { font-size: 16px; min-height: 48px; }
+            /* чипы-фильтры — одна лента с горизонтальным свайпом вместо 4–5 рядов */
+            #bur-chips { flex-wrap: nowrap; overflow-x: auto; margin: 0 -16px 12px; padding: 2px 16px 6px; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+            #bur-chips::-webkit-scrollbar { display: none; }
+            #bur-chips .chip { flex: none; min-height: 40px; scroll-snap-align: start; white-space: nowrap; }
+            #bur-chips > span { display: none; }
+
+            /* ---- 7. Форма тимлидов: вертикальный стек, поля во всю ширину ---- */
+            #page-view .tl-light { padding: 16px; border-radius: 16px; }
+            #tl-ident-box { padding: 14px; }
+            #tl-ident-box > div.grid { grid-template-columns: 1fr !important; }
+            #tl-ident-box input, #tl-ident-box select { width: 100%; min-height: 48px; font-size: 16px; }
+            #tl-wh { gap: 8px; }
+            #tl-wh > * { flex: 1 1 0; min-height: 44px; }
+            #tl-lang button { min-height: 40px; }
+            #tl-form > .items-start.gap-5 > * { flex: 1 1 100% !important; width: 100%; min-width: 0; }
+            #tl-cart { position: static !important; }
+            #tl-send { min-height: 52px; font-size: 16px; }
+        }
+
+        /* 400–767px: два компактных столбца карточек; <400px: одна колонка (оригинальные правила); ≥768px — как раньше (3) */
+        @media (min-width: 400px) and (max-width: 767px) { #page-view .cat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+        @media (max-width: 399px) { .card-grid, #tl-list .card-grid { grid-template-columns: 1fr; } }
+        /* телефон: KPI-плитки в одну широкую колонку */
+        @media (max-width: 639px) { .kpi-grid { grid-template-columns: 1fr; gap: 16px; } }
+        @media (prefers-reduced-motion: reduce) { .sidebar, .m-backdrop, .m-bottom button { transition: none !important; } }
     </style>
 </head>
 <body>
@@ -1366,10 +1528,32 @@
         <div class="app-shell">
 
             <!-- ШТОРКА -->
+            <!-- МОБИЛЬНЫЙ DRAWER: подложка и нижняя панель навигации (<1024px). На десктопе скрыты -->
+            <div class="m-backdrop" id="m-backdrop"></div>
+            <nav class="m-bottom" id="m-bottom" aria-label="Navigation">
+                <button type="button" data-mkey="home" onclick="window.mobileNav('home')">
+                    <svg class="m-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+                    <span class="m-lbl" data-i18n="m_home">Главная</span>
+                </button>
+                <button type="button" data-mkey="catalog" onclick="window.mobileNav('catalog')">
+                    <svg class="m-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.6"/><rect x="14" y="3" width="7" height="7" rx="1.6"/><rect x="3" y="14" width="7" height="7" rx="1.6"/><rect x="14" y="14" width="7" height="7" rx="1.6"/></svg>
+                    <span class="m-lbl" data-i18n="m_catalog">Каталог</span>
+                </button>
+                <button type="button" data-mkey="requests" onclick="window.mobileNav('requests')">
+                    <svg class="m-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 13h4l1.5 3h5L16 13h4"/><path d="M5.5 5h13L21 13v6a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-6z"/></svg>
+                    <span class="m-lbl" data-i18n="m_requests">Заявки</span><span class="m-badge" id="m-req-badge" hidden></span>
+                </button>
+                <button type="button" data-mkey="search" onclick="window.mobileNav('search')">
+                    <svg class="m-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+                    <span class="m-lbl" data-i18n="m_search">Поиск</span>
+                </button>
+            </nav>
+
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-top">
                     <div class="sidebar-logo"><img class="sidebar-logo-img" src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20220%2040%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22g%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%2334d399%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23059669%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x=%222%22%20y=%222%22%20width=%2236%22%20height=%2236%22%20rx=%2210%22%20fill=%22url(%23g)%22/%3E%3Cpath%20d=%22M11%2017h18l1.6%2014.5a1.5%201.5%200%200%201-1.5%201.7H10.9a1.5%201.5%200%200%201-1.5-1.7z%22%20fill=%22%23fff%22/%3E%3Cpath%20d=%22M15%2017v-2.5a5%205%200%200%201%2010%200V17%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M15.5%2025.5l3.4%203.4%206.2-7%22%20fill=%22none%22%20stroke=%22%23059669%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3Ctext%20x=%2246%22%20y=%2228%22%20font-family=%22Inter,-apple-system,Segoe%20UI,Roboto,Arial,sans-serif%22%20font-size=%2222%22%20font-weight=%22800%22%20letter-spacing=%22-0.5%22%20fill=%22%23ecfdf5%22%3EBureau%3Ctspan%20fill=%22%2334d399%22%3E%20Online%3C/tspan%3E%3C/text%3E%3C/svg%3E" alt="Bureau Online"></div>
                     <button class="sidebar-toggle" id="sidebar-toggle-btn" title="Свернуть/развернуть">☰</button>
+                    <button type="button" class="m-close" id="m-close" aria-label="Close">✕</button>
                 </div>
 
                 <nav class="sidebar-nav">
@@ -1421,6 +1605,14 @@
 
             <!-- ОСНОВНАЯ ОБЛАСТЬ -->
             <div class="main-area">
+                <!-- МОБИЛЬНАЯ ШАПКА (<1024px): бургер + логотип. На десктопе скрыта -->
+                <header class="m-header" id="m-header">
+                    <button type="button" class="m-burger" id="m-burger" aria-label="Menu" aria-controls="sidebar" aria-expanded="false">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+                    </button>
+                    <img class="m-logo" src="data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%20220%2040%22%3E%3Cdefs%3E%3ClinearGradient%20id=%22g%22%20x1=%220%22%20y1=%220%22%20x2=%221%22%20y2=%221%22%3E%3Cstop%20offset=%220%22%20stop-color=%22%2334d399%22/%3E%3Cstop%20offset=%221%22%20stop-color=%22%23059669%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect%20x=%222%22%20y=%222%22%20width=%2236%22%20height=%2236%22%20rx=%2210%22%20fill=%22url(%23g)%22/%3E%3Cpath%20d=%22M11%2017h18l1.6%2014.5a1.5%201.5%200%200%201-1.5%201.7H10.9a1.5%201.5%200%200%201-1.5-1.7z%22%20fill=%22%23fff%22/%3E%3Cpath%20d=%22M15%2017v-2.5a5%205%200%200%201%2010%200V17%22%20fill=%22none%22%20stroke=%22%23fff%22%20stroke-width=%222.4%22%20stroke-linecap=%22round%22/%3E%3Cpath%20d=%22M15.5%2025.5l3.4%203.4%206.2-7%22%20fill=%22none%22%20stroke=%22%23059669%22%20stroke-width=%222.6%22%20stroke-linecap=%22round%22%20stroke-linejoin=%22round%22/%3E%3Ctext%20x=%2246%22%20y=%2228%22%20font-family=%22Inter,-apple-system,Segoe%20UI,Roboto,Arial,sans-serif%22%20font-size=%2222%22%20font-weight=%22800%22%20letter-spacing=%22-0.5%22%20fill=%22%23ecfdf5%22%3EBureau%3Ctspan%20fill=%22%2334d399%22%3E%20Online%3C/tspan%3E%3C/text%3E%3C/svg%3E" alt="Bureau Online">
+                    <button type="button" class="m-wh" id="m-wh" aria-label="Warehouse">DC1</button>
+                </header>
                 <div class="topbar">
                     <!-- Индикатор статуса сети/синхронизации: переключается через window.setSyncStatus(true|false) -->
                     <div class="sync-indicator" id="sync-indicator"><span class="sync-dot"></span><span id="sync-label" data-i18n="sync_online">Синхронизировано</span></div>
@@ -1985,6 +2177,7 @@
 
         function setActiveNav(key) {
             document.querySelectorAll('.nav-item').forEach(btn => btn.classList.toggle('active', btn.dataset.key === key));
+            mobileNavSync(key);   // подсветка пункта в нижней панели (мобильный режим)
         }
 
         function showHome() {
@@ -4358,7 +4551,7 @@
                     $('mmc-list').innerHTML = kraftEmpty(mmcItems.length ? t('mmc_empty') : t('mmc_empty_first'));
                     return;
                 }
-                $('mmc-list').innerHTML = mmcView === 'grid'
+                $('mmc-list').innerHTML = mmcView === 'grid' || isMobileUi()
                     ? `<div class="cat-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 w-full">${list.map(card).join('')}</div>`
                     : table(list);
             }
@@ -4446,7 +4639,7 @@
                         hidden ? `<div class="mt-1"><button type="button" data-bur-cat="${BUR_OUT}" class="${CMP_BTN} text-[13px]">⛔ ${fmt(t('bur_out_hint'), { n: hidden })}</button></div>` : '');
                     return;
                 }
-                $('bur-list').innerHTML = burView === 'grid'
+                $('bur-list').innerHTML = burView === 'grid' || isMobileUi()
                     ? `<div class="cat-grid grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-4 w-full">${list.map(burCard).join('')}</div>`
                     : burTable(list);
             }
@@ -6832,6 +7025,81 @@
                 if (tok === anHomeSeq) box.querySelector('.an-body').innerHTML = `<div class="py-6 text-center text-sm text-red-300">${t('an_err')}</div>`;
             }
         }
+
+
+        // =====================================================================
+        // MOBILE SHELL (<1024px): Drawer-меню, нижняя панель, адаптация каталога.
+        // На десктопе (≥1024px) ничего не меняется: .topbar возвращается на своё место, элементы скрыты CSS-ом.
+        // =====================================================================
+        const MQ_MOBILE = window.matchMedia('(max-width: 1023px)');
+        function isMobileUi() { return window.matchMedia('(max-width: 1023px)').matches; }
+        Object.assign(TR.ru, { m_home: 'Главная', m_catalog: 'Каталог', m_requests: 'Заявки', m_search: 'Поиск' });
+        Object.assign(TR.uk, { m_home: 'Головна', m_catalog: 'Каталог', m_requests: 'Заявки', m_search: 'Пошук' });
+        Object.assign(TR.pl, { m_home: 'Główna', m_catalog: 'Katalog', m_requests: 'Zgłoszenia', m_search: 'Szukaj' });
+        Object.assign(TR.en, { m_home: 'Home', m_catalog: 'Catalog', m_requests: 'Requests', m_search: 'Search' });
+
+        // подсветка активной вкладки нижней панели (вызывается из setActiveNav; читает DOM при каждом вызове)
+        function mobileNavSync(key) {
+            const map = { home: 'home', 'bureau-materials': 'catalog', 'material-master': 'catalog', 'tl-requests': 'requests', 'tl-portal': 'requests', 'bureau-issue': 'search' };
+            document.querySelectorAll('#m-bottom [data-mkey]').forEach(b => b.classList.toggle('active', b.dataset.mkey === map[key]));
+        }
+        function mobileNav(key) {
+            const pageShown = document.getElementById('page-view').style.display !== 'none';
+            const onPage = k => pageShown && currentPageKey === k;
+            const top = () => window.scrollTo({ top: 0, behavior: 'smooth' });
+            const go = fn => { fn(); window.scrollTo(0, 0); };
+            if (key === 'home') { if (!currentPageKey) top(); else go(showHome); }
+            else if (key === 'catalog') { if (onPage('bureau-materials')) top(); else go(() => openPage('bureau-materials')); }
+            else if (key === 'requests') { if (onPage('tl-requests')) top(); else go(() => openPage('tl-requests')); }
+            else if (key === 'search') {
+                const inp = document.getElementById('bur-search');
+                if (pageShown && /^bureau-/.test(currentPageKey || '') && inp && inp.offsetParent) { top(); inp.focus(); }   // уже в каталоге — просто к поиску
+                else go(() => openPage('bureau-issue'));   // каталог сам ставит фокус в поле поиска
+            }
+        }
+        window.mobileNav = mobileNav;
+
+        (function mobileShell() {
+            const $ = id => document.getElementById(id);
+            const sb = $('sidebar'), bd = $('m-backdrop'), burger = $('m-burger'), root = document.documentElement;
+            const topbar = document.querySelector('.topbar'), main = document.querySelector('.main-area');
+            if (!sb || !bd || !burger) return;
+
+            function openDrawer() { sb.classList.add('m-open'); bd.classList.add('on'); root.classList.add('m-lock'); burger.setAttribute('aria-expanded', 'true'); }
+            function closeDrawer() { sb.classList.remove('m-open'); bd.classList.remove('on'); root.classList.remove('m-lock'); burger.setAttribute('aria-expanded', 'false'); }
+            burger.addEventListener('click', () => (sb.classList.contains('m-open') ? closeDrawer() : openDrawer()));
+            $('m-wh').addEventListener('click', openDrawer);          // чип склада открывает Drawer, где переключатель DC1/DC2/DC3
+            $('m-close').addEventListener('click', closeDrawer);
+            bd.addEventListener('click', closeDrawer);
+            sb.addEventListener('click', e => { if (e.target.closest('.nav-item, .warehouse-btn')) closeDrawer(); });
+            document.addEventListener('keydown', e => { if (e.key === 'Escape' && sb.classList.contains('m-open')) closeDrawer(); });
+            let sx = null;   // свайп влево закрывает Drawer
+            sb.addEventListener('touchstart', e => { sx = e.touches[0].clientX; }, { passive: true });
+            sb.addEventListener('touchend', e => { if (sx !== null && e.changedTouches[0].clientX - sx < -60) closeDrawer(); sx = null; }, { passive: true });
+
+            // язык / синхронизация / «Выйти» — в нижней части Drawer; на десктопе возвращаем на место
+            function placeTopbar() {
+                if (!topbar || !main) return;
+                if (MQ_MOBILE.matches) { if (topbar.parentElement !== sb) sb.appendChild(topbar); }
+                else if (topbar.parentElement !== main) main.insertBefore(topbar, main.firstChild);
+            }
+            placeTopbar();
+            MQ_MOBILE.addEventListener('change', () => {
+                closeDrawer(); placeTopbar();
+                try { burRedraw(); } catch (e) { /* каталог не открыт */ }   // на телефоне каталог всегда карточками, на десктопе — как выбрано
+            });
+
+            // чип текущего склада в шапке повторяет активную кнопку DC1/DC2/DC3
+            const pill = $('m-wh'), whRow = $('warehouse-row');
+            const syncWh = () => { const a = document.querySelector('.warehouse-btn.active'); if (a && a.dataset.wh) pill.textContent = a.dataset.wh; };
+            if (whRow) new MutationObserver(syncWh).observe(whRow, { subtree: true, attributes: true, attributeFilter: ['class'] });
+            syncWh();
+
+            // бейдж входящих заявок дублируется на вкладке «Заявки»
+            const srcB = $('tl-req-badge'), dstB = $('m-req-badge');
+            const syncB = () => { dstB.textContent = srcB.textContent; dstB.hidden = srcB.hidden || !srcB.textContent.trim(); };
+            if (srcB && dstB) { new MutationObserver(syncB).observe(srcB, { childList: true, characterData: true, subtree: true, attributes: true }); syncB(); }
+        })();
 
         window.homeReceive = homeReceive;
         window.openMaterialJournal = openMaterialJournal;
